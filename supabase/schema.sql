@@ -141,12 +141,108 @@ CREATE POLICY "Workspace members can insert/update tasks"
     ON public.tasks FOR ALL
     USING (
         EXISTS (
-            SELECT 1 FROM public.workspace_members 
+            SELECT 1 FROM public.workspace_members
             WHERE workspace_id = tasks.workspace_id AND (user_id = auth.uid() OR email = auth.email())
         )
     );
 
--- ENABLE SUPABASE REALTIME
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.workspace_lanes;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.activity_logs;
+-- Lane Policies
+CREATE POLICY "Workspace members can view lanes"
+    ON public.workspace_lanes FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.workspace_members
+            WHERE workspace_id = workspace_lanes.workspace_id AND (user_id = auth.uid() OR email = auth.email())
+        )
+    );
+
+CREATE POLICY "Workspace admins can modify lanes"
+    ON public.workspace_lanes FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.workspace_members
+            WHERE workspace_id = workspace_lanes.workspace_id AND user_id = auth.uid() AND role = 'admin'
+        )
+    );
+
+-- Member Policies
+CREATE POLICY "Workspace members can view members"
+    ON public.workspace_members FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.workspace_members self
+            WHERE self.workspace_id = workspace_members.workspace_id AND (self.user_id = auth.uid() OR self.email = auth.email())
+        )
+    );
+
+CREATE POLICY "Workspace admins can modify members"
+    ON public.workspace_members FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.workspace_members adm
+            WHERE adm.workspace_id = workspace_members.workspace_id AND adm.user_id = auth.uid() AND adm.role = 'admin'
+        )
+    );
+
+-- Subtask Policies
+CREATE POLICY "Workspace members can view subtasks"
+    ON public.subtasks FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.tasks t
+            JOIN public.workspace_members wm ON wm.workspace_id = t.workspace_id
+            WHERE t.id = subtasks.task_id AND (wm.user_id = auth.uid() OR wm.email = auth.email())
+        )
+    );
+
+CREATE POLICY "Workspace members can modify subtasks"
+    ON public.subtasks FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.tasks t
+            JOIN public.workspace_members wm ON wm.workspace_id = t.workspace_id
+            WHERE t.id = subtasks.task_id AND (wm.user_id = auth.uid() OR wm.email = auth.email())
+        )
+    );
+
+-- Activity Log Policies
+CREATE POLICY "Workspace members can view activity logs"
+    ON public.activity_logs FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.workspace_members
+            WHERE workspace_id = activity_logs.workspace_id AND (user_id = auth.uid() OR email = auth.email())
+        )
+    );
+
+CREATE POLICY "Workspace members can insert activity logs"
+    ON public.activity_logs FOR INSERT
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.workspace_members
+            WHERE workspace_id = activity_logs.workspace_id AND (user_id = auth.uid() OR email = auth.email())
+        )
+    );
+
+-- ENABLE SUPABASE REALTIME (idempotent so the script can be re-run)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'tasks') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'workspace_lanes') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.workspace_lanes;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'activity_logs') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.activity_logs;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'subtasks') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.subtasks;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'workspace_members') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.workspace_members;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'workspaces') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.workspaces;
+    END IF;
+END $$;
