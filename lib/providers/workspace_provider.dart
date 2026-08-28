@@ -96,7 +96,7 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
       members: [
         WorkspaceMember(
           id: _uuid.v4(),
-          workspaceId: name,
+          workspaceId: newWs.id,
           userId: adminId,
           email: 'admin@tasksphere.app',
           role: UserRole.admin,
