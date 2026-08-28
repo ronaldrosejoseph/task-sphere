@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/services/supabase_service.dart';
 import '../../providers/auth_provider.dart';
 import '../navigation/main_navigation_scaffold.dart';
 
@@ -61,7 +62,37 @@ class AuthScreen extends ConsumerWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey[400], fontSize: 13),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
+
+                // Sync Mode Status
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: (SupabaseService.instance.isInitialized
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFF59E0B))
+                        .withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: (SupabaseService.instance.isInitialized
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFFF59E0B))
+                          .withOpacity(0.4),
+                    ),
+                  ),
+                  child: Text(
+                    SupabaseService.instance.isInitialized
+                        ? 'Cloud sync enabled - sign in to continue'
+                        : 'Offline demo mode - data stays on this device',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: SupabaseService.instance.isInitialized
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFF59E0B),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
 
                 // Google Sign-In Button
                 ElevatedButton.icon(
