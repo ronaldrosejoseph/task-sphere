@@ -10,7 +10,7 @@ import '../../models/subtask.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../core/services/google_drive_service.dart';
+import '../../core/services/storage_service.dart';
 
 const _uuid = Uuid();
 
@@ -36,7 +36,8 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   DateTime? _dueDate;
   double _estimatedHours = 0.0;
   List<Subtask> _subtasks = [];
-  List<String> _driveAttachmentUrls = [];
+  List<String> _attachmentPaths = [];
+  late final String _newTaskId;
 
   // Stopwatch state
   bool _isTimerRunning = false;
@@ -59,7 +60,8 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     _dueDate = widget.task?.dueDate;
     _estimatedHours = widget.task?.estimatedHours ?? 0.0;
     _subtasks = List.from(widget.task?.subtasks ?? []);
-    _driveAttachmentUrls = List.from(widget.task?.driveAttachmentUrls ?? []);
+    _attachmentPaths = List.from(widget.task?.attachmentPaths ?? []);
+    _newTaskId = widget.task?.id ?? _uuid.v4();
   }
 
   @override
@@ -406,11 +408,11 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Google Drive File Attachments
+                  // File Attachments (Supabase Storage)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Google Drive Attachments', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const Text('Attachments', style: TextStyle(fontWeight: FontWeight.w600)),
                       TextButton.icon(
                         onPressed: _pickAndUploadAttachment,
                         icon: const Icon(Icons.cloud_upload_outlined, size: 18),
@@ -419,17 +421,19 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                     ],
                   ),
                   const SizedBox(height: 6),
-                  if (_driveAttachmentUrls.isEmpty)
+                  if (_attachmentPaths.isEmpty)
                     Text('No files attached yet.', style: TextStyle(fontSize: 12, color: Colors.grey[400]))
                   else
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: _driveAttachmentUrls.map((url) {
-                        return ActionChip(
+                      children: _attachmentPaths.map((path) {
+                        return InputChip(
                           avatar: const Icon(Icons.insert_drive_file, size: 16, color: Color(0xFF3B82F6)),
-                          label: Text(url.split('/').last),
-                          onPressed: () => launchUrl(Uri.parse(url)),
+                          label: Text(path.split('/').last),
+                          onPressed: () => _openAttachment(path),
+                          onDeleted: () => _removeAttachment(path),
+                          deleteIcon: const Icon(Icons.close, size: 14),
                         );
                       }).toList(),
                     ),
@@ -492,18 +496,48 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   }
 
   Future<void> _pickAndUploadAttachment() async {
-    final result = await FilePicker.pickFiles();
-    if (result != null && result.files.isNotEmpty) {
-      final file = result.files.first;
-      final url = await GoogleDriveService.instance.uploadAttachment(
-        fileName: file.name,
-        fileBytes: file.bytes ?? [],
-        mimeType: 'application/octet-stream',
+    if (!SupabaseStorageService.instance.isAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Attachments require a connected Supabase project.'),
+        ),
       );
-      if (url != null) {
-        setState(() => _driveAttachmentUrls.add(url));
-      }
+      return;
     }
+
+    final result = await FilePicker.pickFiles(withData: true);
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.first;
+    final bytes = file.bytes;
+    if (bytes == null) return;
+    final workspaceId = ref.read(activeWorkspaceProvider).activeWorkspace.id;
+    final path = await SupabaseStorageService.instance.uploadAttachment(
+      workspaceId: workspaceId,
+      taskId: _newTaskId,
+      fileName: file.name,
+      fileBytes: bytes,
+      mimeType: 'application/octet-stream',
+    );
+    if (path != null && mounted) {
+      setState(() => _attachmentPaths.add(path));
+    }
+  }
+
+  Future<void> _openAttachment(String path) async {
+    final url = await SupabaseStorageService.instance.createSignedUrl(path);
+    if (url != null && mounted) {
+      await launchUrl(Uri.parse(url));
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open attachment.')),
+      );
+    }
+  }
+
+  Future<void> _removeAttachment(String path) async {
+    setState(() => _attachmentPaths.remove(path));
+    await SupabaseStorageService.instance.deleteAttachment(path);
   }
 
   void _saveTask() {
@@ -515,7 +549,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
 
     if (widget.task == null) {
       // Create New Task
-      final taskId = _uuid.v4();
+      final taskId = _newTaskId;
       final newTask = TaskItem(
         id: taskId,
         workspaceId: wsId,
@@ -531,7 +565,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         subtasks: [
           for (final subtask in _subtasks) subtask.copyWith(taskId: taskId),
         ],
-        driveAttachmentUrls: _driveAttachmentUrls,
+        attachmentPaths: _attachmentPaths,
         createdBy: currentUser?.displayName ?? 'Admin',
       );
       ref.read(tasksProvider.notifier).addTask(newTask);
@@ -554,7 +588,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         estimatedHours: _estimatedHours,
         loggedSeconds: widget.task!.loggedSeconds + _sessionSeconds,
         subtasks: _subtasks,
-        driveAttachmentUrls: _driveAttachmentUrls,
+        attachmentPaths: _attachmentPaths,
       );
       ref.read(tasksProvider.notifier).updateTask(updated);
       ref.read(activityLogsProvider.notifier).addLog(

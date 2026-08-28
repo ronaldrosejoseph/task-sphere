@@ -24,7 +24,7 @@ TaskItem buildTask({
     dueDate: dueDate,
     estimatedHours: 4.5,
     loggedSeconds: 3600,
-    driveAttachmentUrls: const ['https://drive.google.com/file/abc'],
+    attachmentPaths: const ['ws-1/task-1/file.pdf'],
     isArchived: false,
     subtasks: subtasks,
     createdBy: 'user-1',
@@ -56,7 +56,7 @@ void main() {
       expect(restored.dueDate, task.dueDate);
       expect(restored.estimatedHours, task.estimatedHours);
       expect(restored.loggedSeconds, task.loggedSeconds);
-      expect(restored.driveAttachmentUrls, task.driveAttachmentUrls);
+      expect(restored.attachmentPaths, task.attachmentPaths);
       expect(restored.isArchived, task.isArchived);
       expect(restored.createdBy, task.createdBy);
       expect(restored.createdAt, task.createdAt);
@@ -85,7 +85,7 @@ void main() {
       expect(task.dueDate, isNull);
       expect(task.estimatedHours, 0.0);
       expect(task.loggedSeconds, 0);
-      expect(task.driveAttachmentUrls, isEmpty);
+      expect(task.attachmentPaths, isEmpty);
       expect(task.isArchived, false);
       expect(task.subtasks, isEmpty);
     });

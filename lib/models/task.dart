@@ -57,7 +57,7 @@ class TaskItem {
   final DateTime? dueDate;
   final double estimatedHours;
   final int loggedSeconds;
-  final List<String> driveAttachmentUrls;
+  final List<String> attachmentPaths;
   final bool isArchived;
   final List<Subtask> subtasks;
   final String? createdBy;
@@ -77,7 +77,7 @@ class TaskItem {
     this.dueDate,
     this.estimatedHours = 0.0,
     this.loggedSeconds = 0,
-    this.driveAttachmentUrls = const [],
+    this.attachmentPaths = const [],
     this.isArchived = false,
     this.subtasks = const [],
     this.createdBy,
@@ -106,7 +106,7 @@ class TaskItem {
       'due_date': dueDate?.toIso8601String(),
       'estimated_hours': estimatedHours,
       'logged_seconds': loggedSeconds,
-      'drive_attachment_urls': driveAttachmentUrls,
+      'attachment_paths': attachmentPaths,
       'is_archived': isArchived,
       'created_by': createdBy,
       'created_at': createdAt.toIso8601String(),
@@ -136,7 +136,7 @@ class TaskItem {
       dueDate: json['due_date'] != null ? DateTime.parse(json['due_date'] as String) : null,
       estimatedHours: (json['estimated_hours'] as num?)?.toDouble() ?? 0.0,
       loggedSeconds: json['logged_seconds'] as int? ?? 0,
-      driveAttachmentUrls: (json['drive_attachment_urls'] as List<dynamic>?)
+      attachmentPaths: (json['attachment_paths'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
@@ -163,7 +163,7 @@ class TaskItem {
     DateTime? dueDate,
     double? estimatedHours,
     int? loggedSeconds,
-    List<String>? driveAttachmentUrls,
+    List<String>? attachmentPaths,
     bool? isArchived,
     List<Subtask>? subtasks,
   }) {
@@ -180,7 +180,7 @@ class TaskItem {
       dueDate: dueDate ?? this.dueDate,
       estimatedHours: estimatedHours ?? this.estimatedHours,
       loggedSeconds: loggedSeconds ?? this.loggedSeconds,
-      driveAttachmentUrls: driveAttachmentUrls ?? this.driveAttachmentUrls,
+      attachmentPaths: attachmentPaths ?? this.attachmentPaths,
       isArchived: isArchived ?? this.isArchived,
       subtasks: subtasks ?? this.subtasks,
       createdBy: createdBy,

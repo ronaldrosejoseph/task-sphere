@@ -96,8 +96,8 @@ class SettingsView extends ConsumerWidget {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.account_circle, color: Color(0xFF3B82F6)),
-                  title: Text(currentUser?.displayName ?? 'Google Drive Sync'),
-                  subtitle: Text(currentUser?.email ?? 'Sign in with Google to enable Drive attachments'),
+                  title: Text(currentUser?.displayName ?? 'Google Account'),
+                  subtitle: Text(currentUser?.email ?? 'Sign in with Google to sync across devices'),
                   trailing: ElevatedButton(
                     onPressed: () {
                       if (currentUser == null) {

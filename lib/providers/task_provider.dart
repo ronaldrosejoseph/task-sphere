@@ -229,8 +229,8 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
         id: 'task-103',
         workspaceId: wsId,
         laneId: partiallyDoneLane,
-        title: 'Google Drive File Attachment Integration',
-        description: 'Upload task attachments directly to Google Drive folder using Drive API v3.',
+        title: 'Supabase Storage File Attachment Integration',
+        description: 'Upload task attachments to the private Supabase Storage bucket with workspace RLS policies.',
         assigneeName: 'Dev Team',
         assigneeEmail: 'dev.team@tasksphere.app',
         priority: TaskPriority.medium,
@@ -239,7 +239,7 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
         loggedSeconds: 18000,
         subtasks: [
           Subtask(id: 'st-6', taskId: 'task-103', title: 'Google OAuth 2.0 flow', isCompleted: true),
-          Subtask(id: 'st-7', taskId: 'task-103', title: 'Drive API file upload stream', isCompleted: true),
+          Subtask(id: 'st-7', taskId: 'task-103', title: 'Storage upload via file picker', isCompleted: true),
           Subtask(id: 'st-8', taskId: 'task-103', title: 'Attachment preview widget', isCompleted: false),
         ],
         createdAt: now.subtract(const Duration(days: 3)),
@@ -266,7 +266,7 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
         workspaceId: wsId,
         laneId: wontDoLane,
         title: 'Legacy MySQL Server Backend',
-        description: 'Replaced with 100% serverless client-side architecture using Supabase & Google Drive.',
+        description: 'Replaced with 100% serverless client-side architecture using Supabase (database, auth, storage).',
         assigneeName: 'Alex Morgan',
         assigneeEmail: 'alex.admin@tasksphere.app',
         priority: TaskPriority.low,
@@ -362,13 +362,13 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
     }
   }
 
-  void addAttachmentUrl(String taskId, String url) {
+  void addAttachmentPath(String taskId, String path) {
     _mutationCount += 1;
     TaskItem? updatedTask;
     state = state.map((task) {
       if (task.id == taskId) {
-        final updatedUrls = [...task.driveAttachmentUrls, url];
-        updatedTask = task.copyWith(driveAttachmentUrls: updatedUrls);
+        final updatedPaths = [...task.attachmentPaths, path];
+        updatedTask = task.copyWith(attachmentPaths: updatedPaths);
         return updatedTask!;
       }
       return task;

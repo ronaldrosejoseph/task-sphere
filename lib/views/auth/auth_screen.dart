@@ -58,7 +58,7 @@ class AuthScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Serverless Kanban Task Management with Supabase & Google Drive API',
+                  'Serverless Kanban Task Management with Supabase',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey[400], fontSize: 13),
                 ),

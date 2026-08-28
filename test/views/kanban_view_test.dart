@@ -50,7 +50,7 @@ void main() {
 
       expect(find.text('Design Dark Mode Glassmorphic UI System'), findsOneWidget);
       expect(find.text('Implement Supabase Realtime WebSockets'), findsOneWidget);
-      expect(find.text('Google Drive File Attachment Integration'), findsOneWidget);
+      expect(find.text('Supabase Storage File Attachment Integration'), findsOneWidget);
       expect(find.text('Setup Flutter Multi-Platform Target Configuration'), findsOneWidget);
     });
 
@@ -65,12 +65,12 @@ void main() {
     testWidgets('search filter narrows tasks by title', (tester) async {
       await pumpBoard(tester);
 
-      await tester.enterText(find.byType(TextField).first, 'supabase');
+      await tester.enterText(find.byType(TextField).first, 'realtime');
       await tester.pumpAndSettle();
 
       expect(find.text('Implement Supabase Realtime WebSockets'), findsOneWidget);
       expect(find.text('Design Dark Mode Glassmorphic UI System'), findsNothing);
-      expect(find.text('Google Drive File Attachment Integration'), findsNothing);
+      expect(find.text('Supabase Storage File Attachment Integration'), findsNothing);
     });
 
     testWidgets('priority filter keeps only the selected priority', (tester) async {

@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS public.tasks (
     due_date TIMESTAMPTZ,
     estimated_hours DOUBLE PRECISION DEFAULT 0.0,
     logged_seconds INT DEFAULT 0,
-    drive_attachment_urls TEXT[] DEFAULT '{}',
+    attachment_paths TEXT[] DEFAULT '{}',
     is_archived BOOLEAN NOT NULL DEFAULT false,
     created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -222,6 +222,50 @@ CREATE POLICY "Workspace members can insert activity logs"
             SELECT 1 FROM public.workspace_members
             WHERE workspace_id = activity_logs.workspace_id AND (user_id = auth.uid() OR email = auth.email())
         )
+    );
+
+-- TASK ATTACHMENT STORAGE
+-- Private bucket for task attachments. Files live at
+-- {workspace_id}/{task_id}/{timestamp}_{filename} and access is governed by
+-- the storage.objects policies below.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('task-attachments', 'task-attachments', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Helper used by storage policies to check workspace membership.
+CREATE OR REPLACE FUNCTION public.is_workspace_member(ws_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.workspace_members
+        WHERE workspace_id = ws_id
+          AND (user_id = auth.uid() OR email = auth.email())
+    );
+$$;
+
+CREATE POLICY "Workspace members can upload attachments"
+    ON storage.objects FOR INSERT TO authenticated
+    WITH CHECK (
+        bucket_id = 'task-attachments'
+        AND public.is_workspace_member((storage.foldername(name))[1]::uuid)
+    );
+
+CREATE POLICY "Workspace members can read attachments"
+    ON storage.objects FOR SELECT TO authenticated
+    USING (
+        bucket_id = 'task-attachments'
+        AND public.is_workspace_member((storage.foldername(name))[1]::uuid)
+    );
+
+CREATE POLICY "Workspace members can delete attachments"
+    ON storage.objects FOR DELETE TO authenticated
+    USING (
+        bucket_id = 'task-attachments'
+        AND public.is_workspace_member((storage.foldername(name))[1]::uuid)
     );
 
 -- ENABLE SUPABASE REALTIME (idempotent so the script can be re-run)

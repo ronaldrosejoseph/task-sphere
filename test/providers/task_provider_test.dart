@@ -147,14 +147,14 @@ void main() {
       expect(after, before + 900);
     });
 
-    test('addAttachmentUrl appends to the matching task', () {
+    test('addAttachmentPath appends to the matching task', () {
       final container = makeContainer();
       final notifier = container.read(tasksProvider.notifier);
 
-      notifier.addAttachmentUrl('task-103', 'https://drive.google.com/file/xyz');
+      notifier.addAttachmentPath('task-103', 'ws-1/task-103/file.png');
 
       final task = container.read(tasksProvider).firstWhere((t) => t.id == 'task-103');
-      expect(task.driveAttachmentUrls, contains('https://drive.google.com/file/xyz'));
+      expect(task.attachmentPaths, contains('ws-1/task-103/file.png'));
     });
 
     test('archiveTask toggles the archived flag', () {

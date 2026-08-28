@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_profile.dart';
-import '../core/services/google_drive_service.dart';
+import '../core/services/google_auth_service.dart';
 import '../core/services/supabase_service.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, UserProfile?>((ref) {
@@ -68,7 +68,7 @@ class AuthNotifier extends StateNotifier<UserProfile?> {
       return;
     }
 
-    final googleUser = await GoogleDriveService.instance.signIn();
+    final googleUser = await GoogleAuthService.instance.signIn();
     if (googleUser == null) return;
 
     if (supabaseClient != null) {
@@ -111,7 +111,7 @@ class AuthNotifier extends StateNotifier<UserProfile?> {
   }
 
   Future<void> signOut() async {
-    await GoogleDriveService.instance.signOut();
+    await GoogleAuthService.instance.signOut();
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {

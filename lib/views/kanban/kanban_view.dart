@@ -383,7 +383,7 @@ class _TaskCardWidget extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Priority Pill & Drive Attachment Badge
+              // Priority Pill & Attachment Badge
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -403,12 +403,12 @@ class _TaskCardWidget extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (task.driveAttachmentUrls.isNotEmpty)
+                  if (task.attachmentPaths.isNotEmpty)
                     Row(
                       children: [
                         const Icon(Icons.attach_file, size: 14, color: Color(0xFF3B82F6)),
                         Text(
-                          '${task.driveAttachmentUrls.length}',
+                          '${task.attachmentPaths.length}',
                           style: const TextStyle(fontSize: 11, color: Color(0xFF3B82F6)),
                         ),
                       ],
