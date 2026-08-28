@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/lane.dart';
+import '../../../providers/task_provider.dart';
 import '../../../providers/workspace_provider.dart';
 
 class LaneManagerDialog extends ConsumerStatefulWidget {
@@ -157,9 +158,7 @@ class _LaneManagerDialogState extends ConsumerState<LaneManagerDialog> {
                           if (!lane.isDefault)
                             IconButton(
                               icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-                              onPressed: () {
-                                ref.read(activeWorkspaceProvider.notifier).deleteLane(lane.id);
-                              },
+                              onPressed: () => _confirmDeleteLane(lane),
                             ),
                         ],
                       ),
@@ -172,6 +171,42 @@ class _LaneManagerDialogState extends ConsumerState<LaneManagerDialog> {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteLane(KanbanLane lane) async {
+    final taskCount =
+        ref.read(tasksProvider).where((t) => t.laneId == lane.id).length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete "${lane.title}"?'),
+        content: Text(
+          taskCount > 0
+              ? '$taskCount task(s) in this lane will be permanently deleted.'
+              : 'This lane will be removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete Lane'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    // The database cascade removes these tasks server-side; mirror it locally.
+    final tasksInLane =
+        ref.read(tasksProvider).where((t) => t.laneId == lane.id).toList();
+    for (final task in tasksInLane) {
+      ref.read(tasksProvider.notifier).deleteTask(task.id);
+    }
+    ref.read(activeWorkspaceProvider.notifier).deleteLane(lane.id);
   }
 
   void _showColorPicker() {
