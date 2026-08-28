@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../../models/task.dart';
+import '../../models/workspace.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
 
@@ -10,7 +12,9 @@ class AnalyticsView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tasks = ref.watch(tasksProvider);
-    final lanes = ref.watch(activeWorkspaceProvider).lanes;
+    final workspaceState = ref.watch(activeWorkspaceProvider);
+    final lanes = workspaceState.lanes;
+    final members = workspaceState.activeWorkspace.members;
 
     final totalTasks = tasks.length;
     final doneTasksCount = tasks.where((t) {
@@ -136,20 +140,7 @@ class AnalyticsView extends ConsumerWidget {
                             const SizedBox(height: 24),
                             SizedBox(
                               height: 220,
-                              child: BarChart(
-                                BarChartData(
-                                  borderData: FlBorderData(show: false),
-                                  titlesData: const FlTitlesData(
-                                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                  ),
-                                  barGroups: [
-                                    BarChartGroupData(x: 0, barRods: [BarChartRodData(toY: 3, color: const Color(0xFF6366F1))]),
-                                    BarChartGroupData(x: 1, barRods: [BarChartRodData(toY: 2, color: const Color(0xFF10B981))]),
-                                    BarChartGroupData(x: 2, barRods: [BarChartRodData(toY: 4, color: const Color(0xFFF59E0B))]),
-                                  ],
-                                ),
-                              ),
+                              child: _MemberWorkloadChart(tasks: tasks, members: members),
                             ),
                             const SizedBox(height: 16),
                             const Text('Tasks assigned per team member', style: TextStyle(fontSize: 12, color: Colors.grey)),
@@ -162,6 +153,108 @@ class AnalyticsView extends ConsumerWidget {
               );
             },
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemberWorkloadChart extends StatelessWidget {
+  final List<TaskItem> tasks;
+  final List<WorkspaceMember> members;
+
+  const _MemberWorkloadChart({required this.tasks, required this.members});
+
+  static const _palette = [
+    Color(0xFF6366F1),
+    Color(0xFF10B981),
+    Color(0xFFF59E0B),
+    Color(0xFFEC4899),
+    Color(0xFF06B6D4),
+    Color(0xFF8B5CF6),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = <String, int>{};
+    for (final member in members) {
+      counts[member.email] = 0;
+    }
+    var unassigned = 0;
+    for (final task in tasks) {
+      final email = task.assigneeEmail;
+      if (email == null || email.isEmpty) {
+        unassigned += 1;
+      } else if (counts.containsKey(email)) {
+        counts[email] = counts[email]! + 1;
+      } else {
+        counts[email] = 1;
+      }
+    }
+
+    final entries = <(String, String, int)>[
+      for (final member in members)
+        (
+          member.email,
+          member.email.split('@').first,
+          counts[member.email] ?? 0,
+        ),
+      if (unassigned > 0) ('unassigned', 'Unassigned', unassigned),
+    ];
+
+    final total = entries.fold<int>(0, (sum, e) => sum + e.$3);
+    if (total == 0) {
+      return Center(
+        child: Text(
+          'No tasks assigned yet',
+          style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+        ),
+      );
+    }
+
+    final maxCount = entries.map((e) => e.$3).reduce((a, b) => a > b ? a : b);
+
+    return BarChart(
+      BarChartData(
+        borderData: FlBorderData(show: false),
+        gridData: const FlGridData(show: true, drawVerticalLine: false),
+        maxY: (maxCount + 1).toDouble(),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: true, reservedSize: 28, interval: 1),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 36,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index < 0 || index >= entries.length) return const SizedBox.shrink();
+                final label = entries[index].$2;
+                final short = label.length > 7 ? '${label.substring(0, 7)}…' : label;
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(short, style: const TextStyle(fontSize: 9)),
+                );
+              },
+            ),
+          ),
+        ),
+        barGroups: [
+          for (var i = 0; i < entries.length; i++)
+            BarChartGroupData(
+              x: i,
+              barRods: [
+                BarChartRodData(
+                  toY: entries[i].$3.toDouble(),
+                  color: _palette[i % _palette.length],
+                  width: 18,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                ),
+              ],
+            ),
         ],
       ),
     );
