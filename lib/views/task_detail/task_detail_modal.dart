@@ -111,7 +111,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: _selectedPriority.color.withOpacity(0.2),
+                        color: _selectedPriority.color.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(Icons.assignment, color: _selectedPriority.color),
@@ -168,7 +168,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                       SizedBox(
                         width: 200,
                         child: DropdownButtonFormField<String>(
-                          value: _selectedLaneId.isNotEmpty ? _selectedLaneId : null,
+                          initialValue: _selectedLaneId.isNotEmpty ? _selectedLaneId : null,
                           isExpanded: true,
                           decoration: const InputDecoration(labelText: 'Kanban Lane', isDense: true),
                           items: workspaceState.lanes.map((lane) {
@@ -202,7 +202,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                       SizedBox(
                         width: 160,
                         child: DropdownButtonFormField<TaskPriority>(
-                          value: _selectedPriority,
+                          initialValue: _selectedPriority,
                           isExpanded: true,
                           decoration: const InputDecoration(labelText: 'Priority', isDense: true),
                           items: TaskPriority.values.map((p) {
@@ -227,7 +227,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                       SizedBox(
                         width: 220,
                         child: DropdownButtonFormField<String>(
-                          value: _assigneeEmail,
+                          initialValue: _assigneeEmail,
                           isExpanded: true,
                           decoration: const InputDecoration(labelText: 'Assignee', isDense: true),
                           items: [
@@ -245,7 +245,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                           onChanged: (val) {
                             setState(() {
                               _assigneeEmail = val;
-                              _assigneeName = val != null ? val.split('@').first : null;
+                              _assigneeName = val?.split('@').first;
                             });
                           },
                         ),
@@ -257,7 +257,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                           decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.withOpacity(0.5)),
+                            border: Border.all(color: Colors.grey.withValues(alpha: 0.5)),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
@@ -266,9 +266,9 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                               const Icon(Icons.calendar_today, size: 16, color: Color(0xFF6366F1)),
                               const SizedBox(width: 8),
                               Text(
-                                _dueDate != null
-                                    ? DateFormat('MMM dd, yyyy').format(_dueDate!)
-                                    : 'Set Due Date',
+                                _dueDate == null
+                                    ? 'Set Due Date'
+                                    : DateFormat('MMM dd, yyyy').format(_dueDate!),
                                 style: const TextStyle(fontSize: 13),
                               ),
                             ],
@@ -296,9 +296,9 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.blueAccent.withOpacity(0.08),
+                      color: Colors.blueAccent.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+                      border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -350,7 +350,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   const SizedBox(height: 6),
                   LinearProgressIndicator(
                     value: _subtasks.isEmpty ? 0 : _subtasks.where((s) => s.isCompleted).length / _subtasks.length,
-                    backgroundColor: Colors.grey.withOpacity(0.2),
+                    backgroundColor: Colors.grey.withValues(alpha: 0.2),
                     color: const Color(0xFF10B981),
                     borderRadius: BorderRadius.circular(4),
                   ),
@@ -384,7 +384,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                         },
                       ),
                     );
-                  }).toList(),
+                  }),
 
                   Row(
                     children: [

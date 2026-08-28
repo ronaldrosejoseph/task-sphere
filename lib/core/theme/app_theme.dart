@@ -30,15 +30,15 @@ class AppTheme {
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return BoxDecoration(
-      color: isDark ? cardDark.withOpacity(0.7) : cardLight.withOpacity(0.8),
+      color: isDark ? cardDark.withValues(alpha: 0.7) : cardLight.withValues(alpha: 0.8),
       borderRadius: BorderRadius.circular(borderRadius),
       border: Border.all(
-        color: customBorder ?? (isDark ? borderDark.withOpacity(0.5) : borderLight),
+        color: customBorder ?? (isDark ? borderDark.withValues(alpha: 0.5) : borderLight),
         width: 1,
       ),
       boxShadow: [
         BoxShadow(
-          color: isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.04),
+          color: isDark ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.04),
           blurRadius: 12,
           offset: const Offset(0, 4),
         )
@@ -55,7 +55,6 @@ class AppTheme {
       colorScheme: const ColorScheme.dark(
         primary: primaryIndigo,
         surface: surfaceDark,
-        background: bgDark,
         onSurface: Colors.white,
       ),
       textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
@@ -88,7 +87,6 @@ class AppTheme {
       colorScheme: const ColorScheme.light(
         primary: primaryIndigo,
         surface: surfaceLight,
-        background: bgLight,
         onSurface: Color(0xFF111827),
       ),
       textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),

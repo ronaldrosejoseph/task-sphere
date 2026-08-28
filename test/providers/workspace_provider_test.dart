@@ -58,14 +58,15 @@ void main() {
       final titlesBefore =
           container.read(activeWorkspaceProvider).lanes.map((l) => l.title).toList();
 
+      // onReorderItem-style call: newIndex is the final insertion position.
       notifier.reorderLanes(0, 3);
 
       final lanes = container.read(activeWorkspaceProvider).lanes;
       expect(lanes.map((l) => l.title).toList(), [
         titlesBefore[1],
         titlesBefore[2],
-        titlesBefore[0],
         titlesBefore[3],
+        titlesBefore[0],
         titlesBefore[4],
       ]);
       for (var i = 0; i < lanes.length; i++) {

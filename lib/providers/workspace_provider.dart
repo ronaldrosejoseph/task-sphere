@@ -13,11 +13,7 @@ const _uuid = Uuid();
 final activeWorkspaceProvider = StateNotifierProvider<WorkspaceNotifier, WorkspaceState>((ref) {
   final repo = ref.watch(workspaceRepositoryProvider);
   final user = ref.read(authProvider);
-  final notifier = WorkspaceNotifier(
-    repo,
-    userId: user?.id,
-    userEmail: user?.email,
-  );
+  final notifier = WorkspaceNotifier(repo, user?.id, user?.email);
   notifier.loadInitialData();
   return notifier;
 });
@@ -58,13 +54,8 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
   StreamSubscription<void>? _workspaceSub;
   Timer? _reloadDebounce;
 
-  WorkspaceNotifier(
-    this._repo, {
-    String? userId,
-    String? userEmail,
-  })  : _userId = userId,
-        _userEmail = userEmail,
-        super(_repo.isPersistent ? _loadingState() : _initialState());
+  WorkspaceNotifier(this._repo, [this._userId, this._userEmail])
+      : super(_repo.isPersistent ? _loadingState() : _initialState());
 
   static WorkspaceState _loadingState() {
     return WorkspaceState(
@@ -214,7 +205,7 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
 
   // --- Admin Lane Customization ---
   void addLane(String title, Color color) {
-    final hex = '#${color.value.toRadixString(16).substring(2).toUpperCase()}';
+    final hex = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
     final newLane = KanbanLane(
       id: _uuid.v4(),
       workspaceId: state.activeWorkspace.id,
@@ -231,7 +222,7 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
   }
 
   void updateLane(String laneId, String newTitle, Color newColor) {
-    final hex = '#${newColor.value.toRadixString(16).substring(2).toUpperCase()}';
+    final hex = '#${newColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
     KanbanLane? updated;
     final updatedLanes = state.lanes.map((l) {
       if (l.id == laneId) {
@@ -249,7 +240,6 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
 
   void reorderLanes(int oldIndex, int newIndex) {
     final list = List<KanbanLane>.from(state.lanes);
-    if (newIndex > oldIndex) newIndex -= 1;
     final item = list.removeAt(oldIndex);
     list.insert(newIndex, item);
 

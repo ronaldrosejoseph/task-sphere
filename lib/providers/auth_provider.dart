@@ -41,7 +41,7 @@ class AuthNotifier extends StateNotifier<UserProfile?> {
     final supabaseClient = SupabaseService.instance.client;
     if (supabaseClient != null) {
       try {
-        final googleAuth = await googleUser.authentication;
+        final googleAuth = googleUser.authentication;
         final idToken = googleAuth.idToken;
         if (idToken == null) {
           // google_sign_in does not expose an idToken on web; keep the

@@ -29,12 +29,12 @@ class AuthScreen extends ConsumerWidget {
             width: 420,
             padding: const EdgeInsets.all(36),
             decoration: BoxDecoration(
-              color: const Color(0xFF111827).withOpacity(0.8),
+              color: const Color(0xFF111827).withValues(alpha: 0.8),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: const Color(0xFF374151)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
+                  color: Colors.black.withValues(alpha: 0.4),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                 )
@@ -71,13 +71,13 @@ class AuthScreen extends ConsumerWidget {
                     color: (SupabaseService.instance.isInitialized
                             ? const Color(0xFF10B981)
                             : const Color(0xFFF59E0B))
-                        .withOpacity(0.15),
+                        .withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: (SupabaseService.instance.isInitialized
                               ? const Color(0xFF10B981)
                               : const Color(0xFFF59E0B))
-                          .withOpacity(0.4),
+                          .withValues(alpha: 0.4),
                     ),
                   ),
                   child: Text(
@@ -108,7 +108,7 @@ class AuthScreen extends ConsumerWidget {
                   icon: Image.network(
                     'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg',
                     height: 20,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, color: Colors.blue),
+                    errorBuilder: (_, _, _) => const Icon(Icons.g_mobiledata, color: Colors.blue),
                   ),
                   label: const Text('Sign in with Google', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),

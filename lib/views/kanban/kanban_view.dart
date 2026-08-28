@@ -255,7 +255,7 @@ class _KanbanColumnWidget extends ConsumerWidget {
                   decoration: BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
-                        color: lane.color.withOpacity(0.3),
+                        color: lane.color.withValues(alpha: 0.3),
                         width: 2,
                       ),
                     ),
@@ -286,7 +286,7 @@ class _KanbanColumnWidget extends ConsumerWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: lane.color.withOpacity(0.15),
+                                color: lane.color.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
@@ -367,7 +367,7 @@ class _TaskCardWidget extends StatelessWidget {
         color: isDark ? AppTheme.cardDark : AppTheme.cardLight,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isOverdue ? Colors.redAccent.withOpacity(0.6) : AppTheme.borderDark.withOpacity(0.3),
+          color: isOverdue ? Colors.redAccent.withValues(alpha: 0.6) : AppTheme.borderDark.withValues(alpha: 0.3),
         ),
       ),
       child: InkWell(
@@ -390,9 +390,9 @@ class _TaskCardWidget extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: task.priority.color.withOpacity(0.15),
+                      color: task.priority.color.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: task.priority.color.withOpacity(0.4)),
+                      border: Border.all(color: task.priority.color.withValues(alpha: 0.4)),
                     ),
                     child: Text(
                       task.priority.label.toUpperCase(),
@@ -453,7 +453,7 @@ class _TaskCardWidget extends StatelessWidget {
                 const SizedBox(height: 4),
                 LinearProgressIndicator(
                   value: task.subtasksProgress,
-                  backgroundColor: Colors.grey.withOpacity(0.2),
+                  backgroundColor: Colors.grey.withValues(alpha: 0.2),
                   color: const Color(0xFF10B981),
                   borderRadius: BorderRadius.circular(4),
                   minHeight: 4,

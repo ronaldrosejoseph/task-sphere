@@ -259,7 +259,7 @@ void main() {
         ]
         ..lanes = [KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do')];
 
-      final notifier = WorkspaceNotifier(repo, userId: 'a', userEmail: 'a@x.com');
+      final notifier = WorkspaceNotifier(repo, 'a', 'a@x.com');
       addTearDown(notifier.dispose);
 
       await notifier.loadInitialData();
@@ -272,7 +272,7 @@ void main() {
 
     test('createWorkspace uses the repository snapshot', () async {
       final repo = FakeWorkspaceRepository();
-      final notifier = WorkspaceNotifier(repo, userId: 'a', userEmail: 'a@x.com');
+      final notifier = WorkspaceNotifier(repo, 'a', 'a@x.com');
       addTearDown(notifier.dispose);
 
       await notifier.createWorkspace('Remote Team', 'a', 'a@x.com');
@@ -285,7 +285,7 @@ void main() {
 
     test('inviteMember persists to the repository', () async {
       final repo = FakeWorkspaceRepository();
-      final notifier = WorkspaceNotifier(repo, userId: 'a', userEmail: 'a@x.com');
+      final notifier = WorkspaceNotifier(repo, 'a', 'a@x.com');
       addTearDown(notifier.dispose);
       await notifier.createWorkspace('Team', 'a', 'a@x.com');
 
@@ -301,7 +301,7 @@ void main() {
 
     test('addLane persists to the repository', () async {
       final repo = FakeWorkspaceRepository();
-      final notifier = WorkspaceNotifier(repo, userId: 'a', userEmail: 'a@x.com');
+      final notifier = WorkspaceNotifier(repo, 'a', 'a@x.com');
       addTearDown(notifier.dispose);
       await notifier.createWorkspace('Team', 'a', 'a@x.com');
 

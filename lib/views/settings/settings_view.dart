@@ -127,7 +127,7 @@ class SettingsView extends ConsumerWidget {
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: (SupabaseService.instance.isInitialized ? const Color(0xFF10B981) : Colors.orangeAccent).withOpacity(0.15),
+                      color: (SupabaseService.instance.isInitialized ? const Color(0xFF10B981) : Colors.orangeAccent).withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(

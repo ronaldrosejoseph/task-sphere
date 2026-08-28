@@ -116,7 +116,7 @@ class _LaneManagerDialogState extends ConsumerState<LaneManagerDialog> {
             Expanded(
               child: ReorderableListView.builder(
                 itemCount: lanes.length,
-                onReorder: (oldIndex, newIndex) {
+                onReorderItem: (oldIndex, newIndex) {
                   ref.read(activeWorkspaceProvider.notifier).reorderLanes(oldIndex, newIndex);
                 },
                 itemBuilder: (context, index) {

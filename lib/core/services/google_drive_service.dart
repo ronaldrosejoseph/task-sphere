@@ -42,9 +42,7 @@ class GoogleDriveService {
   }
 
   Future<drive.DriveApi?> getDriveApi() async {
-    if (_currentUser == null) {
-      _currentUser = await signIn();
-    }
+    _currentUser ??= await signIn();
     if (_currentUser == null) return null;
 
     final authHeaders = await _currentUser!.authorizationClient.authorizationHeaders([
