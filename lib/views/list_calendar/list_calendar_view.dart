@@ -68,7 +68,8 @@ class _TaskListView extends ConsumerWidget {
       itemCount: lanes.length,
       itemBuilder: (context, index) {
         final lane = lanes[index];
-        final laneTasks = tasks.where((t) => t.laneId == lane.id).toList();
+        final laneTasks = tasks.where((t) => t.laneId == lane.id).toList()
+          ..sort(compareTasksForBoard);
 
         return ExpansionTile(
           initiallyExpanded: true,

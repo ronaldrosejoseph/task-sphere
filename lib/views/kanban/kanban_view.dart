@@ -205,7 +205,8 @@ class KanbanView extends ConsumerWidget {
             itemCount: lanes.length,
             itemBuilder: (context, index) {
               final lane = lanes[index];
-              final laneTasks = filteredTasks.where((t) => t.laneId == lane.id).toList();
+              final laneTasks = filteredTasks.where((t) => t.laneId == lane.id).toList()
+                ..sort(compareTasksForBoard);
 
               return _KanbanColumnWidget(
                 lane: lane,

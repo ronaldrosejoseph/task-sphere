@@ -31,6 +31,19 @@ extension TaskPriorityExtension on TaskPriority {
   }
 }
 
+/// Sorts tasks for board/list rendering: priority descending, then
+/// soonest due date first, tasks without a due date last.
+int compareTasksForBoard(TaskItem a, TaskItem b) {
+  final priorityDelta = a.priority.index - b.priority.index;
+  if (priorityDelta != 0) return priorityDelta;
+  final aDue = a.dueDate;
+  final bDue = b.dueDate;
+  if (aDue == null && bDue == null) return 0;
+  if (aDue == null) return 1;
+  if (bDue == null) return -1;
+  return aDue.compareTo(bDue);
+}
+
 class TaskItem {
   final String id;
   final String workspaceId;
