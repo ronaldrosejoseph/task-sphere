@@ -27,8 +27,13 @@ Task Sphere is a modern, high-performance task management application for mobile
 4. Open the provided [`supabase/schema.sql`](supabase/schema.sql) file in this codebase, paste it into the Supabase SQL editor, and click **RUN**.
    - This creates all necessary tables (`workspaces`, `workspace_lanes`, `workspace_members`, `tasks`, `subtasks`, `activity_logs`).
    - Configures Row Level Security (RLS) policies for workspace privacy.
-   - Sets up default lane initialization triggers and enables Realtime WebSockets on `tasks` and `workspace_lanes`.
-5. Go to **Project Settings -> API** in Supabase and copy your:
+   - Sets up default lane initialization triggers and enables Realtime WebSockets on `workspaces`, `workspace_lanes`, `workspace_members`, `tasks`, `subtasks`, and `activity_logs`.
+   - The script is idempotent - it is safe to re-run after pulling newer versions.
+5. Enable the **Google provider** (required for sign-in on every platform):
+   - Go to **Authentication -> Providers -> Google**.
+   - Toggle **Enable Sign in with Google**.
+   - Paste the **Client ID** and **Client Secret** from the Google OAuth Web client you will create in the next section, then **Save**.
+6. Go to **Project Settings -> API** in Supabase and copy your:
    - `Project URL` (e.g., `https://xyzcompany.supabase.co`)
    - `anon public key` (e.g., `eyJhbGciOi...`)
 
@@ -48,10 +53,11 @@ Task Sphere is a modern, high-performance task management application for mobile
    - Add scope: `.../auth/drive.file` (View and manage Google Drive files created by this app).
 5. Create **OAuth 2.0 Credentials**:
    - Go to **APIs & Services -> Credentials -> Create Credentials -> OAuth client ID**.
-   - **Web Client**: Set Authorized JavaScript origins to `http://localhost:3000` or your production domain.
+   - **Web Client**: Set Authorized JavaScript origins to `http://localhost:3000` or your production domain. Copy its **Client ID** and **Client Secret** - these go into the Supabase Google provider configured in the previous section.
    - **Android Client**: Add your package name (`com.tasksphere.app`) and SHA-1 certificate fingerprint.
    - **iOS Client**: Add Bundle ID (`com.tasksphere.app`).
    - **macOS Client**: Add Bundle ID (`com.tasksphere.app`).
+   - The sign-in request automatically includes the `email`, `profile`, and `openid` scopes - no extra consent-screen setup is needed for those.
 
 ---
 
@@ -105,6 +111,20 @@ npx wrangler pages deploy build/web --project-name task-sphere
 
 ---
 
+## 🧪 Development & CI
+
+```bash
+flutter pub get
+flutter analyze          # zero issues enforced by CI
+flutter test             # 89 unit + widget tests
+```
+
+- **CI** (`.github/workflows/ci.yml`) runs `flutter analyze` and `flutter test` on every push and pull request.
+- **Deploy** (`.github/workflows/deploy.yml`) additionally builds the web bundle and ships it to Cloudflare Pages on every push to `main`.
+- **Testing conventions**: model tests live in `test/models/`, provider/state tests in `test/providers/` (with fake repositories for the Supabase layer), and widget tests in `test/views/`.
+
+---
+
 ## 🏗️ Project Architecture
 
 ```
@@ -112,7 +132,7 @@ lib/
 ├── main.dart                  # App initialization, Supabase setup & Theme provider
 ├── core/
 │   ├── theme/                 # Modern theme design system, glassmorphism card styles
-│   ├── constants/             # Default lanes, priority levels & colors
+│   ├── repositories/          # Supabase + in-memory persistence for workspaces, tasks, logs
 │   └── services/              # Supabase, Google Drive & Local Notification services
 ├── models/                    # Workspace, Lane, Task, Subtask, Activity Log models
 ├── providers/                 # Riverpod Auth, Workspace, Task, and Theme state management
@@ -125,6 +145,11 @@ lib/
     ├── task_detail/           # Task editor modal, attachments, subtasks, stopwatch
     ├── workspace/             # Workspace switcher & member role management
     └── settings/              # Auto-expiry threshold & notification preferences
+
+test/
+├── models/                    # JSON roundtrips, parsing, ordering helpers
+├── providers/                 # Notifier behavior incl. fake-repository persistence tests
+└── views/                     # Kanban rendering, filters, drag & drop
 ```
 
 ---
