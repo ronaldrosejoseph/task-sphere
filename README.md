@@ -75,6 +75,36 @@ flutter run --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-d
 
 ---
 
+## 🌐 Deploying the Web App (Cloudflare Pages)
+
+The web build is a fully static Flutter bundle - no server required. A GitHub Actions workflow (`.github/workflows/deploy.yml`) builds and deploys it to Cloudflare Pages on every push to `main`.
+
+### One-time setup
+
+1. **Add GitHub Actions secrets** (Repo → Settings → Secrets and variables → Actions):
+   - `SUPABASE_URL` - your Supabase project URL
+   - `SUPABASE_ANON_KEY` - your Supabase anon public key
+   - `CLOUDFLARE_API_TOKEN` - Cloudflare API token with "Cloudflare Pages — Edit" permission (Cloudflare Dashboard → My Profile → API Tokens)
+   - `CLOUDFLARE_ACCOUNT_ID` - shown on the right side of the Cloudflare Dashboard home page
+2. **Push to `main`** - the workflow runs tests, builds the bundle, and creates a Pages project named `task-sphere` on first deploy.
+3. Your app is live at **`https://task-sphere.pages.dev`** (attach a custom domain under Cloudflare Pages → Custom domains if you own one).
+
+### Required cloud configuration for web sign-in & attachments
+
+- **Supabase Auth**: set the **Site URL** to your deployed URL (`https://task-sphere.pages.dev`) under Supabase → Authentication → URL Configuration, so the Google OAuth redirect flow returns to your app.
+- **Google Cloud Console**: add a **Web** OAuth client ID with the deployed URL in *Authorized JavaScript origins* for Drive attachment uploads.
+
+### Manual deploy (optional)
+
+```bash
+flutter build web --release --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
+npx wrangler pages deploy build/web --project-name task-sphere
+```
+
+> **Note**: local due-date notifications are not available in browsers; the app degrades gracefully on web.
+
+---
+
 ## 🏗️ Project Architecture
 
 ```
