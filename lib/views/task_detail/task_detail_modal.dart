@@ -169,6 +169,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                         width: 200,
                         child: DropdownButtonFormField<String>(
                           value: _selectedLaneId.isNotEmpty ? _selectedLaneId : null,
+                          isExpanded: true,
                           decoration: const InputDecoration(labelText: 'Kanban Lane', isDense: true),
                           items: workspaceState.lanes.map((lane) {
                             return DropdownMenuItem(
@@ -181,7 +182,12 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                                     decoration: BoxDecoration(color: lane.color, shape: BoxShape.circle),
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(lane.title),
+                                  Flexible(
+                                    child: Text(
+                                      lane.title,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
                                 ],
                               ),
                             );
@@ -197,6 +203,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                         width: 160,
                         child: DropdownButtonFormField<TaskPriority>(
                           value: _selectedPriority,
+                          isExpanded: true,
                           decoration: const InputDecoration(labelText: 'Priority', isDense: true),
                           items: TaskPriority.values.map((p) {
                             return DropdownMenuItem(
@@ -221,13 +228,17 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                         width: 220,
                         child: DropdownButtonFormField<String>(
                           value: _assigneeEmail,
+                          isExpanded: true,
                           decoration: const InputDecoration(labelText: 'Assignee', isDense: true),
                           items: [
                             const DropdownMenuItem(value: null, child: Text('Unassigned')),
                             ...workspaceState.activeWorkspace.members.map((m) {
                               return DropdownMenuItem(
                                 value: m.email,
-                                child: Text('${m.email.split("@").first} (${m.role.name})'),
+                                child: Text(
+                                  '${m.email.split("@").first} (${m.role.name})',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               );
                             }),
                           ],

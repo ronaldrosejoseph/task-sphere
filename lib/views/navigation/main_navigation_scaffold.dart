@@ -41,17 +41,18 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
             body: Row(
               children: [
                 // Left Navigation Sidebar
-                Container(
-                  width: 250,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    border: Border(
-                      right: BorderSide(
-                        color: Theme.of(context).dividerColor.withOpacity(0.2),
+                Material(
+                  color: Theme.of(context).cardColor,
+                  child: Container(
+                    width: 250,
+                    decoration: BoxDecoration(
+                      border: Border(
+                        right: BorderSide(
+                          color: Theme.of(context).dividerColor.withOpacity(0.2),
+                        ),
                       ),
                     ),
-                  ),
-                  child: Column(
+                    child: Column(
                     children: [
                       // App Header & Logo
                       Padding(
@@ -67,18 +68,24 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
                               child: const Icon(Icons.grid_view_rounded, color: Colors.white, size: 22),
                             ),
                             const SizedBox(width: 12),
-                            const Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Task Sphere',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                                ),
-                                Text(
-                                  'Serverless Kanban',
-                                  style: TextStyle(fontSize: 11, color: Colors.grey),
-                                ),
-                              ],
+                            const Flexible(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Task Sphere',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    'Serverless Kanban',
+                                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -182,6 +189,7 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
                       ),
                     ],
                   ),
+                ),
                 ),
 
                 // Main Content View

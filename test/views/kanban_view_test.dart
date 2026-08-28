@@ -1,0 +1,145 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:task_sphere/core/theme/app_theme.dart';
+import 'package:task_sphere/providers/task_provider.dart';
+import 'package:task_sphere/views/kanban/kanban_view.dart';
+
+void main() {
+  setUp(() {
+    GoogleFonts.config.allowRuntimeFetching = false;
+    SharedPreferences.setMockInitialValues({});
+  });
+
+  Future<void> pumpBoard(
+    WidgetTester tester, {
+    ProviderContainer? container,
+  }) async {
+    tester.view.physicalSize = const Size(2400, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final app = MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: const Scaffold(body: KanbanView()),
+    );
+
+    if (container != null) {
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: app),
+      );
+    } else {
+      await tester.pumpWidget(ProviderScope(child: app));
+    }
+    await tester.pumpAndSettle();
+  }
+
+  group('Kanban board rendering', () {
+    testWidgets('renders all five default lanes with headers', (tester) async {
+      await pumpBoard(tester);
+
+      for (final lane in ['To Do', 'In Progress', 'Partially Done', 'Done', 'Wont Do']) {
+        expect(find.text(lane), findsOneWidget);
+      }
+    });
+
+    testWidgets('renders seeded task cards on the board', (tester) async {
+      await pumpBoard(tester);
+
+      expect(find.text('Design Dark Mode Glassmorphic UI System'), findsOneWidget);
+      expect(find.text('Implement Supabase Realtime WebSockets'), findsOneWidget);
+      expect(find.text('Google Drive File Attachment Integration'), findsOneWidget);
+      expect(find.text('Setup Flutter Multi-Platform Target Configuration'), findsOneWidget);
+    });
+
+    testWidgets('hides archived tasks by default', (tester) async {
+      await pumpBoard(tester);
+
+      expect(find.text('Legacy MySQL Server Backend'), findsNothing);
+    });
+  });
+
+  group('Kanban filters', () {
+    testWidgets('search filter narrows tasks by title', (tester) async {
+      await pumpBoard(tester);
+
+      await tester.enterText(find.byType(TextField).first, 'supabase');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Implement Supabase Realtime WebSockets'), findsOneWidget);
+      expect(find.text('Design Dark Mode Glassmorphic UI System'), findsNothing);
+      expect(find.text('Google Drive File Attachment Integration'), findsNothing);
+    });
+
+    testWidgets('priority filter keeps only the selected priority', (tester) async {
+      await pumpBoard(tester);
+
+      await tester.tap(find.text('All Priorities'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Urgent').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Design Dark Mode Glassmorphic UI System'), findsOneWidget);
+      expect(find.text('Implement Supabase Realtime WebSockets'), findsNothing);
+    });
+
+    testWidgets('assignee filter keeps only tasks of the selected member', (tester) async {
+      await pumpBoard(tester);
+
+      await tester.tap(find.text('All Assignees'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('alex.admin').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Implement Supabase Realtime WebSockets'), findsOneWidget);
+      expect(find.text('Design Dark Mode Glassmorphic UI System'), findsNothing);
+    });
+
+    testWidgets('archived toggle reveals archived tasks', (tester) async {
+      await pumpBoard(tester);
+
+      await tester.tap(find.text('Hide Archived (Auto-Expiry)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Showing Archived'), findsOneWidget);
+      expect(find.text('Legacy MySQL Server Backend'), findsOneWidget);
+    });
+  });
+
+  group('Kanban interactions', () {
+    testWidgets('tapping a task card opens the detail modal', (tester) async {
+      await pumpBoard(tester);
+
+      await tester.tap(find.text('Design Dark Mode Glassmorphic UI System'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Task Details'), findsOneWidget);
+      expect(find.text('Save Task'), findsOneWidget);
+    });
+
+    testWidgets('dragging a card onto another lane moves the task', (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await pumpBoard(tester, container: container);
+
+      final card = find.text('Design Dark Mode Glassmorphic UI System');
+      expect(card, findsOneWidget);
+
+      // To Do is the leftmost column, one lane width to the left of In Progress.
+      final gesture = await tester.startGesture(tester.getCenter(card));
+      for (var i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(-40, 0));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      final moved = container
+          .read(tasksProvider)
+          .firstWhere((t) => t.id == 'task-101');
+      expect(moved.laneId, 'lane-1');
+    });
+  });
+}
