@@ -1,0 +1,150 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:task_sphere/core/repositories/task_repository.dart';
+import 'package:task_sphere/core/repositories/workspace_repository.dart';
+import 'package:task_sphere/core/services/notification_service.dart';
+import 'package:task_sphere/models/lane.dart';
+import 'package:task_sphere/models/task.dart';
+import 'package:task_sphere/models/workspace.dart';
+import 'package:task_sphere/providers/task_provider.dart';
+import 'package:task_sphere/providers/workspace_provider.dart';
+
+class FakeNotificationService extends NotificationService {
+  final Map<int, String> scheduled = {};
+
+  @override
+  Future<void> scheduleTaskReminder({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
+  }) async {
+    scheduled[id] = title;
+  }
+
+  @override
+  Future<void> showNotification({
+    required int id,
+    required String title,
+    required String body,
+  }) async {}
+}
+
+class _FakeWorkspaceNotifier extends WorkspaceNotifier {
+  _FakeWorkspaceNotifier(WorkspaceState initialState)
+      : super(InMemoryWorkspaceRepository()) {
+    state = initialState;
+  }
+}
+
+class _PersistentTaskRepository implements TaskRepository {
+  final List<TaskItem> stored;
+
+  _PersistentTaskRepository(this.stored);
+
+  @override
+  bool get isPersistent => true;
+
+  @override
+  Future<List<TaskItem>?> fetchTasks(String workspaceId) async => List.of(stored);
+
+  @override
+  Future<void> insertTask(TaskItem task) async {}
+
+  @override
+  Future<void> updateTask(TaskItem task) async {}
+
+  @override
+  Future<void> deleteTask(String taskId) async {}
+
+  @override
+  Stream<void> watchTasks(String workspaceId) => const Stream.empty();
+}
+
+void main() {
+  test('seeded demo tasks schedule reminders on startup', () {
+    final fake = FakeNotificationService();
+    final container = ProviderContainer(
+      overrides: [notificationServiceProvider.overrideWithValue(fake)],
+    );
+    addTearDown(container.dispose);
+
+    container.read(tasksProvider);
+
+    // Future-dated tasks outside Done/Wont Do lanes get reminders.
+    expect(fake.scheduled, contains('task-101'.hashCode));
+    expect(fake.scheduled, contains('task-102'.hashCode));
+    expect(fake.scheduled, contains('task-103'.hashCode));
+    // Done-lane and archived tasks are skipped.
+    expect(fake.scheduled, isNot(contains('task-104'.hashCode)));
+    expect(fake.scheduled, isNot(contains('task-105'.hashCode)));
+    expect(fake.scheduled['task-101'.hashCode],
+        'Task Due: Design Dark Mode Glassmorphic UI System');
+  });
+
+  test('addTask schedules a reminder for future due dates', () {
+    final fake = FakeNotificationService();
+    final container = ProviderContainer(
+      overrides: [notificationServiceProvider.overrideWithValue(fake)],
+    );
+    addTearDown(container.dispose);
+
+    final task = TaskItem(
+      id: 'new-task',
+      workspaceId: 'ws-demo-001',
+      laneId: 'lane-1',
+      title: 'Ship release',
+      dueDate: DateTime.now().add(const Duration(days: 1)),
+    );
+    container.read(tasksProvider.notifier).addTask(task);
+
+    expect(fake.scheduled, contains('new-task'.hashCode));
+  });
+
+  test('persistent task load schedules reminders for due tasks', () async {
+    final fake = FakeNotificationService();
+    final workspace = Workspace(id: 'ws-1', name: 'W', adminId: 'a');
+    final lanes = [
+      KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do'),
+      KanbanLane(id: 'lane-done', workspaceId: 'ws-1', title: 'Done'),
+    ];
+    final repo = _PersistentTaskRepository([
+      TaskItem(
+        id: 'due-task',
+        workspaceId: 'ws-1',
+        laneId: 'lane-1',
+        title: 'Due soon',
+        dueDate: DateTime.now().add(const Duration(days: 2)),
+      ),
+      TaskItem(
+        id: 'done-task',
+        workspaceId: 'ws-1',
+        laneId: 'lane-done',
+        title: 'Finished',
+        dueDate: DateTime.now().add(const Duration(days: 2)),
+      ),
+    ]);
+
+    final container = ProviderContainer(
+      overrides: [
+        taskRepositoryProvider.overrideWithValue(repo),
+        notificationServiceProvider.overrideWithValue(fake),
+        activeWorkspaceProvider.overrideWith(
+          (ref) => _FakeWorkspaceNotifier(WorkspaceState(
+            activeWorkspace: workspace,
+            allWorkspaces: [workspace],
+            lanes: lanes,
+          )),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(tasksProvider);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(fake.scheduled, contains('due-task'.hashCode));
+    expect(fake.scheduled, isNot(contains('done-task'.hashCode)));
+  });
+}

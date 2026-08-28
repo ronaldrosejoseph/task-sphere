@@ -4,12 +4,13 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz_data;
 
 class NotificationService {
-  static final NotificationService instance = NotificationService._internal();
-  factory NotificationService() => instance;
-  NotificationService._internal();
+  static final NotificationService instance = NotificationService();
 
-  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _notifications;
   bool _initialized = false;
+
+  NotificationService({FlutterLocalNotificationsPlugin? plugin})
+      : _notifications = plugin ?? FlutterLocalNotificationsPlugin();
 
   Future<void> init() async {
     if (_initialized) return;

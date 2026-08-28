@@ -24,11 +24,19 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 final tasksProvider = StateNotifierProvider<TaskNotifier, List<TaskItem>>((ref) {
   final workspaceId =
       ref.watch(activeWorkspaceProvider.select((s) => s.activeWorkspace.id));
-  final laneIds =
-      ref.read(activeWorkspaceProvider).lanes.map((l) => l.id).toList();
+  final lanes = ref.read(activeWorkspaceProvider).lanes;
+  final laneIds = lanes.map((l) => l.id).toList();
+  final excludedLaneIds = lanes
+      .where((l) {
+        final title = l.title.toLowerCase();
+        return title == 'done' || title == 'wont do';
+      })
+      .map((l) => l.id)
+      .toList();
   final repo = ref.watch(taskRepositoryProvider);
   final notifications = ref.watch(notificationServiceProvider);
-  final notifier = TaskNotifier(repo, workspaceId, laneIds, notifications);
+  final notifier =
+      TaskNotifier(repo, workspaceId, laneIds, excludedLaneIds, notifications);
   notifier.init();
   return notifier;
 });
@@ -100,6 +108,7 @@ class ActivityLogNotifier extends StateNotifier<List<ActivityLog>> {
 class TaskNotifier extends StateNotifier<List<TaskItem>> {
   final TaskRepository _repo;
   final String workspaceId;
+  final List<String> _excludedLaneIds;
   final NotificationService _notifications;
 
   StreamSubscription<void>? _taskSub;
@@ -110,8 +119,13 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
     this._repo,
     this.workspaceId,
     List<String> laneIds,
+    this._excludedLaneIds,
     this._notifications,
-  ) : super(_repo.isPersistent ? [] : _seedTasks(workspaceId, laneIds));
+  ) : super(_repo.isPersistent ? [] : _seedTasks(workspaceId, laneIds)) {
+    if (!_repo.isPersistent) {
+      _rescheduleReminders(state);
+    }
+  }
 
   void init() {
     if (!_repo.isPersistent) return;
@@ -135,6 +149,25 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
       return;
     }
     state = tasks;
+    _rescheduleReminders(tasks);
+  }
+
+  /// Re-registers local due-date notifications so reminders survive
+  /// app restarts.
+  void _rescheduleReminders(List<TaskItem> tasks) {
+    final now = DateTime.now();
+    for (final task in tasks) {
+      final due = task.dueDate;
+      if (due == null || !due.isAfter(now)) continue;
+      if (task.isArchived) continue;
+      if (_excludedLaneIds.contains(task.laneId)) continue;
+      unawaited(_notifications.scheduleTaskReminder(
+        id: task.id.hashCode,
+        title: 'Task Due: ${task.title}',
+        body: 'Assigned to ${task.assigneeName ?? "Team"}. Priority: ${task.priority.label}',
+        scheduledDate: due.subtract(const Duration(hours: 1)),
+      ));
+    }
   }
 
   @override
