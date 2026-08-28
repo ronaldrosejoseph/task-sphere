@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:task_sphere/models/user_profile.dart';
 import 'package:task_sphere/providers/auth_provider.dart';
 
@@ -44,5 +45,28 @@ void main() {
     expect(first.id, second.id);
     expect(first.email, second.email);
     expect(first.displayName, second.displayName);
+  });
+
+  group('profileFromUser', () {
+    test('extracts identity and metadata from a Supabase user', () {
+      final user = User.fromJson({
+        'id': 'uid-1',
+        'email': 'alex@example.com',
+        'user_metadata': {'full_name': 'Alex Morgan', 'avatar_url': 'http://img'},
+      })!;
+      final profile = profileFromUser(user);
+      expect(profile.id, 'uid-1');
+      expect(profile.email, 'alex@example.com');
+      expect(profile.displayName, 'Alex Morgan');
+      expect(profile.avatarUrl, 'http://img');
+    });
+
+    test('falls back to email as display name when metadata is missing', () {
+      final user = User.fromJson({'id': 'uid-2', 'email': 'bob@example.com'})!;
+      final profile = profileFromUser(user);
+      expect(profile.displayName, 'bob@example.com');
+      expect(profile.avatarUrl, isNull);
+      expect(profile.email, 'bob@example.com');
+    });
   });
 }
