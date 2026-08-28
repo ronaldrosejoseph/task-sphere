@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz_data;
 
@@ -16,6 +17,15 @@ class NotificationService {
     if (_initialized) return;
     tz_data.initializeTimeZones();
 
+    // Without this, tz.local falls back to UTC and reminders fire at the
+    // wrong wall-clock time.
+    try {
+      final info = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(info.identifier));
+    } catch (e) {
+      debugPrint('Local timezone detection error: $e');
+    }
+
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwinSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
@@ -29,8 +39,13 @@ class NotificationService {
       macOS: darwinSettings,
     );
 
-    await _notifications.initialize(settings: initSettings);
-    _initialized = true;
+    try {
+      await _notifications.initialize(settings: initSettings);
+      _initialized = true;
+    } catch (e) {
+      // Plugin unavailable (e.g. tests, unsupported platform).
+      debugPrint('Notification init error: $e');
+    }
   }
 
   Future<void> showNotification({
