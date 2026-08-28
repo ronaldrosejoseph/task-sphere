@@ -34,13 +34,14 @@ class Subtask {
   }
 
   Subtask copyWith({
+    String? taskId,
     String? title,
     bool? isCompleted,
     int? orderIndex,
   }) {
     return Subtask(
       id: id,
-      taskId: taskId,
+      taskId: taskId ?? this.taskId,
       title: title ?? this.title,
       isCompleted: isCompleted ?? this.isCompleted,
       orderIndex: orderIndex ?? this.orderIndex,

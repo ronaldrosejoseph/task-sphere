@@ -104,11 +104,11 @@ void main() {
   });
 
   group('workspace management', () {
-    test('createWorkspace switches to the new workspace with fresh lanes', () {
+    test('createWorkspace switches to the new workspace with fresh lanes', () async {
       final container = makeContainer();
       final notifier = container.read(activeWorkspaceProvider.notifier);
 
-      notifier.createWorkspace('Mobile Team', 'admin-1');
+      await notifier.createWorkspace('Mobile Team', 'admin-1', 'admin@example.com');
 
       final state = container.read(activeWorkspaceProvider);
       expect(state.activeWorkspace.name, 'Mobile Team');
@@ -117,11 +117,11 @@ void main() {
       expect(state.lanes.every((l) => l.workspaceId == state.activeWorkspace.id), isTrue);
     });
 
-    test('createWorkspace admin member gets the new workspace id', () {
+    test('createWorkspace admin member gets the new workspace id', () async {
       final container = makeContainer();
       final notifier = container.read(activeWorkspaceProvider.notifier);
 
-      notifier.createWorkspace('Mobile Team', 'admin-1');
+      await notifier.createWorkspace('Mobile Team', 'admin-1', 'admin@example.com');
 
       final state = container.read(activeWorkspaceProvider);
       final admin = state.activeWorkspace.members.single;
@@ -130,11 +130,11 @@ void main() {
       expect(admin.role, UserRole.admin);
     });
 
-    test('switchWorkspace changes only the active workspace', () {
+    test('switchWorkspace changes only the active workspace', () async {
       final container = makeContainer();
       final notifier = container.read(activeWorkspaceProvider.notifier);
 
-      notifier.createWorkspace('Mobile Team', 'admin-1');
+      await notifier.createWorkspace('Mobile Team', 'admin-1', 'admin@example.com');
       final all = container.read(activeWorkspaceProvider).allWorkspaces;
       final original = all.firstWhere((ws) => ws.name == 'Engineering & Design Team');
 

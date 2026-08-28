@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import '../core/repositories/activity_log_repository.dart';
+import '../core/repositories/task_repository.dart';
+import '../core/services/notification_service.dart';
 import '../models/task.dart';
 import '../models/subtask.dart';
 import '../models/activity_log.dart';
-import '../core/services/notification_service.dart';
 import 'workspace_provider.dart';
 
 const _uuid = Uuid();
@@ -13,17 +17,64 @@ final taskFilterPriorityProvider = StateProvider<TaskPriority?>((ref) => null);
 final taskFilterAssigneeProvider = StateProvider<String?>((ref) => null);
 final showArchivedTasksProvider = StateProvider<bool>((ref) => false);
 
+final notificationServiceProvider = Provider<NotificationService>((ref) {
+  return NotificationService.instance;
+});
+
 final tasksProvider = StateNotifierProvider<TaskNotifier, List<TaskItem>>((ref) {
-  final workspaceState = ref.watch(activeWorkspaceProvider);
-  return TaskNotifier(workspaceState.activeWorkspace.id, workspaceState.lanes.map((e) => e.id).toList());
+  final workspaceId =
+      ref.watch(activeWorkspaceProvider.select((s) => s.activeWorkspace.id));
+  final laneIds =
+      ref.read(activeWorkspaceProvider).lanes.map((l) => l.id).toList();
+  final repo = ref.watch(taskRepositoryProvider);
+  final notifications = ref.watch(notificationServiceProvider);
+  final notifier = TaskNotifier(repo, workspaceId, laneIds, notifications);
+  notifier.init();
+  return notifier;
 });
 
 final activityLogsProvider = StateNotifierProvider<ActivityLogNotifier, List<ActivityLog>>((ref) {
-  return ActivityLogNotifier();
+  final workspaceId =
+      ref.watch(activeWorkspaceProvider.select((s) => s.activeWorkspace.id));
+  final repo = ref.watch(activityLogRepositoryProvider);
+  final notifier = ActivityLogNotifier(repo, workspaceId);
+  notifier.init();
+  return notifier;
 });
 
 class ActivityLogNotifier extends StateNotifier<List<ActivityLog>> {
-  ActivityLogNotifier() : super([]);
+  final ActivityLogRepository _repo;
+  final String _workspaceId;
+
+  StreamSubscription<void>? _logSub;
+  Timer? _reloadDebounce;
+
+  ActivityLogNotifier(this._repo, this._workspaceId) : super([]);
+
+  void init() {
+    if (!_repo.isPersistent) return;
+    unawaited(_load());
+    _logSub = _repo.watchLogs(_workspaceId).listen((_) {
+      _reloadDebounce?.cancel();
+      _reloadDebounce = Timer(const Duration(milliseconds: 300), () {
+        unawaited(_load());
+      });
+    });
+  }
+
+  Future<void> _load() async {
+    final logs = await _repo.fetchLogs(_workspaceId);
+    if (logs != null && mounted) {
+      state = logs;
+    }
+  }
+
+  @override
+  void dispose() {
+    _logSub?.cancel();
+    _reloadDebounce?.cancel();
+    super.dispose();
+  }
 
   void addLog(String workspaceId, String userName, String action, {String? taskId}) {
     final newLog = ActivityLog(
@@ -34,13 +85,51 @@ class ActivityLogNotifier extends StateNotifier<List<ActivityLog>> {
       action: action,
     );
     state = [newLog, ...state];
+    if (_repo.isPersistent) {
+      unawaited(_repo.insertLog(newLog));
+    }
   }
 }
 
 class TaskNotifier extends StateNotifier<List<TaskItem>> {
+  final TaskRepository _repo;
   final String workspaceId;
+  final NotificationService _notifications;
 
-  TaskNotifier(this.workspaceId, List<String> laneIds) : super(_seedTasks(workspaceId, laneIds));
+  StreamSubscription<void>? _taskSub;
+  Timer? _reloadDebounce;
+
+  TaskNotifier(
+    this._repo,
+    this.workspaceId,
+    List<String> laneIds,
+    this._notifications,
+  ) : super(_repo.isPersistent ? [] : _seedTasks(workspaceId, laneIds));
+
+  void init() {
+    if (!_repo.isPersistent) return;
+    unawaited(_load());
+    _taskSub = _repo.watchTasks(workspaceId).listen((_) {
+      _reloadDebounce?.cancel();
+      _reloadDebounce = Timer(const Duration(milliseconds: 300), () {
+        unawaited(_load());
+      });
+    });
+  }
+
+  Future<void> _load() async {
+    final tasks = await _repo.fetchTasks(workspaceId);
+    if (tasks != null && mounted) {
+      state = tasks;
+    }
+  }
+
+  @override
+  void dispose() {
+    _taskSub?.cancel();
+    _reloadDebounce?.cancel();
+    super.dispose();
+  }
 
   static List<TaskItem> _seedTasks(String wsId, List<String> laneIds) {
     if (laneIds.length < 5) return [];
@@ -143,37 +232,52 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
   }
 
   void moveTaskLane(String taskId, String newLaneId) {
+    TaskItem? moved;
     state = state.map((task) {
       if (task.id == taskId) {
-        return task.copyWith(laneId: newLaneId);
+        moved = task.copyWith(laneId: newLaneId);
+        return moved!;
       }
       return task;
     }).toList();
+    if (_repo.isPersistent && moved != null) {
+      unawaited(_repo.updateTask(moved!));
+    }
   }
 
   void addTask(TaskItem task) {
     state = [task, ...state];
+    if (_repo.isPersistent) {
+      unawaited(_repo.insertTask(task));
+    }
 
     // Trigger local notification if task has due date
     if (task.dueDate != null) {
-      NotificationService.instance.scheduleTaskReminder(
+      unawaited(_notifications.scheduleTaskReminder(
         id: task.id.hashCode,
         title: 'Task Due: ${task.title}',
         body: 'Assigned to ${task.assigneeName ?? "Team"}. Priority: ${task.priority.label}',
         scheduledDate: task.dueDate!.subtract(const Duration(hours: 1)),
-      );
+      ));
     }
   }
 
   void updateTask(TaskItem updatedTask) {
     state = state.map((t) => t.id == updatedTask.id ? updatedTask : t).toList();
+    if (_repo.isPersistent) {
+      unawaited(_repo.updateTask(updatedTask));
+    }
   }
 
   void deleteTask(String taskId) {
     state = state.where((t) => t.id != taskId).toList();
+    if (_repo.isPersistent) {
+      unawaited(_repo.deleteTask(taskId));
+    }
   }
 
   void toggleSubtask(String taskId, String subtaskId) {
+    TaskItem? updatedTask;
     state = state.map((task) {
       if (task.id == taskId) {
         final updatedSubtasks = task.subtasks.map((st) {
@@ -182,37 +286,56 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
           }
           return st;
         }).toList();
-        return task.copyWith(subtasks: updatedSubtasks);
+        updatedTask = task.copyWith(subtasks: updatedSubtasks);
+        return updatedTask!;
       }
       return task;
     }).toList();
+    if (_repo.isPersistent && updatedTask != null) {
+      unawaited(_repo.updateTask(updatedTask!));
+    }
   }
 
   void addLoggedTime(String taskId, int additionalSeconds) {
+    TaskItem? updatedTask;
     state = state.map((task) {
       if (task.id == taskId) {
-        return task.copyWith(loggedSeconds: task.loggedSeconds + additionalSeconds);
+        updatedTask = task.copyWith(loggedSeconds: task.loggedSeconds + additionalSeconds);
+        return updatedTask!;
       }
       return task;
     }).toList();
+    if (_repo.isPersistent && updatedTask != null) {
+      unawaited(_repo.updateTask(updatedTask!));
+    }
   }
 
   void addAttachmentUrl(String taskId, String url) {
+    TaskItem? updatedTask;
     state = state.map((task) {
       if (task.id == taskId) {
         final updatedUrls = [...task.driveAttachmentUrls, url];
-        return task.copyWith(driveAttachmentUrls: updatedUrls);
+        updatedTask = task.copyWith(driveAttachmentUrls: updatedUrls);
+        return updatedTask!;
       }
       return task;
     }).toList();
+    if (_repo.isPersistent && updatedTask != null) {
+      unawaited(_repo.updateTask(updatedTask!));
+    }
   }
 
   void archiveTask(String taskId, bool isArchived) {
+    TaskItem? updatedTask;
     state = state.map((task) {
       if (task.id == taskId) {
-        return task.copyWith(isArchived: isArchived);
+        updatedTask = task.copyWith(isArchived: isArchived);
+        return updatedTask!;
       }
       return task;
     }).toList();
+    if (_repo.isPersistent && updatedTask != null) {
+      unawaited(_repo.updateTask(updatedTask!));
+    }
   }
 }

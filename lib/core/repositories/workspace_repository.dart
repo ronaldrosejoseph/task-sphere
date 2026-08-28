@@ -1,0 +1,341 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
+import '../../models/lane.dart';
+import '../../models/workspace.dart';
+import '../services/supabase_service.dart';
+
+const _uuid = Uuid();
+
+typedef WorkspaceSnapshot = ({Workspace workspace, List<KanbanLane> lanes});
+typedef WorkspacesSnapshot = ({List<Workspace> workspaces, List<KanbanLane> lanes});
+
+/// Persistence boundary for workspaces, lanes, and members.
+///
+/// Implementations return `null` from fetch methods when they hold no
+/// persisted state (offline mode), in which case callers keep their
+/// in-memory state.
+abstract class WorkspaceRepository {
+  bool get isPersistent;
+
+  Future<WorkspacesSnapshot?> fetchWorkspaces({
+    required String userId,
+    required String email,
+  });
+
+  Future<List<KanbanLane>?> fetchLanes(String workspaceId);
+
+  Future<List<WorkspaceMember>?> fetchMembers(String workspaceId);
+
+  Future<WorkspaceSnapshot?> createWorkspace({
+    required String name,
+    required String adminId,
+    required String adminEmail,
+  });
+
+  Future<void> updateAutoArchiveDays(String workspaceId, int days);
+
+  Future<void> addLane(KanbanLane lane);
+
+  Future<void> updateLane(KanbanLane lane);
+
+  Future<void> deleteLane(String laneId);
+
+  Future<void> reorderLanes(List<KanbanLane> orderedLanes);
+
+  Future<void> inviteMember(WorkspaceMember member);
+
+  Stream<void> watchWorkspace(String workspaceId);
+}
+
+class InMemoryWorkspaceRepository implements WorkspaceRepository {
+  @override
+  bool get isPersistent => false;
+
+  @override
+  Future<WorkspacesSnapshot?> fetchWorkspaces({
+    required String userId,
+    required String email,
+  }) async =>
+      null;
+
+  @override
+  Future<List<KanbanLane>?> fetchLanes(String workspaceId) async => null;
+
+  @override
+  Future<List<WorkspaceMember>?> fetchMembers(String workspaceId) async => null;
+
+  @override
+  Future<WorkspaceSnapshot?> createWorkspace({
+    required String name,
+    required String adminId,
+    required String adminEmail,
+  }) async =>
+      null;
+
+  @override
+  Future<void> updateAutoArchiveDays(String workspaceId, int days) async {}
+
+  @override
+  Future<void> addLane(KanbanLane lane) async {}
+
+  @override
+  Future<void> updateLane(KanbanLane lane) async {}
+
+  @override
+  Future<void> deleteLane(String laneId) async {}
+
+  @override
+  Future<void> reorderLanes(List<KanbanLane> orderedLanes) async {}
+
+  @override
+  Future<void> inviteMember(WorkspaceMember member) async {}
+
+  @override
+  Stream<void> watchWorkspace(String workspaceId) => const Stream.empty();
+}
+
+class SupabaseWorkspaceRepository implements WorkspaceRepository {
+  final SupabaseClient _client;
+
+  SupabaseWorkspaceRepository(this._client);
+
+  @override
+  bool get isPersistent => true;
+
+  @override
+  Future<WorkspacesSnapshot?> fetchWorkspaces({
+    required String userId,
+    required String email,
+  }) async {
+    try {
+      final ownedResponse =
+          await _client.from('workspaces').select().eq('admin_id', userId);
+      final owned = (ownedResponse as List)
+          .map((row) => Workspace.fromJson(row as Map<String, dynamic>))
+          .toList();
+
+      final memberResponse = await _client
+          .from('workspace_members')
+          .select('workspace_id')
+          .or('user_id.eq.$userId,email.eq.$email');
+      final memberWorkspaceIds = (memberResponse as List)
+          .map((row) => (row as Map<String, dynamic>)['workspace_id'] as String)
+          .toSet();
+
+      final byId = <String, Workspace>{for (final ws in owned) ws.id: ws};
+      if (memberWorkspaceIds.isNotEmpty) {
+        final joinedResponse = await _client
+            .from('workspaces')
+            .select()
+            .inFilter('id', memberWorkspaceIds.toList());
+        for (final row in joinedResponse as List) {
+          final ws = Workspace.fromJson(row as Map<String, dynamic>);
+          byId[ws.id] = ws;
+        }
+      }
+
+      final workspaces = byId.values.toList();
+      final members = <WorkspaceMember>[];
+      for (final ws in workspaces) {
+        final wsMembers = await fetchMembers(ws.id);
+        if (wsMembers != null) members.addAll(wsMembers);
+      }
+
+      final withMembers = [
+        for (final ws in workspaces)
+          ws.copyWith(
+            members: members.where((m) => m.workspaceId == ws.id).toList(),
+          ),
+      ];
+
+      final lanes = workspaces.isEmpty
+          ? <KanbanLane>[]
+          : await fetchLanes(workspaces.first.id) ?? [];
+
+      return (workspaces: withMembers, lanes: lanes);
+    } catch (e) {
+      debugPrint('Workspace fetch error: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<List<WorkspaceMember>?> fetchMembers(String workspaceId) async {
+    try {
+      final response = await _client
+          .from('workspace_members')
+          .select()
+          .eq('workspace_id', workspaceId);
+      return (response as List)
+          .map((row) => WorkspaceMember.fromJson(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('Member fetch error: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<List<KanbanLane>?> fetchLanes(String workspaceId) async {
+    try {
+      final response = await _client
+          .from('workspace_lanes')
+          .select()
+          .eq('workspace_id', workspaceId)
+          .order('order_index');
+      return (response as List)
+          .map((row) => KanbanLane.fromJson(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('Lane fetch error: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<WorkspaceSnapshot?> createWorkspace({
+    required String name,
+    required String adminId,
+    required String adminEmail,
+  }) async {
+    try {
+      final id = _uuid.v4();
+      await _client.from('workspaces').insert({
+        'id': id,
+        'name': name,
+        'admin_id': adminId,
+        'auto_archive_days': 14,
+      });
+
+      final lanes = await fetchLanes(id) ?? [];
+      final members = await fetchMembers(id) ?? [
+        WorkspaceMember(
+          id: _uuid.v4(),
+          workspaceId: id,
+          email: adminEmail,
+          role: UserRole.admin,
+        ),
+      ];
+
+      return (
+        workspace: Workspace(
+          id: id,
+          name: name,
+          adminId: adminId,
+          members: members,
+        ),
+        lanes: lanes,
+      );
+    } catch (e) {
+      debugPrint('Workspace create error: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<void> updateAutoArchiveDays(String workspaceId, int days) async {
+    try {
+      await _client
+          .from('workspaces')
+          .update({'auto_archive_days': days}).eq('id', workspaceId);
+    } catch (e) {
+      debugPrint('Workspace update error: $e');
+    }
+  }
+
+  @override
+  Future<void> addLane(KanbanLane lane) async {
+    try {
+      await _client.from('workspace_lanes').insert(lane.toJson());
+    } catch (e) {
+      debugPrint('Lane create error: $e');
+    }
+  }
+
+  @override
+  Future<void> updateLane(KanbanLane lane) async {
+    try {
+      await _client
+          .from('workspace_lanes')
+          .update({'title': lane.title, 'color_hex': lane.colorHex})
+          .eq('id', lane.id);
+    } catch (e) {
+      debugPrint('Lane update error: $e');
+    }
+  }
+
+  @override
+  Future<void> deleteLane(String laneId) async {
+    try {
+      await _client.from('workspace_lanes').delete().eq('id', laneId);
+    } catch (e) {
+      debugPrint('Lane delete error: $e');
+    }
+  }
+
+  @override
+  Future<void> reorderLanes(List<KanbanLane> orderedLanes) async {
+    try {
+      for (final lane in orderedLanes) {
+        await _client
+            .from('workspace_lanes')
+            .update({'order_index': lane.orderIndex}).eq('id', lane.id);
+      }
+    } catch (e) {
+      debugPrint('Lane reorder error: $e');
+    }
+  }
+
+  @override
+  Future<void> inviteMember(WorkspaceMember member) async {
+    try {
+      await _client.from('workspace_members').insert(member.toJson());
+    } catch (e) {
+      debugPrint('Member invite error: $e');
+    }
+  }
+
+  @override
+  Stream<void> watchWorkspace(String workspaceId) {
+    final controller = StreamController<void>();
+    final channel = _client
+        .channel('workspace-$workspaceId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'workspace_lanes',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'workspace_id',
+            value: workspaceId,
+          ),
+          callback: (_) => controller.add(null),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'workspace_members',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'workspace_id',
+            value: workspaceId,
+          ),
+          callback: (_) => controller.add(null),
+        )
+        .subscribe();
+
+    final stream = controller.stream;
+    controller.onCancel = () => _client.removeChannel(channel);
+    return stream;
+  }
+}
+
+final workspaceRepositoryProvider = Provider<WorkspaceRepository>((ref) {
+  final client = SupabaseService.instance.client;
+  if (client != null) return SupabaseWorkspaceRepository(client);
+  return InMemoryWorkspaceRepository();
+});

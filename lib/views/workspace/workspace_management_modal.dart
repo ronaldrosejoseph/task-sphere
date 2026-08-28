@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/workspace.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/workspace_provider.dart';
 
 class WorkspaceManagementModal extends ConsumerStatefulWidget {
@@ -95,7 +96,12 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
                   onPressed: () {
                     final name = _newWsController.text.trim();
                     if (name.isNotEmpty) {
-                      ref.read(activeWorkspaceProvider.notifier).createWorkspace(name, 'demo-user-123');
+                      final user = ref.read(authProvider);
+                      ref.read(activeWorkspaceProvider.notifier).createWorkspace(
+                            name,
+                            user?.id ?? 'demo-user-123',
+                            user?.email ?? 'admin@tasksphere.app',
+                          );
                       _newWsController.clear();
                     }
                   },

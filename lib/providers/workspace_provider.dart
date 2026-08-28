@@ -1,14 +1,25 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import '../core/repositories/workspace_repository.dart';
 import '../models/workspace.dart';
 import '../models/lane.dart';
-import '../core/services/supabase_service.dart';
+import 'auth_provider.dart';
 
 const _uuid = Uuid();
 
 final activeWorkspaceProvider = StateNotifierProvider<WorkspaceNotifier, WorkspaceState>((ref) {
-  return WorkspaceNotifier();
+  final repo = ref.watch(workspaceRepositoryProvider);
+  final user = ref.read(authProvider);
+  final notifier = WorkspaceNotifier(
+    repo,
+    userId: user?.id,
+    userEmail: user?.email,
+  );
+  notifier.loadInitialData();
+  return notifier;
 });
 
 class WorkspaceState {
@@ -40,7 +51,29 @@ class WorkspaceState {
 }
 
 class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
-  WorkspaceNotifier() : super(_initialState());
+  final WorkspaceRepository _repo;
+  final String? _userId;
+  final String? _userEmail;
+
+  StreamSubscription<void>? _workspaceSub;
+  Timer? _reloadDebounce;
+
+  WorkspaceNotifier(
+    this._repo, {
+    String? userId,
+    String? userEmail,
+  })  : _userId = userId,
+        _userEmail = userEmail,
+        super(_repo.isPersistent ? _loadingState() : _initialState());
+
+  static WorkspaceState _loadingState() {
+    return WorkspaceState(
+      activeWorkspace: Workspace(id: 'loading', name: 'Loading…', adminId: ''),
+      allWorkspaces: const [],
+      lanes: const [],
+      isLoading: true,
+    );
+  }
 
   static WorkspaceState _initialState() {
     final defaultWs = Workspace(
@@ -88,7 +121,55 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
     );
   }
 
-  void createWorkspace(String name, String adminId) {
+  @override
+  void dispose() {
+    _workspaceSub?.cancel();
+    _reloadDebounce?.cancel();
+    super.dispose();
+  }
+
+  Future<void> loadInitialData() async {
+    if (!_repo.isPersistent) return;
+
+    final snapshot = await _repo.fetchWorkspaces(
+      userId: _userId ?? '',
+      email: _userEmail ?? '',
+    );
+    if (snapshot == null || !mounted) return;
+
+    if (snapshot.workspaces.isEmpty) {
+      await createWorkspace('My Workspace', _userId ?? '', _userEmail ?? '');
+      return;
+    }
+
+    final active = snapshot.workspaces.first;
+    state = WorkspaceState(
+      activeWorkspace: active,
+      allWorkspaces: snapshot.workspaces,
+      lanes: snapshot.lanes,
+      isLoading: false,
+    );
+    _subscribeToWorkspace(active.id);
+  }
+
+  Future<void> createWorkspace(String name, String adminId, String adminEmail) async {
+    if (_repo.isPersistent) {
+      final created = await _repo.createWorkspace(
+        name: name,
+        adminId: adminId,
+        adminEmail: adminEmail,
+      );
+      if (created == null || !mounted) return;
+      state = state.copyWith(
+        activeWorkspace: created.workspace,
+        allWorkspaces: [...state.allWorkspaces, created.workspace],
+        lanes: created.lanes,
+        isLoading: false,
+      );
+      _subscribeToWorkspace(created.workspace.id);
+      return;
+    }
+
     final wsId = _uuid.v4();
     final newWs = Workspace(
       id: wsId,
@@ -99,7 +180,7 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
           id: _uuid.v4(),
           workspaceId: wsId,
           userId: adminId,
-          email: 'admin@tasksphere.app',
+          email: adminEmail,
           role: UserRole.admin,
         )
       ],
@@ -120,8 +201,15 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
     );
   }
 
-  void switchWorkspace(Workspace ws) {
+  Future<void> switchWorkspace(Workspace ws) async {
     state = state.copyWith(activeWorkspace: ws);
+    if (!_repo.isPersistent) return;
+
+    state = state.copyWith(lanes: const [], isLoading: true);
+    final lanes = await _repo.fetchLanes(ws.id);
+    if (!mounted || state.activeWorkspace.id != ws.id) return;
+    state = state.copyWith(lanes: lanes ?? const [], isLoading: false);
+    _subscribeToWorkspace(ws.id);
   }
 
   // --- Admin Lane Customization ---
@@ -137,18 +225,26 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
     );
 
     state = state.copyWith(lanes: [...state.lanes, newLane]);
+    if (_repo.isPersistent) {
+      unawaited(_repo.addLane(newLane));
+    }
   }
 
   void updateLane(String laneId, String newTitle, Color newColor) {
     final hex = '#${newColor.value.toRadixString(16).substring(2).toUpperCase()}';
+    KanbanLane? updated;
     final updatedLanes = state.lanes.map((l) {
       if (l.id == laneId) {
-        return l.copyWith(title: newTitle, colorHex: hex);
+        updated = l.copyWith(title: newTitle, colorHex: hex);
+        return updated!;
       }
       return l;
     }).toList();
 
     state = state.copyWith(lanes: updatedLanes);
+    if (_repo.isPersistent && updated != null) {
+      unawaited(_repo.updateLane(updated!));
+    }
   }
 
   void reorderLanes(int oldIndex, int newIndex) {
@@ -162,17 +258,26 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
     }).toList();
 
     state = state.copyWith(lanes: reindexed);
+    if (_repo.isPersistent) {
+      unawaited(_repo.reorderLanes(reindexed));
+    }
   }
 
   void deleteLane(String laneId) {
     final updatedLanes = state.lanes.where((l) => l.id != laneId).toList();
     state = state.copyWith(lanes: updatedLanes);
+    if (_repo.isPersistent) {
+      unawaited(_repo.deleteLane(laneId));
+    }
   }
 
   // --- Workspace Settings ---
   void updateAutoArchiveThreshold(int days) {
     final updatedWs = state.activeWorkspace.copyWith(autoArchiveDays: days);
     state = state.copyWith(activeWorkspace: updatedWs);
+    if (_repo.isPersistent) {
+      unawaited(_repo.updateAutoArchiveDays(updatedWs.id, days));
+    }
   }
 
   void inviteMember(String email, UserRole role) {
@@ -185,5 +290,39 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
     final updatedMembers = [...state.activeWorkspace.members, newMember];
     final updatedWs = state.activeWorkspace.copyWith(members: updatedMembers);
     state = state.copyWith(activeWorkspace: updatedWs);
+    if (_repo.isPersistent) {
+      unawaited(_repo.inviteMember(newMember));
+    }
+  }
+
+  void _subscribeToWorkspace(String workspaceId) {
+    _workspaceSub?.cancel();
+    _workspaceSub = _repo.watchWorkspace(workspaceId).listen((_) {
+      _reloadDebounce?.cancel();
+      _reloadDebounce = Timer(
+        const Duration(milliseconds: 300),
+        () => _reloadWorkspace(workspaceId),
+      );
+    });
+  }
+
+  Future<void> _reloadWorkspace(String workspaceId) async {
+    final lanes = await _repo.fetchLanes(workspaceId);
+    final members = await _repo.fetchMembers(workspaceId);
+    if (!mounted || state.activeWorkspace.id != workspaceId) return;
+
+    if (lanes != null) {
+      state = state.copyWith(lanes: lanes);
+    }
+    if (members != null) {
+      final updatedWs = state.activeWorkspace.copyWith(members: members);
+      state = state.copyWith(
+        activeWorkspace: updatedWs,
+        allWorkspaces: [
+          for (final w in state.allWorkspaces)
+            w.id == updatedWs.id ? updatedWs : w,
+        ],
+      );
+    }
   }
 }

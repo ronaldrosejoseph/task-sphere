@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:task_sphere/core/repositories/workspace_repository.dart';
 import 'package:task_sphere/models/lane.dart';
 import 'package:task_sphere/models/task.dart';
 import 'package:task_sphere/models/workspace.dart';
@@ -7,7 +8,8 @@ import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/providers/workspace_provider.dart';
 
 class _CustomWorkspaceNotifier extends WorkspaceNotifier {
-  _CustomWorkspaceNotifier(WorkspaceState initialState) : super() {
+  _CustomWorkspaceNotifier(WorkspaceState initialState)
+      : super(InMemoryWorkspaceRepository()) {
     state = initialState;
   }
 }

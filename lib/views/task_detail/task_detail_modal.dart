@@ -515,8 +515,9 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
 
     if (widget.task == null) {
       // Create New Task
+      final taskId = _uuid.v4();
       final newTask = TaskItem(
-        id: _uuid.v4(),
+        id: taskId,
         workspaceId: wsId,
         laneId: _selectedLaneId,
         title: title,
@@ -527,7 +528,9 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         dueDate: _dueDate,
         estimatedHours: _estimatedHours,
         loggedSeconds: _sessionSeconds,
-        subtasks: _subtasks,
+        subtasks: [
+          for (final subtask in _subtasks) subtask.copyWith(taskId: taskId),
+        ],
         driveAttachmentUrls: _driveAttachmentUrls,
         createdBy: currentUser?.displayName ?? 'Admin',
       );
