@@ -268,6 +268,48 @@ CREATE POLICY "Workspace members can delete attachments"
         AND public.is_workspace_member((storage.foldername(name))[1]::uuid)
     );
 
+-- SIGN-UP RESTRICTION
+-- New users (including Google OAuth sign-ins) are rejected unless their
+-- email is allowlisted. Admins manage the list from the SQL editor:
+--   INSERT INTO public.allowed_signup_emails (email) VALUES ('you@example.com');
+CREATE TABLE IF NOT EXISTS public.allowed_signup_emails (
+    email TEXT PRIMARY KEY,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.allowed_signup_emails ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can manage the signup allowlist"
+    ON public.allowed_signup_emails FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.workspace_members
+            WHERE user_id = auth.uid() AND role = 'admin'
+        )
+    );
+
+CREATE OR REPLACE FUNCTION public.restrict_signup()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF NEW.email IS NULL OR NOT EXISTS (
+        SELECT 1 FROM public.allowed_signup_emails WHERE lower(email) = lower(NEW.email)
+    ) THEN
+        RAISE EXCEPTION 'Sign-up is restricted. Ask a workspace admin to add your email to the allowlist.';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    BEFORE INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.restrict_signup();
+
 -- ENABLE SUPABASE REALTIME (idempotent so the script can be re-run)
 DO $$
 BEGIN
