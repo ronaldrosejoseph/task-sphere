@@ -89,14 +89,15 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
   }
 
   void createWorkspace(String name, String adminId) {
+    final wsId = _uuid.v4();
     final newWs = Workspace(
-      id: _uuid.v4(),
+      id: wsId,
       name: name,
       adminId: adminId,
       members: [
         WorkspaceMember(
           id: _uuid.v4(),
-          workspaceId: newWs.id,
+          workspaceId: wsId,
           userId: adminId,
           email: 'admin@tasksphere.app',
           role: UserRole.admin,

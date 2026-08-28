@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz_data;
@@ -58,12 +59,16 @@ class NotificationService {
       macOS: darwinDetails,
     );
 
-    await _notifications.show(
-      id: id,
-      title: title,
-      body: body,
-      notificationDetails: details,
-    );
+    try {
+      await _notifications.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: details,
+      );
+    } catch (e) {
+      debugPrint('Notification display error: $e');
+    }
   }
 
   Future<void> scheduleTaskReminder({
@@ -91,13 +96,17 @@ class NotificationService {
       macOS: DarwinNotificationDetails(),
     );
 
-    await _notifications.zonedSchedule(
-      id: id,
-      title: title,
-      body: body,
-      scheduledDate: tzDateTime,
-      notificationDetails: details,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-    );
+    try {
+      await _notifications.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: tzDateTime,
+        notificationDetails: details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      );
+    } catch (e) {
+      debugPrint('Notification scheduling error: $e');
+    }
   }
 }
