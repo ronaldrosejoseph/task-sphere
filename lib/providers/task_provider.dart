@@ -48,6 +48,7 @@ class ActivityLogNotifier extends StateNotifier<List<ActivityLog>> {
 
   StreamSubscription<void>? _logSub;
   Timer? _reloadDebounce;
+  int _mutationCount = 0;
 
   ActivityLogNotifier(this._repo, this._workspaceId) : super([]);
 
@@ -63,10 +64,14 @@ class ActivityLogNotifier extends StateNotifier<List<ActivityLog>> {
   }
 
   Future<void> _load() async {
+    final revision = _mutationCount;
     final logs = await _repo.fetchLogs(_workspaceId);
-    if (logs != null && mounted) {
-      state = logs;
+    if (logs == null || !mounted) return;
+    if (_mutationCount != revision) {
+      unawaited(_load());
+      return;
     }
+    state = logs;
   }
 
   @override
@@ -77,6 +82,7 @@ class ActivityLogNotifier extends StateNotifier<List<ActivityLog>> {
   }
 
   void addLog(String workspaceId, String userName, String action, {String? taskId}) {
+    _mutationCount += 1;
     final newLog = ActivityLog(
       id: _uuid.v4(),
       workspaceId: workspaceId,
@@ -98,6 +104,7 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
 
   StreamSubscription<void>? _taskSub;
   Timer? _reloadDebounce;
+  int _mutationCount = 0;
 
   TaskNotifier(
     this._repo,
@@ -118,10 +125,16 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
   }
 
   Future<void> _load() async {
+    final revision = _mutationCount;
     final tasks = await _repo.fetchTasks(workspaceId);
-    if (tasks != null && mounted) {
-      state = tasks;
+    if (tasks == null || !mounted) return;
+    if (_mutationCount != revision) {
+      // A local mutation happened while fetching; retry so optimistic
+      // changes are not clobbered by a stale snapshot.
+      unawaited(_load());
+      return;
     }
+    state = tasks;
   }
 
   @override
@@ -232,6 +245,7 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
   }
 
   void moveTaskLane(String taskId, String newLaneId) {
+    _mutationCount += 1;
     TaskItem? moved;
     state = state.map((task) {
       if (task.id == taskId) {
@@ -246,6 +260,7 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
   }
 
   void addTask(TaskItem task) {
+    _mutationCount += 1;
     state = [task, ...state];
     if (_repo.isPersistent) {
       unawaited(_repo.insertTask(task));
@@ -263,6 +278,7 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
   }
 
   void updateTask(TaskItem updatedTask) {
+    _mutationCount += 1;
     state = state.map((t) => t.id == updatedTask.id ? updatedTask : t).toList();
     if (_repo.isPersistent) {
       unawaited(_repo.updateTask(updatedTask));
@@ -270,6 +286,7 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
   }
 
   void deleteTask(String taskId) {
+    _mutationCount += 1;
     state = state.where((t) => t.id != taskId).toList();
     if (_repo.isPersistent) {
       unawaited(_repo.deleteTask(taskId));
@@ -277,6 +294,7 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
   }
 
   void toggleSubtask(String taskId, String subtaskId) {
+    _mutationCount += 1;
     TaskItem? updatedTask;
     state = state.map((task) {
       if (task.id == taskId) {
@@ -297,6 +315,7 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
   }
 
   void addLoggedTime(String taskId, int additionalSeconds) {
+    _mutationCount += 1;
     TaskItem? updatedTask;
     state = state.map((task) {
       if (task.id == taskId) {
@@ -311,6 +330,7 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
   }
 
   void addAttachmentUrl(String taskId, String url) {
+    _mutationCount += 1;
     TaskItem? updatedTask;
     state = state.map((task) {
       if (task.id == taskId) {
@@ -326,6 +346,7 @@ class TaskNotifier extends StateNotifier<List<TaskItem>> {
   }
 
   void archiveTask(String taskId, bool isArchived) {
+    _mutationCount += 1;
     TaskItem? updatedTask;
     state = state.map((task) {
       if (task.id == taskId) {
