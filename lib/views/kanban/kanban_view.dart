@@ -122,6 +122,32 @@ class KanbanView extends ConsumerWidget {
                 ),
                 const SizedBox(width: 12),
 
+                // Assignee Filter Dropdown
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 180),
+                  child: DropdownButton<String?>(
+                    value: selectedAssignee,
+                    isExpanded: true,
+                    hint: const Text('All Assignees', style: TextStyle(fontSize: 13)),
+                    underline: const SizedBox(),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All Assignees')),
+                      ...workspaceState.activeWorkspace.members.map((m) {
+                        return DropdownMenuItem(
+                          value: m.email,
+                          child: Text(
+                            m.email.split('@').first,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }),
+                    ],
+                    onChanged: (val) =>
+                        ref.read(taskFilterAssigneeProvider.notifier).state = val,
+                  ),
+                ),
+                const SizedBox(width: 12),
+
                 // Show Archived Toggle
                 FilterChip(
                   selected: showArchived,
