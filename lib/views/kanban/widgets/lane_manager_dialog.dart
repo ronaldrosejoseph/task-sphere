@@ -174,37 +174,107 @@ class _LaneManagerDialogState extends ConsumerState<LaneManagerDialog> {
   }
 
   Future<void> _confirmDeleteLane(KanbanLane lane) async {
-    final taskCount =
-        ref.read(tasksProvider).where((t) => t.laneId == lane.id).length;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete "${lane.title}"?'),
-        content: Text(
-          taskCount > 0
-              ? '$taskCount task(s) in this lane will be permanently deleted.'
-              : 'This lane will be removed.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete Lane'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    // The database cascade removes these tasks server-side; mirror it locally.
     final tasksInLane =
         ref.read(tasksProvider).where((t) => t.laneId == lane.id).toList();
+    final otherLanes = ref
+        .read(activeWorkspaceProvider)
+        .lanes
+        .where((l) => l.id != lane.id)
+        .toList();
+
+    if (tasksInLane.isEmpty) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Delete "${lane.title}"?'),
+          content: const Text('This lane will be removed.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Delete Lane'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true) {
+        ref.read(activeWorkspaceProvider.notifier).deleteLane(lane.id);
+      }
+      return;
+    }
+
+    if (otherLanes.isEmpty) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Cannot delete "${lane.title}"'),
+          content: Text(
+            'This lane contains ${tasksInLane.length} task(s). Create another lane '
+            'and move the tasks there before deleting this one.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Tasks must be moved out before the lane can be deleted.
+    var targetLane = otherLanes.first;
+    final target = await showDialog<KanbanLane>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Text('Delete "${lane.title}"?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This lane still contains ${tasksInLane.length} task(s). '
+                'Move them to another lane before deleting.',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<KanbanLane>(
+                initialValue: targetLane,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Move tasks to', isDense: true),
+                items: otherLanes
+                    .map((l) => DropdownMenuItem(value: l, child: Text(l.title)))
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => targetLane = val);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+              onPressed: () => Navigator.pop(ctx, targetLane),
+              child: const Text('Move Tasks & Delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (target == null || !mounted) return;
+
     for (final task in tasksInLane) {
-      ref.read(tasksProvider.notifier).deleteTask(task.id);
+      ref.read(tasksProvider.notifier).moveTaskLane(task.id, target.id);
     }
     ref.read(activeWorkspaceProvider.notifier).deleteLane(lane.id);
   }
@@ -248,40 +318,53 @@ class _LaneManagerDialogState extends ConsumerState<LaneManagerDialog> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Edit ${lane.title}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: editController,
-              decoration: const InputDecoration(labelText: 'Column Title'),
-            ),
-            const SizedBox(height: 16),
-            Row(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) {
+          final name = editController.text.trim();
+          final isEmpty = name.isEmpty;
+          return AlertDialog(
+            title: Text('Edit ${lane.title}'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Accent Color: '),
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(color: editColor, shape: BoxShape.circle),
+                TextField(
+                  controller: editController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: 'Column Title',
+                    errorText: isEmpty ? 'Lane name cannot be empty' : null,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Text('Accent Color: '),
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(color: editColor, shape: BoxShape.circle),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              ref
-                  .read(activeWorkspaceProvider.notifier)
-                  .updateLane(lane.id, editController.text.trim(), editColor);
-              Navigator.pop(ctx);
-            },
-            child: const Text('Save'),
-          ),
-        ],
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: isEmpty
+                    ? null
+                    : () {
+                        ref
+                            .read(activeWorkspaceProvider.notifier)
+                            .updateLane(lane.id, name, editColor);
+                        Navigator.pop(ctx);
+                      },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

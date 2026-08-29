@@ -56,6 +56,7 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
   int createCalls = 0;
   int inviteCalls = 0;
   int laneAddCalls = 0;
+  final List<String> deleteCalls = [];
   final List<String> allowlisted = [];
 
   @override
@@ -97,6 +98,12 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
       KanbanLane(id: 'rl-1', workspaceId: 'ws-remote', title: 'To Do', orderIndex: 0, isDefault: true),
     ];
     return (workspace: workspace, lanes: List.of(lanes));
+  }
+
+  @override
+  Future<void> deleteWorkspace(String workspaceId) async {
+    deleteCalls.add(workspaceId);
+    workspaces.removeWhere((w) => w.id == workspaceId);
   }
 
   @override
@@ -493,6 +500,124 @@ void main() {
 
       expect(notifier.state.activeWorkspace.members, isEmpty);
       expect(repo.inviteCalls, 0);
+    });
+
+    test('addLane and updateLane ignore empty titles', () {
+      final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository());
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      notifier.addLane('   ', const Color(0xFFEC4899));
+
+      expect(notifier.state.lanes, hasLength(1));
+
+      notifier.updateLane('lane-1', '  ', const Color(0xFF3B82F6));
+
+      expect(notifier.state.lanes.single.title, 'To Do');
+    });
+  });
+
+  group('Workspace deletion', () {
+    Workspace adminWorkspace({String id = 'ws-1', String name = 'Team'}) {
+      return Workspace(
+        id: id,
+        name: name,
+        adminId: 'a',
+        members: [
+          WorkspaceMember(
+            id: 'm-1',
+            workspaceId: id,
+            userId: 'a',
+            email: 'a@x.com',
+            role: UserRole.admin,
+          ),
+        ],
+      );
+    }
+
+    // Uses the real notifier (build() wires the repository) with the
+    // authenticated admin user from _workspaceContainer.
+    Future<WorkspaceNotifier> loadFromRepo(FakeWorkspaceRepository repo) async {
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+      return notifier;
+    }
+
+    test('admin deleting the active workspace switches to the next one', () async {
+      final ws1 = adminWorkspace();
+      final ws2 = Workspace(id: 'ws-2', name: 'Other', adminId: 'a');
+      final repo = FakeWorkspaceRepository()..workspaces = [ws1, ws2];
+      final notifier = await loadFromRepo(repo);
+
+      await notifier.deleteWorkspace('ws-1');
+
+      expect(repo.deleteCalls, ['ws-1']);
+      expect(notifier.state.activeWorkspace.id, 'ws-2');
+      expect(notifier.state.allWorkspaces, hasLength(1));
+      expect(notifier.state.isLoading, isFalse);
+    });
+
+    test('deleting the last workspace shows the no-workspace state', () async {
+      final ws1 = adminWorkspace();
+      final repo = FakeWorkspaceRepository()..workspaces = [ws1];
+      final notifier = await loadFromRepo(repo);
+
+      await notifier.deleteWorkspace('ws-1');
+
+      expect(repo.deleteCalls, ['ws-1']);
+      expect(notifier.state.hasWorkspace, isFalse);
+      expect(notifier.state.activeWorkspace.name, 'No Workspace');
+    });
+
+    test('non-admins cannot delete the workspace', () async {
+      final ws1 = Workspace(
+        id: 'ws-1',
+        name: 'Team',
+        adminId: 'someone-else',
+        members: [
+          WorkspaceMember(
+            id: 'm-1',
+            workspaceId: 'ws-1',
+            userId: 'a',
+            email: 'a@x.com',
+            role: UserRole.member,
+          ),
+        ],
+      );
+      final repo = FakeWorkspaceRepository()..workspaces = [ws1];
+      final notifier = await loadFromRepo(repo);
+
+      await notifier.deleteWorkspace('ws-1');
+
+      expect(repo.deleteCalls, isEmpty);
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
+    });
+
+    test('demo mode blocks workspace deletion even for admins', () async {
+      final ws1 = adminWorkspace();
+      final repo = FakeWorkspaceRepository()..workspaces = [ws1];
+      final container = ProviderContainer(
+        overrides: [
+          demoModeProvider.overrideWithValue(true),
+          workspaceRepositoryProvider.overrideWith((ref) => repo),
+          authProvider.overrideWith(
+            () => _FixedAuthNotifier(
+              UserProfile(id: 'a', email: 'a@x.com', displayName: 'A'),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      // Let build()'s unawaited loadInitialData() finish loading ws-1.
+      await _settle();
+
+      await notifier.deleteWorkspace('ws-1');
+
+      expect(repo.deleteCalls, isEmpty);
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
     });
   });
 }

@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../core/repositories/workspace_repository.dart';
 import '../models/workspace.dart';
 import '../models/lane.dart';
+import '../models/user_profile.dart';
 import 'auth_provider.dart';
 import 'demo_mode_provider.dart';
 
@@ -269,6 +270,64 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     _lanesByWorkspace[newWs.id] = List.of(newLanes);
   }
 
+  /// Whether [user] is an admin of the active workspace.
+  bool isAdmin(UserProfile? user) {
+    if (user == null) return false;
+    final ws = state.activeWorkspace;
+    return ws.members.any(
+      (m) =>
+          m.role == UserRole.admin &&
+          ((m.userId != null && m.userId!.isNotEmpty && m.userId == user.id) ||
+              m.email.toLowerCase() == user.email.toLowerCase()),
+    );
+  }
+
+  /// Permanently deletes [workspaceId]. Only the active workspace can be
+  /// deleted from the app; the database cascade removes tasks, lanes,
+  /// members, subtasks, and activity logs.
+  Future<void> deleteWorkspace(String workspaceId) async {
+    // Demo site is read-only for creations/deletions.
+    if (ref.read(demoModeProvider)) return;
+    if (!isAdmin(ref.read(authProvider))) return;
+
+    final repo = _repository;
+    if (repo.isPersistent) {
+      await repo.deleteWorkspace(workspaceId);
+      if (!ref.mounted) return;
+    }
+
+    final remaining =
+        state.allWorkspaces.where((w) => w.id != workspaceId).toList();
+    if (remaining.isEmpty) {
+      state = WorkspaceState.empty();
+      return;
+    }
+
+    final next = remaining.first;
+    if (workspaceId != state.activeWorkspace.id) {
+      state = state.copyWith(allWorkspaces: remaining);
+      return;
+    }
+
+    if (repo.isPersistent) {
+      final lanes = await _ensureLanes(next.id);
+      if (!ref.mounted) return;
+      state = WorkspaceState(
+        activeWorkspace: next,
+        allWorkspaces: remaining,
+        lanes: lanes,
+        isLoading: false,
+      );
+      _subscribeToWorkspace(next.id);
+    } else {
+      state = state.copyWith(
+        activeWorkspace: next,
+        allWorkspaces: remaining,
+        lanes: List.of(_lanesByWorkspace[next.id] ?? const []),
+      );
+    }
+  }
+
   Future<void> switchWorkspace(Workspace ws) async {
     // Always activate the canonical instance so updated settings are kept.
     final canonical = state.allWorkspaces.firstWhere(
@@ -295,6 +354,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
 
   // --- Admin Lane Customization ---
   void addLane(String title, Color color) {
+    if (title.trim().isEmpty) return;
     final hex = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
     final newLane = KanbanLane(
       id: _uuid.v4(),
@@ -313,6 +373,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   }
 
   void updateLane(String laneId, String newTitle, Color newColor) {
+    if (newTitle.trim().isEmpty) return;
     final hex = '#${newColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
     KanbanLane? updated;
     final updatedLanes = state.lanes.map((l) {

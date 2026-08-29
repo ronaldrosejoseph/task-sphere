@@ -43,23 +43,26 @@ void main() {
     return container;
   }
 
-  testWidgets('deleting a custom lane asks for confirmation', (tester) async {
-    final container = await pumpDialog(tester);
-
-    // Only the custom lane has a delete button.
-    expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+  Future<void> tapDelete(WidgetTester tester) async {
     await tester.ensureVisible(find.byIcon(Icons.delete_outline));
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.delete_outline));
     await tester.pumpAndSettle();
+  }
+
+  testWidgets('deleting a lane with tasks warns and requires moving them first', (tester) async {
+    final container = await pumpDialog(tester);
+
+    await tapDelete(tester);
 
     expect(find.text('Delete "In Review"?'), findsOneWidget);
     expect(
-      find.text('1 task(s) in this lane will be permanently deleted.'),
+      find.textContaining('still contains 1 task(s)'),
       findsOneWidget,
     );
+    expect(find.text('Move tasks to'), findsOneWidget);
 
-    // Cancel keeps lane and task.
+    // Cancel keeps the lane and the task untouched.
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(
@@ -72,23 +75,102 @@ void main() {
     );
   });
 
-  testWidgets('confirming deletes the lane and its tasks', (tester) async {
+  testWidgets('confirming moves the tasks to the chosen lane then deletes', (tester) async {
     final container = await pumpDialog(tester);
+    final toDoLaneId = container
+        .read(activeWorkspaceProvider)
+        .lanes
+        .firstWhere((l) => l.title == 'To Do')
+        .id;
 
-    await tester.ensureVisible(find.byIcon(Icons.delete_outline));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.delete_outline));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Delete Lane'));
+    await tapDelete(tester);
+
+    // Default target is the first other lane (To Do).
+    expect(find.text('To Do'), findsWidgets);
+    await tester.tap(find.text('Move Tasks & Delete'));
     await tester.pumpAndSettle();
 
     expect(
       container.read(activeWorkspaceProvider).lanes.any((l) => l.title == 'In Review'),
       isFalse,
     );
+    final moved = container
+        .read(tasksProvider)
+        .firstWhere((t) => t.id == 'custom-task');
+    expect(moved.laneId, toDoLaneId);
+  });
+
+  testWidgets('deleting an empty lane asks for a simple confirmation', (tester) async {
+    final container = await pumpDialog(tester);
+    container
+        .read(activeWorkspaceProvider.notifier)
+        .addLane('Empty Lane', const Color(0xFF06B6D4));
+
+    await tester.pumpAndSettle();
+
+    // Delete the empty lane first (the last one in the list).
+    final emptyLaneCard = find.widgetWithText(Card, 'Empty Lane');
+    await tester.dragUntilVisible(
+      emptyLaneCard,
+      find.byType(ReorderableListView),
+      const Offset(0, -80),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: emptyLaneCard, matching: find.byIcon(Icons.delete_outline)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete "Empty Lane"?'), findsOneWidget);
+    expect(find.text('This lane will be removed.'), findsOneWidget);
+    await tester.tap(find.text('Delete Lane'));
+    await tester.pumpAndSettle();
+
     expect(
-      container.read(tasksProvider).any((t) => t.id == 'custom-task'),
+      container.read(activeWorkspaceProvider).lanes.any((l) => l.title == 'Empty Lane'),
       isFalse,
+    );
+    expect(
+      container.read(activeWorkspaceProvider).lanes.any((l) => l.title == 'In Review'),
+      isTrue,
+    );
+  });
+
+  testWidgets('editing a lane requires a non-empty name', (tester) async {
+    await pumpDialog(tester);
+
+    await tester.ensureVisible(find.byIcon(Icons.edit).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.edit).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit To Do'), findsOneWidget);
+
+    // The edit field is the one labeled 'Column Title'.
+    final editField = find.ancestor(
+      of: find.text('Column Title'),
+      matching: find.byType(TextField),
+    );
+    expect(editField, findsOneWidget);
+
+    // Clearing the title shows the error and disables Save.
+    await tester.enterText(editField, '');
+    await tester.pumpAndSettle();
+    expect(find.text('Lane name cannot be empty'), findsOneWidget);
+    final saveButton = tester.widget<ElevatedButton>(
+      find.widgetWithText(ElevatedButton, 'Save'),
+    );
+    expect(saveButton.onPressed, isNull);
+
+    // A valid name enables Save and renames the lane.
+    await tester.enterText(editField, 'Backlog');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Backlog'),
+      findsWidgets,
     );
   });
 }

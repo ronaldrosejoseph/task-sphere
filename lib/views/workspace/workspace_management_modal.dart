@@ -4,6 +4,7 @@ import '../../models/workspace.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/demo_mode_provider.dart';
+import '../../providers/task_provider.dart';
 
 class WorkspaceManagementModal extends ConsumerStatefulWidget {
   const WorkspaceManagementModal({super.key});
@@ -28,8 +29,10 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
   Widget build(BuildContext context) {
     final workspaceState = ref.watch(activeWorkspaceProvider);
     final demoMode = ref.watch(demoModeProvider);
+    final currentUser = ref.watch(authProvider);
     final activeWs = workspaceState.activeWorkspace;
     final allWs = workspaceState.allWorkspaces;
+    final isAdmin = ref.read(activeWorkspaceProvider.notifier).isAdmin(currentUser);
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -163,34 +166,140 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
               const SizedBox(height: 16),
             ],
 
-            // Members List
-            const Text('Current Members', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
+            // Members List + Danger Zone (scrolls together so the dialog
+            // never overflows on short viewports)
             Expanded(
-              child: ListView.builder(
-                itemCount: activeWs.members.length,
-                itemBuilder: (context, index) {
-                  final member = activeWs.members[index];
-                  final isAdmin = member.role == UserRole.admin;
-
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      backgroundColor: isAdmin ? const Color(0xFF6366F1) : Colors.grey,
-                      child: Text(member.email[0].toUpperCase(), style: const TextStyle(color: Colors.white)),
+              child: ListView(
+                children: [
+                  const Text('Current Members', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  for (final member in activeWs.members) ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor: member.role == UserRole.admin ? const Color(0xFF6366F1) : Colors.grey,
+                        child: Text(member.email[0].toUpperCase(), style: const TextStyle(color: Colors.white)),
+                      ),
+                      title: Text(member.email, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text('Role: ${member.role.name.toUpperCase()}'),
+                      trailing: member.role == UserRole.admin
+                          ? const Chip(label: Text('Admin', style: TextStyle(fontSize: 10)))
+                          : const Chip(label: Text('Member', style: TextStyle(fontSize: 10))),
                     ),
-                    title: Text(member.email, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text('Role: ${member.role.name.toUpperCase()}'),
-                    trailing: isAdmin
-                        ? const Chip(label: Text('Admin', style: TextStyle(fontSize: 10)))
-                        : const Chip(label: Text('Member', style: TextStyle(fontSize: 10))),
-                  );
-                },
+                  ],
+
+                  // Danger Zone (admins only, hidden in demo mode)
+                  if (!demoMode && isAdmin) ...[
+                    const SizedBox(height: 8),
+                    const Divider(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.35)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 18),
+                              SizedBox(width: 8),
+                              Text(
+                                'Danger Zone',
+                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.redAccent),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Delete this workspace and everything in it. Tasks, lanes, and members are permanently removed.',
+                            style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _confirmDeleteWorkspace,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.redAccent,
+                                side: const BorderSide(color: Colors.redAccent),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              icon: const Icon(Icons.delete_forever_outlined, size: 18),
+                              label: const Text('Delete Workspace'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteWorkspace() async {
+    final ws = ref.read(activeWorkspaceProvider).activeWorkspace;
+    final taskCount = ref.read(tasksProvider).length;
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) {
+          final matches = controller.text.trim() == ws.name;
+          return AlertDialog(
+            title: Text('Delete "${ws.name}"?'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'This permanently deletes the workspace, all of its kanban lanes, and every task and member in it. This cannot be undone.',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Tasks in this workspace: $taskCount',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: 'Type "${ws.name}" to confirm',
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                onPressed: matches ? () => Navigator.pop(ctx, true) : null,
+                child: const Text('Delete Workspace'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    // The dialog's exit animation still references the controller, so it
+    // must outlive the pop; the transient dialog is disposed with the route.
+    if (confirmed != true || !mounted) return;
+    await ref.read(activeWorkspaceProvider.notifier).deleteWorkspace(ws.id);
+    if (mounted) Navigator.pop(context);
   }
 }

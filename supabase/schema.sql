@@ -174,6 +174,11 @@ CREATE POLICY "Authenticated users can create workspaces"
     ON public.workspaces FOR INSERT
     WITH CHECK (auth.uid() = admin_id);
 
+DROP POLICY IF EXISTS "Admins can delete workspaces" ON public.workspaces;
+CREATE POLICY "Admins can delete workspaces"
+    ON public.workspaces FOR DELETE
+    USING (auth.uid() = admin_id OR public.is_workspace_admin(id));
+
 -- Tasks Policies
 DROP POLICY IF EXISTS "Workspace members can view tasks" ON public.tasks;
 CREATE POLICY "Workspace members can view tasks"

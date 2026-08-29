@@ -39,6 +39,10 @@ abstract class WorkspaceRepository {
     required String adminEmail,
   });
 
+  /// Permanently removes the workspace; tasks, lanes, members, subtasks and
+  /// activity logs are removed by the database cascade. Admin-only (RLS).
+  Future<void> deleteWorkspace(String workspaceId);
+
   Future<void> updateAutoArchiveDays(String workspaceId, int days);
 
   Future<void> updateShowArchivedTasks(String workspaceId, bool show);
@@ -90,6 +94,9 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Future<void> updateAutoArchiveDays(String workspaceId, int days) async {}
+
+  @override
+  Future<void> deleteWorkspace(String workspaceId) async {}
 
   @override
   Future<void> updateShowArchivedTasks(String workspaceId, bool show) async {}
@@ -267,6 +274,15 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
     } catch (e) {
       debugPrint('Workspace create error: $e');
       return null;
+    }
+  }
+
+  @override
+  Future<void> deleteWorkspace(String workspaceId) async {
+    try {
+      await _client.from('workspaces').delete().eq('id', workspaceId);
+    } catch (e) {
+      debugPrint('Workspace delete error: $e');
     }
   }
 
