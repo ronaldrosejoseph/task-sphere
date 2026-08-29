@@ -34,6 +34,27 @@ void main() {
     return container;
   }
 
+  testWidgets('auto-expiry chips render in dark mode', (tester) async {
+    tester.view.physicalSize = const Size(900, 1800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.darkTheme,
+          home: const Scaffold(body: SettingsView()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final label in ['7 Days', '14 Days', '30 Days', '90 Days', 'Never']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('manage lanes tile opens the lane manager dialog', (tester) async {
     await pumpSettings(tester);
 

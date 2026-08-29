@@ -151,11 +151,13 @@ class AppTheme {
         ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: cardDark,
-        selectedColor: primaryIndigo.withValues(alpha: 0.25),
+        backgroundColor: surfaceDark,
+        selectedColor: primaryIndigo.withValues(alpha: 0.35),
         side: const BorderSide(color: borderDark),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusSm)),
-        labelStyle: const TextStyle(fontSize: 12.5),
+        labelStyle: const TextStyle(fontSize: 12.5, color: Colors.white),
+        secondaryLabelStyle: const TextStyle(fontSize: 12.5, color: Colors.white),
+        checkmarkColor: Colors.white,
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: primaryIndigo,
@@ -272,11 +274,13 @@ class AppTheme {
         ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: bgLight,
-        selectedColor: primaryIndigo.withValues(alpha: 0.15),
+        backgroundColor: const Color(0xFFEDEFF7),
+        selectedColor: primaryIndigo.withValues(alpha: 0.18),
         side: const BorderSide(color: borderLight),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusSm)),
-        labelStyle: const TextStyle(fontSize: 12.5),
+        labelStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF111827)),
+        secondaryLabelStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF111827)),
+        checkmarkColor: primaryIndigo,
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: primaryIndigo,
