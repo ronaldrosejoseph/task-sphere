@@ -37,7 +37,9 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy build/web --project-name task-sphere
+          command: |
+            pages project create task-sphere --production-branch main || echo "Project already exists"
+            pages deploy build/web --project-name task-sphere
 
       - name: Skip deploy notice
         if: env.CLOUDFLARE_API_TOKEN == ''

@@ -98,7 +98,7 @@ The web build is a fully static Flutter bundle - no server required. A GitHub Ac
    - `SUPABASE_ANON_KEY` - your Supabase **anon** public key (never the `service_role` key) from the same page
    - `CLOUDFLARE_API_TOKEN` - the API token from step 2
    - `CLOUDFLARE_ACCOUNT_ID` - the Account ID from step 3
-5. **Push to `main`** (or run the **Deploy Web** workflow manually from the Actions tab) - the workflow runs tests, builds the bundle, and creates a Pages project named `task-sphere` on first deploy.
+5. **Push to `main`** (or run the **Deploy Web** workflow manually from the Actions tab) - the workflow runs tests, builds the bundle, creates the Pages project named `task-sphere` if it does not exist, and deploys to it.
 6. Your app is live at **`https://task-sphere.pages.dev`** (attach a custom domain under Cloudflare Pages → Custom domains if you own one).
 
 ### Required cloud configuration for web sign-in
