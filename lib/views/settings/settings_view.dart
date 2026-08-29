@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/task_provider.dart';
 import '../../core/services/supabase_service.dart';
+import '../kanban/widgets/lane_manager_dialog.dart';
 
 class SettingsView extends ConsumerWidget {
   const SettingsView({super.key});
@@ -14,14 +16,32 @@ class SettingsView extends ConsumerWidget {
     final workspaceState = ref.watch(activeWorkspaceProvider);
     final autoArchiveDays = workspaceState.activeWorkspace.autoArchiveDays;
     final currentUser = ref.watch(authProvider);
+    final showArchived = ref.watch(showArchivedTasksProvider);
 
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
         const Text('App Settings & Preferences', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
         const SizedBox(height: 6),
-        Text('Configure auto-expiry task archiving, themes, and serverless sync accounts.', style: TextStyle(color: Colors.grey[400])),
+        Text('Configure kanban lanes, auto-expiry task archiving, themes, and serverless sync accounts.', style: TextStyle(color: Colors.grey[400])),
         const SizedBox(height: 24),
+
+        // Manage Lanes
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.view_column_rounded, color: Color(0xFF6366F1)),
+            title: const Text('Manage Kanban Lanes', style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: const Text('Add custom columns, reorder, or update accent colors'),
+            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (context) => const LaneManagerDialog(),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 20),
 
         // Auto-Expiry & Archiving Threshold
         Card(
@@ -58,6 +78,19 @@ class SettingsView extends ConsumerWidget {
                       },
                     );
                   }).toList(),
+                ),
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: showArchived,
+                  onChanged: (val) =>
+                      ref.read(showArchivedTasksProvider.notifier).set(val ?? false),
+                  title: const Text('Show archived tasks on the board'),
+                  subtitle: const Text(
+                    'When off, archived and auto-expired tasks are hidden from the Kanban view',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
                 ),
               ],
             ),

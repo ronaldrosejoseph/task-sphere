@@ -7,7 +7,6 @@ import '../../models/lane.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../core/theme/app_theme.dart';
-import 'widgets/lane_manager_dialog.dart';
 import '../task_detail/task_detail_modal.dart';
 
 class KanbanView extends ConsumerWidget {
@@ -62,26 +61,39 @@ class KanbanView extends ConsumerWidget {
       return true;
     }).toList();
 
-    return Column(
-      children: [
-        // Top Filter Bar
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? AppTheme.surfaceDark
-                : AppTheme.surfaceLight,
-            border: Border(
-              bottom: BorderSide(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? AppTheme.borderDark
-                    : AppTheme.borderLight,
+    return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (context) => const TaskDetailModal(),
+          );
+        },
+        tooltip: 'New Task',
+        backgroundColor: AppTheme.primaryIndigo,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+      body: Column(
+        children: [
+          // Top Filter Bar (wraps onto a second line on narrow screens)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? AppTheme.surfaceDark
+                  : AppTheme.surfaceLight,
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? AppTheme.borderDark
+                      : AppTheme.borderLight,
+                ),
               ),
             ),
-          ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 // Search Input
                 SizedBox(
@@ -98,7 +110,6 @@ class KanbanView extends ConsumerWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
 
                 // Priority Filter Dropdown
                 DropdownButton<TaskPriority?>(
@@ -120,7 +131,6 @@ class KanbanView extends ConsumerWidget {
                   ],
                   onChanged: (val) => ref.read(taskFilterPriorityProvider.notifier).set(val),
                 ),
-                const SizedBox(width: 12),
 
                 // Assignee Filter Dropdown
                 ConstrainedBox(
@@ -146,76 +156,30 @@ class KanbanView extends ConsumerWidget {
                         ref.read(taskFilterAssigneeProvider.notifier).set(val),
                   ),
                 ),
-                const SizedBox(width: 12),
-
-                // Show Archived Toggle
-                FilterChip(
-                  selected: showArchived,
-                  label: Text(showArchived ? 'Showing Archived' : 'Hide Archived (Auto-Expiry)'),
-                  avatar: Icon(
-                    showArchived ? Icons.visibility : Icons.visibility_off_outlined,
-                    size: 16,
-                  ),
-                  onSelected: (val) => ref.read(showArchivedTasksProvider.notifier).set(val),
-                ),
-                const SizedBox(width: 12),
-
-                // Manage Lanes Button (Admin)
-                OutlinedButton.icon(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => const LaneManagerDialog(),
-                    );
-                  },
-                  icon: const Icon(Icons.view_column_rounded, size: 16),
-                  label: const Text('Manage Lanes'),
-                  style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // New Task Button
-                ElevatedButton.icon(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => const TaskDetailModal(),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryIndigo,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  ),
-                  icon: const Icon(Icons.add, size: 18, color: Colors.white),
-                  label: const Text('New Task', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
               ],
             ),
           ),
-        ),
 
-        // Dynamic Kanban Columns Body
-        Expanded(
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.all(20),
-            itemCount: lanes.length,
-            itemBuilder: (context, index) {
-              final lane = lanes[index];
-              final laneTasks = filteredTasks.where((t) => t.laneId == lane.id).toList()
-                ..sort(compareTasksForBoard);
+          // Dynamic Kanban Columns Body
+          Expanded(
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.all(20),
+              itemCount: lanes.length,
+              itemBuilder: (context, index) {
+                final lane = lanes[index];
+                final laneTasks = filteredTasks.where((t) => t.laneId == lane.id).toList()
+                  ..sort(compareTasksForBoard);
 
-              return _KanbanColumnWidget(
-                lane: lane,
-                tasks: laneTasks,
-              );
-            },
+                return _KanbanColumnWidget(
+                  lane: lane,
+                  tasks: laneTasks,
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

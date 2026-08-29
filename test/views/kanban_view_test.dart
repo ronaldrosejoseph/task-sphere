@@ -97,18 +97,33 @@ void main() {
       expect(find.text('Design Dark Mode Glassmorphic UI System'), findsNothing);
     });
 
-    testWidgets('archived toggle reveals archived tasks', (tester) async {
-      await pumpBoard(tester);
+    testWidgets('shows archived tasks when the setting is enabled', (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await pumpBoard(tester, container: container);
 
-      await tester.tap(find.text('Hide Archived (Auto-Expiry)'));
+      container.read(showArchivedTasksProvider.notifier).set(true);
+      await tester.pump();
+      // Advance past the entrance animation's delay timer.
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
 
-      expect(find.text('Showing Archived'), findsOneWidget);
       expect(find.text('Legacy MySQL Server Backend'), findsOneWidget);
     });
   });
 
   group('Kanban interactions', () {
+    testWidgets('floating action button opens the new task modal', (tester) async {
+      await pumpBoard(tester);
+
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Create New Task'), findsOneWidget);
+      expect(find.text('Save Task'), findsOneWidget);
+    });
+
     testWidgets('tapping a task card opens the detail modal', (tester) async {
       await pumpBoard(tester);
 
