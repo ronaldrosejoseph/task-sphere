@@ -92,9 +92,7 @@ class KanbanView extends ConsumerWidget {
                 );
 
                 final priorityDropdown = _FilterPill(
-                  child: SizedBox(
-                    width: 165,
-                    child: DropdownButton<TaskPriority?>(
+                  child: DropdownButton<TaskPriority?>(
                       value: selectedPriority,
                       isExpanded: true,
                       hint: const Text('All Priorities', style: TextStyle(fontSize: 13)),
@@ -119,14 +117,11 @@ class KanbanView extends ConsumerWidget {
                             )),
                       ],
                       onChanged: (val) => ref.read(taskFilterPriorityProvider.notifier).set(val),
-                    ),
                   ),
                 );
 
                 final assigneeDropdown = _FilterPill(
-                  child: SizedBox(
-                    width: 165,
-                    child: DropdownButton<String?>(
+                  child: DropdownButton<String?>(
                       value: selectedAssignee,
                       isExpanded: true,
                       hint: const Text('All Assignees', style: TextStyle(fontSize: 13)),
@@ -146,7 +141,6 @@ class KanbanView extends ConsumerWidget {
                       ],
                       onChanged: (val) =>
                           ref.read(taskFilterAssigneeProvider.notifier).set(val),
-                    ),
                   ),
                 );
 
@@ -155,9 +149,9 @@ class KanbanView extends ConsumerWidget {
                     children: [
                       Expanded(child: searchField),
                       const SizedBox(width: 12),
-                      priorityDropdown,
+                      SizedBox(width: 180, child: priorityDropdown),
                       const SizedBox(width: 10),
-                      assigneeDropdown,
+                      SizedBox(width: 180, child: assigneeDropdown),
                     ],
                   );
                 }
@@ -167,10 +161,12 @@ class KanbanView extends ConsumerWidget {
                   children: [
                     searchField,
                     const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [priorityDropdown, assigneeDropdown],
+                    Row(
+                      children: [
+                        Expanded(child: priorityDropdown),
+                        const SizedBox(width: 10),
+                        Expanded(child: assigneeDropdown),
+                      ],
                     ),
                   ],
                 );

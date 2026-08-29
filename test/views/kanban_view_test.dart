@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/theme/app_theme.dart';
+import 'package:task_sphere/models/task.dart';
 import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/views/kanban/kanban_view.dart';
 
@@ -86,6 +87,12 @@ void main() {
       // Search spans the full width (roughly the screen width minus padding).
       final searchWidth = tester.getSize(searchField).width;
       expect(searchWidth, greaterThan(400));
+
+      // Both filters stretch to equal widths across the second line.
+      final priorityWidth = tester.getSize(find.byType(DropdownButton<TaskPriority?>)).width;
+      final assigneeWidth = tester.getSize(find.byType(DropdownButton<String?>)).width;
+      expect(priorityWidth, assigneeWidth);
+      expect(priorityWidth, greaterThan(180));
     });
 
     testWidgets('search filter narrows tasks by title', (tester) async {
