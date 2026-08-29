@@ -113,131 +113,9 @@ ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subtasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
 
--- Allow members to view workspaces they belong to
-CREATE POLICY "Users can view workspaces they belong to"
-    ON public.workspaces FOR SELECT
-    USING (
-        auth.uid() = admin_id OR 
-        EXISTS (
-            SELECT 1 FROM public.workspace_members 
-            WHERE workspace_id = workspaces.id AND (user_id = auth.uid() OR email = auth.email())
-        )
-    );
-
-CREATE POLICY "Admins can update workspace settings"
-    ON public.workspaces FOR UPDATE
-    USING (auth.uid() = admin_id);
-
-CREATE POLICY "Authenticated users can create workspaces"
-    ON public.workspaces FOR INSERT
-    WITH CHECK (auth.uid() = admin_id);
-
--- Tasks Policies
-CREATE POLICY "Workspace members can view tasks"
-    ON public.tasks FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.workspace_members 
-            WHERE workspace_id = tasks.workspace_id AND (user_id = auth.uid() OR email = auth.email())
-        )
-    );
-
-CREATE POLICY "Workspace members can insert/update tasks"
-    ON public.tasks FOR ALL
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.workspace_members
-            WHERE workspace_id = tasks.workspace_id AND (user_id = auth.uid() OR email = auth.email())
-        )
-    );
-
--- Lane Policies
-CREATE POLICY "Workspace members can view lanes"
-    ON public.workspace_lanes FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.workspace_members
-            WHERE workspace_id = workspace_lanes.workspace_id AND (user_id = auth.uid() OR email = auth.email())
-        )
-    );
-
-CREATE POLICY "Workspace admins can modify lanes"
-    ON public.workspace_lanes FOR ALL
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.workspace_members
-            WHERE workspace_id = workspace_lanes.workspace_id AND user_id = auth.uid() AND role = 'admin'
-        )
-    );
-
--- Member Policies
-CREATE POLICY "Workspace members can view members"
-    ON public.workspace_members FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.workspace_members self
-            WHERE self.workspace_id = workspace_members.workspace_id AND (self.user_id = auth.uid() OR self.email = auth.email())
-        )
-    );
-
-CREATE POLICY "Workspace admins can modify members"
-    ON public.workspace_members FOR ALL
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.workspace_members adm
-            WHERE adm.workspace_id = workspace_members.workspace_id AND adm.user_id = auth.uid() AND adm.role = 'admin'
-        )
-    );
-
--- Subtask Policies
-CREATE POLICY "Workspace members can view subtasks"
-    ON public.subtasks FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.tasks t
-            JOIN public.workspace_members wm ON wm.workspace_id = t.workspace_id
-            WHERE t.id = subtasks.task_id AND (wm.user_id = auth.uid() OR wm.email = auth.email())
-        )
-    );
-
-CREATE POLICY "Workspace members can modify subtasks"
-    ON public.subtasks FOR ALL
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.tasks t
-            JOIN public.workspace_members wm ON wm.workspace_id = t.workspace_id
-            WHERE t.id = subtasks.task_id AND (wm.user_id = auth.uid() OR wm.email = auth.email())
-        )
-    );
-
--- Activity Log Policies
-CREATE POLICY "Workspace members can view activity logs"
-    ON public.activity_logs FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.workspace_members
-            WHERE workspace_id = activity_logs.workspace_id AND (user_id = auth.uid() OR email = auth.email())
-        )
-    );
-
-CREATE POLICY "Workspace members can insert activity logs"
-    ON public.activity_logs FOR INSERT
-    WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.workspace_members
-            WHERE workspace_id = activity_logs.workspace_id AND (user_id = auth.uid() OR email = auth.email())
-        )
-    );
-
--- TASK ATTACHMENT STORAGE
--- Private bucket for task attachments. Files live at
--- {workspace_id}/{task_id}/{timestamp}_{filename} and access is governed by
--- the storage.objects policies below.
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('task-attachments', 'task-attachments', false)
-ON CONFLICT (id) DO NOTHING;
-
--- Helper used by storage policies to check workspace membership.
+-- SECURITY DEFINER helpers used by the policies below. They read
+-- workspace_members with the function owner's privileges, which bypasses RLS,
+-- so policies never recurse into the members table (Postgres error 42P17).
 CREATE OR REPLACE FUNCTION public.is_workspace_member(ws_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
@@ -251,6 +129,135 @@ AS $$
           AND (user_id = auth.uid() OR email = auth.email())
     );
 $$;
+
+CREATE OR REPLACE FUNCTION public.is_workspace_admin(ws_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.workspace_members
+        WHERE workspace_id = ws_id
+          AND user_id = auth.uid()
+          AND role = 'admin'
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_any_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.workspace_members
+        WHERE user_id = auth.uid() AND role = 'admin'
+    );
+$$;
+
+-- Allow members to view workspaces they belong to
+DROP POLICY IF EXISTS "Users can view workspaces they belong to" ON public.workspaces;
+CREATE POLICY "Users can view workspaces they belong to"
+    ON public.workspaces FOR SELECT
+    USING (auth.uid() = admin_id OR public.is_workspace_member(id));
+
+DROP POLICY IF EXISTS "Admins can update workspace settings" ON public.workspaces;
+CREATE POLICY "Admins can update workspace settings"
+    ON public.workspaces FOR UPDATE
+    USING (auth.uid() = admin_id OR public.is_workspace_admin(id));
+
+DROP POLICY IF EXISTS "Authenticated users can create workspaces" ON public.workspaces;
+CREATE POLICY "Authenticated users can create workspaces"
+    ON public.workspaces FOR INSERT
+    WITH CHECK (auth.uid() = admin_id);
+
+-- Tasks Policies
+DROP POLICY IF EXISTS "Workspace members can view tasks" ON public.tasks;
+CREATE POLICY "Workspace members can view tasks"
+    ON public.tasks FOR SELECT
+    USING (public.is_workspace_member(workspace_id));
+
+DROP POLICY IF EXISTS "Workspace members can insert/update tasks" ON public.tasks;
+CREATE POLICY "Workspace members can insert/update tasks"
+    ON public.tasks FOR ALL
+    USING (public.is_workspace_member(workspace_id))
+    WITH CHECK (public.is_workspace_member(workspace_id));
+
+-- Lane Policies
+DROP POLICY IF EXISTS "Workspace members can view lanes" ON public.workspace_lanes;
+CREATE POLICY "Workspace members can view lanes"
+    ON public.workspace_lanes FOR SELECT
+    USING (public.is_workspace_member(workspace_id));
+
+DROP POLICY IF EXISTS "Workspace admins can modify lanes" ON public.workspace_lanes;
+CREATE POLICY "Workspace admins can modify lanes"
+    ON public.workspace_lanes FOR ALL
+    USING (public.is_workspace_admin(workspace_id))
+    WITH CHECK (public.is_workspace_admin(workspace_id));
+
+-- Member Policies (must not query workspace_members directly or they recurse)
+DROP POLICY IF EXISTS "Workspace members can view members" ON public.workspace_members;
+CREATE POLICY "Workspace members can view members"
+    ON public.workspace_members FOR SELECT
+    USING (public.is_workspace_member(workspace_id));
+
+DROP POLICY IF EXISTS "Workspace admins can modify members" ON public.workspace_members;
+CREATE POLICY "Workspace admins can modify members"
+    ON public.workspace_members FOR ALL
+    USING (public.is_workspace_admin(workspace_id))
+    WITH CHECK (public.is_workspace_admin(workspace_id));
+
+-- Subtask Policies
+DROP POLICY IF EXISTS "Workspace members can view subtasks" ON public.subtasks;
+CREATE POLICY "Workspace members can view subtasks"
+    ON public.subtasks FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.tasks t
+            WHERE t.id = subtasks.task_id
+              AND public.is_workspace_member(t.workspace_id)
+        )
+    );
+
+DROP POLICY IF EXISTS "Workspace members can modify subtasks" ON public.subtasks;
+CREATE POLICY "Workspace members can modify subtasks"
+    ON public.subtasks FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.tasks t
+            WHERE t.id = subtasks.task_id
+              AND public.is_workspace_member(t.workspace_id)
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.tasks t
+            WHERE t.id = subtasks.task_id
+              AND public.is_workspace_member(t.workspace_id)
+        )
+    );
+
+-- Activity Log Policies
+DROP POLICY IF EXISTS "Workspace members can view activity logs" ON public.activity_logs;
+CREATE POLICY "Workspace members can view activity logs"
+    ON public.activity_logs FOR SELECT
+    USING (public.is_workspace_member(workspace_id));
+
+DROP POLICY IF EXISTS "Workspace members can insert activity logs" ON public.activity_logs;
+CREATE POLICY "Workspace members can insert activity logs"
+    ON public.activity_logs FOR INSERT
+    WITH CHECK (public.is_workspace_member(workspace_id));
+
+-- TASK ATTACHMENT STORAGE
+-- Private bucket for task attachments. Files live at
+-- {workspace_id}/{task_id}/{timestamp}_{filename} and access is governed by
+-- the storage.objects policies below.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('task-attachments', 'task-attachments', false)
+ON CONFLICT (id) DO NOTHING;
 
 CREATE POLICY "Workspace members can upload attachments"
     ON storage.objects FOR INSERT TO authenticated
@@ -284,14 +291,11 @@ CREATE TABLE IF NOT EXISTS public.allowed_signup_emails (
 
 ALTER TABLE public.allowed_signup_emails ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Admins can manage the signup allowlist" ON public.allowed_signup_emails;
 CREATE POLICY "Admins can manage the signup allowlist"
     ON public.allowed_signup_emails FOR ALL
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.workspace_members
-            WHERE user_id = auth.uid() AND role = 'admin'
-        )
-    );
+    USING (public.is_any_admin())
+    WITH CHECK (public.is_any_admin());
 
 CREATE OR REPLACE FUNCTION public.restrict_signup()
 RETURNS TRIGGER
