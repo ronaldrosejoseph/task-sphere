@@ -45,6 +45,22 @@ void main() {
     expect(find.text('Total Tasks'), findsOneWidget);
     expect(find.text('Member Workload'), findsOneWidget);
     expect(tester.takeException(), isNull);
+
+    // Stacked KPI cards stretch to the same width as the chart cards.
+    final kpiCard = find.ancestor(
+      of: find.text('Total Tasks'),
+      matching: find.byType(Card),
+    );
+    final chartCard = find.ancestor(
+      of: find.text('Tasks by Lane'),
+      matching: find.byType(Card),
+    );
+    expect(kpiCard, findsWidgets);
+    expect(chartCard, findsWidgets);
+    expect(
+      tester.getSize(kpiCard.first).width,
+      tester.getSize(chartCard.first).width,
+    );
   });
 
   testWidgets('renders correctly in light mode', (tester) async {

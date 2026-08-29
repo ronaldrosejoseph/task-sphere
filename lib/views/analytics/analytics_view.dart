@@ -71,12 +71,13 @@ class AnalyticsView extends ConsumerWidget {
                 );
               }
 
-              return Wrap(
-                spacing: 16,
-                runSpacing: 16,
+              // Stacked one per row at full width, matching the chart cards.
+              return Column(
                 children: [
-                  for (final card in cards)
-                    SizedBox(width: 280, child: card),
+                  for (var i = 0; i < cards.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 16),
+                    cards[i],
+                  ],
                 ],
               );
             },
