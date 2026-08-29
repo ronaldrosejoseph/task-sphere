@@ -314,6 +314,39 @@ void main() {
       expect(notifier.state.isLoading, isFalse);
     });
 
+    test('loadInitialData seeds the five default lanes when the workspace has none', () async {
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [Workspace(id: 'ws-1', name: 'Team', adminId: 'a')];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      // build() fires loadInitialData() unawaited; let that settle.
+      await _settle();
+
+      expect(repo.laneAddCalls, 5);
+      expect(notifier.state.lanes.map((l) => l.title).toList(),
+          ['To Do', 'In Progress', 'Partially Done', 'Done', 'Wont Do']);
+      for (var i = 0; i < notifier.state.lanes.length; i++) {
+        expect(notifier.state.lanes[i].orderIndex, i);
+        expect(notifier.state.lanes[i].isDefault, isTrue);
+      }
+    });
+
+    test('loadInitialData keeps existing lanes without re-seeding', () async {
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [Workspace(id: 'ws-1', name: 'Team', adminId: 'a')]
+        ..lanes = [KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do')];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+
+      expect(repo.laneAddCalls, 0);
+      expect(notifier.state.lanes.single.title, 'To Do');
+    });
+
     test('loadInitialData shows the no-workspace state when the user has no workspaces', () async {
       final repo = FakeWorkspaceRepository();
       final container = _workspaceContainer(repo);

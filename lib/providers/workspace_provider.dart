@@ -173,13 +173,44 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     }
 
     final active = snapshot.workspaces.first;
+    final lanes = await _ensureLanes(active.id);
+    if (!ref.mounted) return;
     state = WorkspaceState(
       activeWorkspace: active,
       allWorkspaces: snapshot.workspaces,
-      lanes: snapshot.lanes,
+      lanes: lanes,
       isLoading: false,
     );
     _subscribeToWorkspace(active.id);
+  }
+
+  static const _defaultLanes = [
+    ('To Do', '#3B82F6'),
+    ('In Progress', '#F59E0B'),
+    ('Partially Done', '#8B5CF6'),
+    ('Done', '#10B981'),
+    ('Wont Do', '#EF4444'),
+  ];
+
+  /// Guarantees the five default lanes exist for [workspaceId], seeding them
+  /// through the repository when the database has none (e.g. a workspace
+  /// created before the seeding trigger existed).
+  Future<List<KanbanLane>> _ensureLanes(String workspaceId) async {
+    var lanes = await _repository.fetchLanes(workspaceId) ?? const [];
+    if (lanes.isEmpty && _repository.isPersistent) {
+      for (var i = 0; i < _defaultLanes.length; i++) {
+        await _repository.addLane(KanbanLane(
+          id: _uuid.v4(),
+          workspaceId: workspaceId,
+          title: _defaultLanes[i].$1,
+          colorHex: _defaultLanes[i].$2,
+          orderIndex: i,
+          isDefault: true,
+        ));
+      }
+      lanes = await _repository.fetchLanes(workspaceId) ?? const [];
+    }
+    return lanes;
   }
 
   Future<void> createWorkspace(String name, String adminId, String adminEmail) async {
@@ -191,10 +222,12 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
         adminEmail: adminEmail,
       );
       if (created == null || !ref.mounted) return;
+      final lanes = await _ensureLanes(created.workspace.id);
+      if (!ref.mounted) return;
       state = state.copyWith(
         activeWorkspace: created.workspace,
         allWorkspaces: [...state.allWorkspaces, created.workspace],
-        lanes: created.lanes,
+        lanes: lanes,
         isLoading: false,
       );
       _subscribeToWorkspace(created.workspace.id);
@@ -251,9 +284,9 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     state = state.copyWith(activeWorkspace: canonical);
 
     state = state.copyWith(lanes: const [], isLoading: true);
-    final lanes = await repo.fetchLanes(ws.id);
+    final lanes = await _ensureLanes(ws.id);
     if (!ref.mounted || state.activeWorkspace.id != ws.id) return;
-    state = state.copyWith(lanes: lanes ?? const [], isLoading: false);
+    state = state.copyWith(lanes: lanes, isLoading: false);
     _subscribeToWorkspace(ws.id);
   }
 
