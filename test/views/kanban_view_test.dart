@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/theme/app_theme.dart';
 import 'package:task_sphere/models/task.dart';
+import 'package:task_sphere/providers/demo_mode_provider.dart';
 import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/providers/workspace_provider.dart';
 import 'package:task_sphere/views/kanban/kanban_view.dart';
@@ -178,6 +179,18 @@ void main() {
 
       expect(find.text('Create New Task'), findsOneWidget);
       expect(find.text('Save Task'), findsOneWidget);
+    });
+
+    testWidgets('demo mode hides all task creation controls', (tester) async {
+      final container = ProviderContainer(
+        overrides: [demoModeProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      await pumpBoard(tester, container: container);
+
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(find.byIcon(Icons.add_circle_outline), findsNothing);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('tapping a task card opens the detail modal', (tester) async {

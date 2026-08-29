@@ -10,6 +10,7 @@ import '../../models/subtask.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/demo_mode_provider.dart';
 import '../../core/services/storage_service.dart';
 
 const _uuid = Uuid();
@@ -547,6 +548,13 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   void _saveTask() {
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
+
+    if (widget.task == null && ref.read(demoModeProvider)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Creating tasks is disabled in the demo.')),
+      );
+      return;
+    }
 
     final ws = ref.read(activeWorkspaceProvider).activeWorkspace;
     if (ws.id.isEmpty || ws.id == 'loading') {

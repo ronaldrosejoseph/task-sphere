@@ -10,6 +10,7 @@ import 'package:task_sphere/models/task.dart';
 import 'package:task_sphere/models/workspace.dart';
 import 'package:task_sphere/models/user_profile.dart';
 import 'package:task_sphere/providers/auth_provider.dart';
+import 'package:task_sphere/providers/demo_mode_provider.dart';
 import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/providers/workspace_provider.dart';
 
@@ -431,6 +432,67 @@ void main() {
 
       expect(repo.inserted.single.action, 'Created task');
       expect(container.read(activityLogsProvider).first.action, 'Created task');
+    });
+  });
+
+  group('Demo mode guards', () {
+    final workspace = Workspace(id: 'ws-1', name: 'W', adminId: 'a');
+    final lanes = [KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do')];
+
+    test('addTask is a no-op in demo mode', () async {
+      final repo = FakeTaskRepository();
+      final container = ProviderContainer(
+        overrides: [
+          demoModeProvider.overrideWithValue(true),
+          workspaceRepositoryProvider.overrideWith((ref) => FakeWorkspaceRepository()),
+          taskRepositoryProvider.overrideWith((ref) => repo),
+          activeWorkspaceProvider.overrideWith(
+            () => _FakeWorkspaceNotifier(_workspaceState(workspace, lanes)),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(tasksProvider);
+      await _settle();
+
+      container.read(tasksProvider.notifier).addTask(
+            TaskItem(id: 't-1', workspaceId: 'ws-1', laneId: 'lane-1', title: 'New'),
+          );
+      await _settle();
+
+      expect(container.read(tasksProvider), isEmpty);
+      expect(repo.inserted, isEmpty);
+    });
+
+    test('createWorkspace and inviteMember are no-ops in demo mode', () async {
+      final repo = FakeWorkspaceRepository();
+      final container = ProviderContainer(
+        overrides: [
+          demoModeProvider.overrideWithValue(true),
+          workspaceRepositoryProvider.overrideWith((ref) => repo),
+          authProvider.overrideWith(
+            () => _FixedAuthNotifier(
+              UserProfile(id: 'a', email: 'a@x.com', displayName: 'A'),
+            ),
+          ),
+          activeWorkspaceProvider.overrideWith(
+            () => _FakeWorkspaceNotifier(_workspaceState(workspace, lanes)),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.createWorkspace('Team', 'a', 'a@x.com');
+
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
+      expect(repo.createCalls, 0);
+
+      notifier.inviteMember('new@x.com', UserRole.member);
+      await _settle();
+
+      expect(notifier.state.activeWorkspace.members, isEmpty);
+      expect(repo.inviteCalls, 0);
     });
   });
 }

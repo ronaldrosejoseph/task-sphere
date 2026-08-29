@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/workspace_provider.dart';
+import '../../providers/demo_mode_provider.dart';
 import '../../core/services/supabase_service.dart';
 import '../kanban/widgets/lane_manager_dialog.dart';
 
@@ -11,6 +12,7 @@ class SettingsView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
+    final demoMode = ref.watch(demoModeProvider);
     final workspaceState = ref.watch(activeWorkspaceProvider);
     final autoArchiveDays = workspaceState.activeWorkspace.autoArchiveDays;
     final showArchived = workspaceState.activeWorkspace.showArchivedTasks;
@@ -128,26 +130,28 @@ class SettingsView extends ConsumerWidget {
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(
                     Icons.cloud_done,
-                    color: SupabaseService.instance.isInitialized ? const Color(0xFF10B981) : Colors.orangeAccent,
+                    color: (demoMode || !SupabaseService.instance.isInitialized) ? Colors.orangeAccent : const Color(0xFF10B981),
                   ),
                   title: const Text('Supabase Realtime WebSockets'),
                   subtitle: Text(
-                    SupabaseService.instance.isInitialized
-                        ? 'Connected to live PostgreSQL database'
-                        : 'Demo Mode (Offline / In-Memory)',
+                    demoMode
+                        ? 'Demo Mode: seeded data, changes are not saved'
+                        : SupabaseService.instance.isInitialized
+                            ? 'Connected to live PostgreSQL database'
+                            : 'Demo Mode (Offline / In-Memory)',
                   ),
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: (SupabaseService.instance.isInitialized ? const Color(0xFF10B981) : Colors.orangeAccent).withValues(alpha: 0.15),
+                      color: ((demoMode || !SupabaseService.instance.isInitialized) ? Colors.orangeAccent : const Color(0xFF10B981)).withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      SupabaseService.instance.isInitialized ? 'ONLINE' : 'DEMO MODE',
+                      (demoMode || !SupabaseService.instance.isInitialized) ? 'DEMO MODE' : 'ONLINE',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: SupabaseService.instance.isInitialized ? const Color(0xFF10B981) : Colors.orangeAccent,
+                        color: (demoMode || !SupabaseService.instance.isInitialized) ? Colors.orangeAccent : const Color(0xFF10B981),
                       ),
                     ),
                   ),

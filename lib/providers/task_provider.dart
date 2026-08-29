@@ -9,6 +9,7 @@ import '../models/task.dart';
 import '../models/subtask.dart';
 import '../models/activity_log.dart';
 import 'workspace_provider.dart';
+import 'demo_mode_provider.dart';
 
 const _uuid = Uuid();
 
@@ -308,6 +309,8 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
   }
 
   void addTask(TaskItem task) {
+    // Demo site is read-only for creations; the UI hides the entry points.
+    if (ref.read(demoModeProvider)) return;
     _mutationCount += 1;
     state = [task, ...state];
     if (_repository.isPersistent) {

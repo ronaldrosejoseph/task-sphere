@@ -7,6 +7,7 @@ import '../core/repositories/workspace_repository.dart';
 import '../models/workspace.dart';
 import '../models/lane.dart';
 import 'auth_provider.dart';
+import 'demo_mode_provider.dart';
 
 const _uuid = Uuid();
 
@@ -214,6 +215,8 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   }
 
   Future<void> createWorkspace(String name, String adminId, String adminEmail) async {
+    // Demo site cannot create workspaces; the UI hides the entry point.
+    if (ref.read(demoModeProvider)) return;
     final repo = _repository;
     if (repo.isPersistent) {
       final created = await repo.createWorkspace(
@@ -382,6 +385,8 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   }
 
   void inviteMember(String email, UserRole role) {
+    // Demo site cannot invite members; the UI hides the entry point.
+    if (ref.read(demoModeProvider)) return;
     final newMember = WorkspaceMember(
       id: _uuid.v4(),
       workspaceId: state.activeWorkspace.id,

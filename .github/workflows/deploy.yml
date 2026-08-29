@@ -27,7 +27,7 @@ jobs:
         run: flutter test
 
       - name: Build web bundle
-        run: flutter build web --release --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+        run: flutter build web --release --dart-define=DEMO_MODE=true --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
 
       - name: Create Pages project if missing
         if: env.CLOUDFLARE_API_TOKEN != ''

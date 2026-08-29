@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_profile.dart';
 import '../core/services/google_auth_service.dart';
 import '../core/services/supabase_service.dart';
+import 'demo_mode_provider.dart';
 
 final authProvider = NotifierProvider<AuthNotifier, UserProfile?>(AuthNotifier.new);
 
@@ -15,7 +16,7 @@ class AuthNotifier extends Notifier<UserProfile?> {
   @override
   UserProfile? build() {
     final client = SupabaseService.instance.client;
-    if (client == null) {
+    if (ref.read(demoModeProvider) || client == null) {
       return UserProfile.demo();
     }
 

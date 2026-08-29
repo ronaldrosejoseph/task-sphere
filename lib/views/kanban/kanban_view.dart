@@ -6,6 +6,7 @@ import '../../models/task.dart';
 import '../../models/lane.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
+import '../../providers/demo_mode_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../task_detail/task_detail_modal.dart';
 import '../workspace/workspace_management_modal.dart';
@@ -16,6 +17,7 @@ class KanbanView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final workspaceState = ref.watch(activeWorkspaceProvider);
+    final demoMode = ref.watch(demoModeProvider);
     final allTasks = ref.watch(tasksProvider);
     final lanes = workspaceState.lanes;
 
@@ -67,16 +69,18 @@ class KanbanView extends ConsumerWidget {
     }
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (context) => const TaskDetailModal(),
-          );
-        },
-        tooltip: 'New Task',
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      floatingActionButton: demoMode
+          ? null
+          : FloatingActionButton(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => const TaskDetailModal(),
+                );
+              },
+              tooltip: 'New Task',
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
       body: Column(
         children: [
           // Top Filter Bar: search left / filters right on wide screens,
@@ -293,6 +297,7 @@ class _KanbanColumnWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final demoMode = ref.watch(demoModeProvider);
     return Container(
       width: 320,
       margin: const EdgeInsets.only(right: 16),
@@ -379,16 +384,17 @@ class _KanbanColumnWidget extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.add_circle_outline, size: 20),
-                        tooltip: 'Add Task to ${lane.title}',
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (context) => TaskDetailModal(initialLaneId: lane.id),
-                          );
-                        },
-                      ),
+                      if (!demoMode)
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline, size: 20),
+                          tooltip: 'Add Task to ${lane.title}',
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => TaskDetailModal(initialLaneId: lane.id),
+                            );
+                          },
+                        ),
                     ],
                   ),
                 ),

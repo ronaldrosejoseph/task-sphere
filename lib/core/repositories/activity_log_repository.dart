@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/activity_log.dart';
+import '../../providers/demo_mode_provider.dart';
 import '../services/supabase_service.dart';
 
 /// Persistence boundary for workspace activity logs.
@@ -94,6 +95,7 @@ class SupabaseActivityLogRepository implements ActivityLogRepository {
 }
 
 final activityLogRepositoryProvider = Provider<ActivityLogRepository>((ref) {
+  if (ref.watch(demoModeProvider)) return InMemoryActivityLogRepository();
   final client = SupabaseService.instance.client;
   if (client != null) return SupabaseActivityLogRepository(client);
   return InMemoryActivityLogRepository();

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/workspace.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/workspace_provider.dart';
+import '../../providers/demo_mode_provider.dart';
 
 class WorkspaceManagementModal extends ConsumerStatefulWidget {
   const WorkspaceManagementModal({super.key});
@@ -26,6 +27,7 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
   @override
   Widget build(BuildContext context) {
     final workspaceState = ref.watch(activeWorkspaceProvider);
+    final demoMode = ref.watch(demoModeProvider);
     final activeWs = workspaceState.activeWorkspace;
     final allWs = workspaceState.allWorkspaces;
 
@@ -78,86 +80,88 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
             ),
             const SizedBox(height: 16),
 
-            // Create New Workspace
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _newWsController,
-                    decoration: InputDecoration(
-                      hintText: 'New workspace name...',
-                      isDense: true,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            if (!demoMode) ...[
+              // Create New Workspace
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _newWsController,
+                      decoration: InputDecoration(
+                        hintText: 'New workspace name...',
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    final name = _newWsController.text.trim();
-                    if (name.isNotEmpty) {
-                      final user = ref.read(authProvider);
-                      ref.read(activeWorkspaceProvider.notifier).createWorkspace(
-                            name,
-                            user?.id ?? 'demo-user-123',
-                            user?.email ?? 'admin@tasksphere.app',
-                          );
-                      _newWsController.clear();
-                    }
-                  },
-                  child: const Text('Create'),
-                ),
-              ],
-            ),
-            const Divider(height: 32),
-
-            // Invite Member & Assign Role
-            const Text('Invite Member to Workspace', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _emailController,
-                    decoration: InputDecoration(
-                      hintText: 'Member Google email...',
-                      isDense: true,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 130,
-                  child: DropdownButton<UserRole>(
-                    value: _selectedRole,
-                    isExpanded: true,
-                    items: UserRole.values.map((r) {
-                      return DropdownMenuItem(
-                        value: r,
-                        child: Text(r.name.toUpperCase()),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => _selectedRole = val);
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      final name = _newWsController.text.trim();
+                      if (name.isNotEmpty) {
+                        final user = ref.read(authProvider);
+                        ref.read(activeWorkspaceProvider.notifier).createWorkspace(
+                              name,
+                              user?.id ?? 'demo-user-123',
+                              user?.email ?? 'admin@tasksphere.app',
+                            );
+                        _newWsController.clear();
+                      }
                     },
+                    child: const Text('Create'),
                   ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    final email = _emailController.text.trim();
-                    if (email.isNotEmpty) {
-                      ref.read(activeWorkspaceProvider.notifier).inviteMember(email, _selectedRole);
-                      _emailController.clear();
-                    }
-                  },
-                  icon: const Icon(Icons.send, size: 16),
-                  label: const Text('Invite'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+                ],
+              ),
+              const Divider(height: 32),
+
+              // Invite Member & Assign Role
+              const Text('Invite Member to Workspace', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _emailController,
+                      decoration: InputDecoration(
+                        hintText: 'Member Google email...',
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 130,
+                    child: DropdownButton<UserRole>(
+                      value: _selectedRole,
+                      isExpanded: true,
+                      items: UserRole.values.map((r) {
+                        return DropdownMenuItem(
+                          value: r,
+                          child: Text(r.name.toUpperCase()),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) setState(() => _selectedRole = val);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      final email = _emailController.text.trim();
+                      if (email.isNotEmpty) {
+                        ref.read(activeWorkspaceProvider.notifier).inviteMember(email, _selectedRole);
+                        _emailController.clear();
+                      }
+                    },
+                    icon: const Icon(Icons.send, size: 16),
+                    label: const Text('Invite'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // Members List
             const Text('Current Members', style: TextStyle(fontWeight: FontWeight.bold)),
