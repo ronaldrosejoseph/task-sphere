@@ -159,7 +159,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                       border: InputBorder.none,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 24),
 
                   // Metadata Grid (Lane, Priority, Assignee, Due Date)
                   Wrap(
