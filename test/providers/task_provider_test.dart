@@ -178,6 +178,28 @@ void main() {
     });
   });
 
+    test('newly created workspace starts with an empty board in demo mode', () async {
+      final container = makeContainer();
+      final workspaceNotifier = container.read(activeWorkspaceProvider.notifier);
+
+      await workspaceNotifier.createWorkspace('Fresh Team', 'admin-1', 'admin@example.com');
+
+      expect(container.read(tasksProvider), isEmpty);
+    });
+
+    test('switching back to the demo workspace re-seeds demo tasks', () async {
+      final container = makeContainer();
+      final workspaceNotifier = container.read(activeWorkspaceProvider.notifier);
+      final demo = container.read(activeWorkspaceProvider).activeWorkspace;
+
+      await workspaceNotifier.createWorkspace('Fresh Team', 'admin-1', 'admin@example.com');
+      expect(container.read(tasksProvider), isEmpty);
+
+      await workspaceNotifier.switchWorkspace(demo);
+
+      expect(container.read(tasksProvider).length, 5);
+    });
+
   group('ActivityLogNotifier', () {
     test('addLog prepends new entries with generated ids', () {
       final container = makeContainer();

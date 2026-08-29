@@ -10,6 +10,9 @@ import 'auth_provider.dart';
 
 const _uuid = Uuid();
 
+/// The offline demo workspace. Demo seed data is only ever shown for it.
+const demoWorkspaceId = 'ws-demo-001';
+
 final activeWorkspaceProvider =
     NotifierProvider<WorkspaceNotifier, WorkspaceState>(WorkspaceNotifier.new);
 
@@ -86,28 +89,28 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
 
   static WorkspaceState _initialState() {
     final defaultWs = Workspace(
-      id: 'ws-demo-001',
+      id: demoWorkspaceId,
       name: 'Engineering & Design Team',
       adminId: 'demo-user-123',
       autoArchiveDays: 14,
       members: [
         WorkspaceMember(
           id: 'mem-1',
-          workspaceId: 'ws-demo-001',
+          workspaceId: demoWorkspaceId,
           userId: 'demo-user-123',
           email: 'alex.admin@tasksphere.app',
           role: UserRole.admin,
         ),
         WorkspaceMember(
           id: 'mem-2',
-          workspaceId: 'ws-demo-001',
+          workspaceId: demoWorkspaceId,
           userId: 'user-456',
           email: 'sarah.designer@tasksphere.app',
           role: UserRole.member,
         ),
         WorkspaceMember(
           id: 'mem-3',
-          workspaceId: 'ws-demo-001',
+          workspaceId: demoWorkspaceId,
           userId: 'user-789',
           email: 'dev.team@tasksphere.app',
           role: UserRole.member,

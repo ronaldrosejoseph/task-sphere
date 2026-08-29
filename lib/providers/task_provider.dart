@@ -145,9 +145,14 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
       return [];
     }
 
-    final seeded = _seedTasks(_workspaceId!, lanes.map((l) => l.id).toList());
-    _rescheduleReminders(seeded);
-    return seeded;
+    // Demo seed data belongs to the original demo workspace only; workspaces
+    // the user creates start empty, just like on a real backend.
+    if (_workspaceId == demoWorkspaceId) {
+      final seeded = _seedTasks(_workspaceId!, lanes.map((l) => l.id).toList());
+      _rescheduleReminders(seeded);
+      return seeded;
+    }
+    return [];
   }
 
   Future<void> _load() async {
