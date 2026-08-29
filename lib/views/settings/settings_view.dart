@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/workspace_provider.dart';
-import '../../providers/auth_provider.dart';
 import '../../core/services/supabase_service.dart';
 import '../kanban/widgets/lane_manager_dialog.dart';
 
@@ -14,7 +13,6 @@ class SettingsView extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     final workspaceState = ref.watch(activeWorkspaceProvider);
     final autoArchiveDays = workspaceState.activeWorkspace.autoArchiveDays;
-    final currentUser = ref.watch(authProvider);
     final showArchived = workspaceState.activeWorkspace.showArchivedTasks;
 
     return ListView(
@@ -124,25 +122,6 @@ class SettingsView extends ConsumerWidget {
               children: [
                 const Text('Connected Cloud & Sync Accounts', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 16),
-
-                // Google Account
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.account_circle, color: Color(0xFF3B82F6)),
-                  title: Text(currentUser?.displayName ?? 'Google Account'),
-                  subtitle: Text(currentUser?.email ?? 'Sign in with Google to sync across devices'),
-                  trailing: ElevatedButton(
-                    onPressed: () {
-                      if (currentUser == null) {
-                        ref.read(authProvider.notifier).signInWithGoogle();
-                      } else {
-                        ref.read(authProvider.notifier).signOut();
-                      }
-                    },
-                    child: Text(currentUser == null ? 'Sign In' : 'Sign Out'),
-                  ),
-                ),
-                const Divider(),
 
                 // Supabase Connection Status
                 ListTile(

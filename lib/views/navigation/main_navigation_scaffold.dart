@@ -197,6 +197,12 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
                           style: const TextStyle(fontSize: 11, color: Colors.grey),
                           overflow: TextOverflow.ellipsis,
                         ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.logout, size: 20, color: Colors.grey),
+                          tooltip: 'Sign out',
+                          onPressed: () =>
+                              ref.read(authProvider.notifier).signOut(),
+                        ),
                       ),
                     ],
                   ),
@@ -217,12 +223,19 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
             actions: [
               IconButton(
                 icon: const Icon(Icons.workspaces_outlined),
+                tooltip: 'Workspaces',
                 onPressed: () {
                   showDialog(
                     context: context,
                     builder: (context) => const WorkspaceManagementModal(),
                   );
                 },
+              ),
+              IconButton(
+                icon: const Icon(Icons.logout, color: Colors.grey),
+                tooltip: 'Sign out',
+                onPressed: () =>
+                    ref.read(authProvider.notifier).signOut(),
               ),
             ],
           ),
