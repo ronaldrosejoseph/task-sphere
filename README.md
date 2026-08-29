@@ -90,17 +90,20 @@ The web build is a fully static Flutter bundle - no server required. A GitHub Ac
 
 ### One-time setup
 
-1. **Add GitHub Actions secrets** (Repo → Settings → Secrets and variables → Actions):
-   - `SUPABASE_URL` - your Supabase project URL
-   - `SUPABASE_ANON_KEY` - your Supabase anon public key
-   - `CLOUDFLARE_API_TOKEN` - Cloudflare API token with "Cloudflare Pages — Edit" permission (Cloudflare Dashboard → My Profile → API Tokens)
-   - `CLOUDFLARE_ACCOUNT_ID` - shown on the right side of the Cloudflare Dashboard home page
-2. **Push to `main`** - the workflow runs tests, builds the bundle, and creates a Pages project named `task-sphere` on first deploy.
-3. Your app is live at **`https://task-sphere.pages.dev`** (attach a custom domain under Cloudflare Pages → Custom domains if you own one).
+1. **Create a Cloudflare account** at [dash.cloudflare.com](https://dash.cloudflare.com) (free plan is fine) and verify your email.
+2. **Create an API token**: Dashboard → avatar → **My Profile** → **API Tokens** → **Create Token** → **Create Custom Token**. Name it `task-sphere-pages` and add the permission **Account → Cloudflare Pages → Edit**. Finish and **copy the token immediately** — it is only shown once.
+3. **Find your Account ID**: Cloudflare Dashboard home page → **right sidebar** → **Account ID** (a 32-character hex string).
+4. **Add GitHub Actions secrets** (Repo → Settings → Secrets and variables → Actions):
+   - `SUPABASE_URL` - your Supabase project URL (Supabase → Project Settings → API)
+   - `SUPABASE_ANON_KEY` - your Supabase **anon** public key (never the `service_role` key) from the same page
+   - `CLOUDFLARE_API_TOKEN` - the API token from step 2
+   - `CLOUDFLARE_ACCOUNT_ID` - the Account ID from step 3
+5. **Push to `main`** (or run the **Deploy Web** workflow manually from the Actions tab) - the workflow runs tests, builds the bundle, and creates a Pages project named `task-sphere` on first deploy.
+6. Your app is live at **`https://task-sphere.pages.dev`** (attach a custom domain under Cloudflare Pages → Custom domains if you own one).
 
 ### Required cloud configuration for web sign-in
 
-- **Supabase Auth**: set the **Site URL** to your deployed URL (`https://task-sphere.pages.dev`) under Supabase → Authentication → URL Configuration, so the Google OAuth redirect flow returns to your app.
+- **Supabase Auth**: set the **Site URL** to your deployed URL (`https://task-sphere.pages.dev`) under Supabase → Authentication → URL Configuration, so the Google OAuth redirect flow returns to your app. Also add `https://task-sphere.pages.dev/**` to **Redirect URLs**. No changes are needed in the Google Cloud console - web sign-in flows through Supabase's OAuth callback.
 
 ### Manual deploy (optional)
 
