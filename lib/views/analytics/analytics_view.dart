@@ -123,19 +123,23 @@ class AnalyticsView extends ConsumerWidget {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 8,
-                              children: lanes.map((lane) {
-                                return Row(
-                                  mainAxisSize: MainAxisSize.min,
+                            // Fixed-height strip so this card always matches
+                            // the Member Workload card's height.
+                            SizedBox(
+                              height: 20,
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
                                   children: [
-                                    Container(width: 10, height: 10, color: lane.color),
-                                    const SizedBox(width: 4),
-                                    Text(lane.title, style: const TextStyle(fontSize: 12)),
+                                    for (final lane in lanes) ...[
+                                      Container(width: 10, height: 10, color: lane.color),
+                                      const SizedBox(width: 4),
+                                      Text(lane.title, style: const TextStyle(fontSize: 12)),
+                                      const SizedBox(width: 12),
+                                    ],
                                   ],
-                                );
-                              }).toList(),
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -160,7 +164,16 @@ class AnalyticsView extends ConsumerWidget {
                               child: _MemberWorkloadChart(tasks: tasks, members: members),
                             ),
                             const SizedBox(height: 16),
-                            const Text('Tasks assigned per team member', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            SizedBox(
+                              height: 20,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: const Text(
+                                  'Tasks assigned per team member',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),

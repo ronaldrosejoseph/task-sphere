@@ -63,6 +63,24 @@ void main() {
     );
   });
 
+  testWidgets('Tasks by Lane and Member Workload cards have equal heights', (tester) async {
+    // 900px is wide enough for the side-by-side charts but narrow enough that
+    // a wrapping legend would previously make the pie card taller.
+    await pumpAnalytics(tester, const Size(900, 900), AppTheme.darkTheme);
+
+    final laneCard = find.ancestor(
+      of: find.text('Tasks by Lane'),
+      matching: find.byType(Card),
+    );
+    final workloadCard = find.ancestor(
+      of: find.text('Member Workload'),
+      matching: find.byType(Card),
+    );
+    expect(laneCard, findsOneWidget);
+    expect(workloadCard, findsOneWidget);
+    expect(tester.getSize(laneCard).height, tester.getSize(workloadCard).height);
+  });
+
   testWidgets('renders correctly in light mode', (tester) async {
     await pumpAnalytics(tester, const Size(1200, 900), AppTheme.lightTheme);
 
