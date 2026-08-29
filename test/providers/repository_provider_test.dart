@@ -53,6 +53,7 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
   int createCalls = 0;
   int inviteCalls = 0;
   int laneAddCalls = 0;
+  final List<String> allowlisted = [];
 
   @override
   bool get isPersistent => true;
@@ -109,6 +110,11 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
   Future<void> inviteMember(WorkspaceMember member) async {
     inviteCalls += 1;
     members.add(member);
+  }
+
+  @override
+  Future<void> allowlistEmail(String email) async {
+    allowlisted.add(email.toLowerCase());
   }
 
   @override
@@ -289,14 +295,15 @@ void main() {
       addTearDown(notifier.dispose);
       await notifier.createWorkspace('Team', 'a', 'a@x.com');
 
-      notifier.inviteMember('new@x.com', UserRole.member);
+      notifier.inviteMember('New@X.com', UserRole.member);
       await _settle();
 
       expect(repo.inviteCalls, 1);
       expect(
-        notifier.state.activeWorkspace.members.any((m) => m.email == 'new@x.com'),
+        notifier.state.activeWorkspace.members.any((m) => m.email == 'New@X.com'),
         isTrue,
       );
+      expect(repo.allowlisted, ['new@x.com']);
     });
 
     test('addLane persists to the repository', () async {

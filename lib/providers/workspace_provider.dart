@@ -282,6 +282,8 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
     state = state.copyWith(activeWorkspace: updatedWs);
     if (_repo.isPersistent) {
       unawaited(_repo.inviteMember(newMember));
+      // Let the invited user sign in without a manual SQL insert.
+      unawaited(_repo.allowlistEmail(email));
     }
   }
 

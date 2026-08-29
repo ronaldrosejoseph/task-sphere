@@ -119,10 +119,11 @@ npx wrangler pages deploy build/web --project-name task-sphere
 
 - **Row Level Security everywhere**: every table (workspaces, lanes, members, tasks, subtasks, activity logs) has RLS policies scoped to workspace membership - a signed-in user can only read/write data in workspaces they belong to. Lane/member modifications require the admin role.
 - **Private attachment bucket**: files live in a private `task-attachments` bucket; storage RLS policies let only workspace members upload, read (via short-lived signed URLs), and delete files. File paths are scoped `{workspace_id}/{task_id}/{file}`.
-- **Sign-up allowlist**: new sign-ins (including Google OAuth) are rejected by a database trigger unless the email is in `allowed_signup_emails`. Admins manage the list from the SQL editor:
+- **Sign-up allowlist**: new sign-ins (including Google OAuth) are rejected by a database trigger unless the email is in `allowed_signup_emails`. Inviting a member from the app adds their email to the allowlist automatically; admins can also manage the list from the SQL editor:
   ```sql
   INSERT INTO public.allowed_signup_emails (email) VALUES ('new.member@example.com');
   ```
+  Note: the allowlist only gates the *first* sign-in. Removing an email later does not revoke an existing account - remove the member from the workspace instead. Any workspace admin can allowlist emails, so grant the admin role carefully.
 - **Web sign-in** uses Supabase's PKCE OAuth redirect; mobile uses the Google idToken flow. Sessions are Supabase JWTs validated server-side.
 
 ### Rules to keep it secure

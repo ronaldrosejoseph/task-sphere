@@ -48,6 +48,10 @@ abstract class WorkspaceRepository {
 
   Future<void> inviteMember(WorkspaceMember member);
 
+  /// Adds an email to the signup allowlist so the invited user can sign
+  /// in. Gated by the same admin-only RLS policy as the allowlist table.
+  Future<void> allowlistEmail(String email);
+
   Stream<void> watchWorkspace(String workspaceId);
 }
 
@@ -93,6 +97,9 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Future<void> inviteMember(WorkspaceMember member) async {}
+
+  @override
+  Future<void> allowlistEmail(String email) async {}
 
   @override
   Stream<void> watchWorkspace(String workspaceId) => const Stream.empty();
@@ -296,6 +303,17 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
       await _client.from('workspace_members').insert(member.toJson());
     } catch (e) {
       debugPrint('Member invite error: $e');
+    }
+  }
+
+  @override
+  Future<void> allowlistEmail(String email) async {
+    try {
+      await _client.from('allowed_signup_emails').upsert({
+        'email': email.toLowerCase(),
+      });
+    } catch (e) {
+      debugPrint('Signup allowlist error: $e');
     }
   }
 
