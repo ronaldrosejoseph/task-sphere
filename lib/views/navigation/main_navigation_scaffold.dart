@@ -130,13 +130,13 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        activeWs.name,
+                                        workspaceState.hasWorkspace ? activeWs.name : 'No Workspace',
                                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      const Text(
-                                        'Admin Access',
-                                        style: TextStyle(fontSize: 10, color: Color(0xFF6366F1)),
+                                      Text(
+                                        workspaceState.hasWorkspace ? 'Admin Access' : 'Create Workspace',
+                                        style: const TextStyle(fontSize: 10, color: Color(0xFF6366F1)),
                                       ),
                                     ],
                                   ),
@@ -213,7 +213,7 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
         // Mobile Layout (Bottom Navigation Bar)
         return Scaffold(
           appBar: AppBar(
-            title: Text(activeWs.name),
+            title: Text(workspaceState.hasWorkspace ? activeWs.name : 'No Workspace'),
             actions: [
               IconButton(
                 icon: const Icon(Icons.workspaces_outlined),

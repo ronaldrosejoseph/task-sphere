@@ -42,6 +42,31 @@ class WorkspaceState {
       isLoading: isLoading ?? this.isLoading,
     );
   }
+
+  /// True once a real workspace exists (i.e. not the loading or empty sentinel).
+  bool get hasWorkspace =>
+      !isLoading &&
+      activeWorkspace.id.isNotEmpty &&
+      activeWorkspace.id != 'loading';
+
+  /// Shown while data is being fetched.
+  static WorkspaceState loading() {
+    return WorkspaceState(
+      activeWorkspace: Workspace(id: 'loading', name: 'Loading…', adminId: ''),
+      allWorkspaces: const [],
+      lanes: const [],
+      isLoading: true,
+    );
+  }
+
+  /// Shown when the signed-in user has no workspace yet.
+  static WorkspaceState empty() {
+    return WorkspaceState(
+      activeWorkspace: Workspace(id: '', name: 'No Workspace', adminId: ''),
+      allWorkspaces: const [],
+      lanes: const [],
+    );
+  }
 }
 
 class WorkspaceNotifier extends Notifier<WorkspaceState> {
@@ -77,21 +102,12 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     });
 
     final initial =
-        _repository.isPersistent ? _loadingState() : _initialState();
+        _repository.isPersistent ? WorkspaceState.loading() : _initialState();
     if (!_repository.isPersistent) {
       _lanesByWorkspace[initial.activeWorkspace.id] = List.of(initial.lanes);
     }
     unawaited(loadInitialData());
     return initial;
-  }
-
-  static WorkspaceState _loadingState() {
-    return WorkspaceState(
-      activeWorkspace: Workspace(id: 'loading', name: 'Loading…', adminId: ''),
-      allWorkspaces: const [],
-      lanes: const [],
-      isLoading: true,
-    );
   }
 
   static WorkspaceState _initialState() {
@@ -151,7 +167,8 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     if (snapshot == null || !ref.mounted) return;
 
     if (snapshot.workspaces.isEmpty) {
-      await createWorkspace('My Workspace', _userId ?? '', _userEmail ?? '');
+      // First-time user: require an explicit workspace creation.
+      state = WorkspaceState.empty();
       return;
     }
 

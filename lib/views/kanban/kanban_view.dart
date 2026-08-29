@@ -8,6 +8,7 @@ import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../task_detail/task_detail_modal.dart';
+import '../workspace/workspace_management_modal.dart';
 
 class KanbanView extends ConsumerWidget {
   const KanbanView({super.key});
@@ -60,6 +61,10 @@ class KanbanView extends ConsumerWidget {
 
       return true;
     }).toList();
+
+    if (!workspaceState.hasWorkspace) {
+      return const _NoWorkspacePrompt();
+    }
 
     return Scaffold(
       floatingActionButton: FloatingActionButton(
@@ -193,6 +198,65 @@ class KanbanView extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NoWorkspacePrompt extends ConsumerWidget {
+  const _NoWorkspacePrompt();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      body: Center(
+        child: Container(
+          padding: const EdgeInsets.all(32),
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.workspaces, size: 42, color: Color(0xFF6366F1)),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'No Workspace Yet',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Create a workspace to organize tasks, lanes, and teammates. Tasks can only be added after a workspace exists.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => const WorkspaceManagementModal(),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                ),
+                icon: const Icon(Icons.add, color: Colors.white, size: 18),
+                label: const Text(
+                  'Create Workspace',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

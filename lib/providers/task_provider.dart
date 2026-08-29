@@ -60,18 +60,21 @@ class ActivityLogNotifier extends Notifier<List<ActivityLog>> {
     });
 
     if (_repository.isPersistent) {
-      unawaited(_load());
-      _logSub = _repository.watchLogs(_workspaceId!).listen((_) {
-        _reloadDebounce?.cancel();
-        _reloadDebounce = Timer(const Duration(milliseconds: 300), () {
-          unawaited(_load());
+      if (_workspaceId!.isNotEmpty) {
+        unawaited(_load());
+        _logSub = _repository.watchLogs(_workspaceId!).listen((_) {
+          _reloadDebounce?.cancel();
+          _reloadDebounce = Timer(const Duration(milliseconds: 300), () {
+            unawaited(_load());
+          });
         });
-      });
+      }
     }
     return [];
   }
 
   Future<void> _load() async {
+    if (_workspaceId!.isEmpty) return;
     final revision = _mutationCount;
     final logs = await _repository.fetchLogs(_workspaceId!);
     if (logs == null || !ref.mounted) return;
@@ -132,13 +135,15 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     });
 
     if (_repository.isPersistent) {
-      unawaited(_load());
-      _taskSub = _repository.watchTasks(_workspaceId!).listen((_) {
-        _reloadDebounce?.cancel();
-        _reloadDebounce = Timer(const Duration(milliseconds: 300), () {
-          unawaited(_load());
+      if (_workspaceId!.isNotEmpty) {
+        unawaited(_load());
+        _taskSub = _repository.watchTasks(_workspaceId!).listen((_) {
+          _reloadDebounce?.cancel();
+          _reloadDebounce = Timer(const Duration(milliseconds: 300), () {
+            unawaited(_load());
+          });
         });
-      });
+      }
       return [];
     }
 
@@ -153,6 +158,7 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
   }
 
   Future<void> _load() async {
+    if (_workspaceId!.isEmpty) return;
     final revision = _mutationCount;
     final tasks = await _repository.fetchTasks(_workspaceId!);
     if (tasks == null || !ref.mounted) return;

@@ -548,8 +548,16 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
 
+    final ws = ref.read(activeWorkspaceProvider).activeWorkspace;
+    if (ws.id.isEmpty || ws.id == 'loading') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Create a workspace before adding tasks.')),
+      );
+      return;
+    }
+    final wsId = ws.id;
+
     final currentUser = ref.read(authProvider);
-    final wsId = ref.read(activeWorkspaceProvider).activeWorkspace.id;
 
     if (widget.task == null) {
       // Create New Task

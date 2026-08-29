@@ -9,6 +9,11 @@ import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/providers/workspace_provider.dart';
 import 'package:task_sphere/views/kanban/kanban_view.dart';
 
+class _EmptyWorkspaceNotifier extends WorkspaceNotifier {
+  @override
+  WorkspaceState build() => WorkspaceState.empty();
+}
+
 void main() {
   setUp(() {
     GoogleFonts.config.allowRuntimeFetching = false;
@@ -143,6 +148,23 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Legacy MySQL Server Backend'), findsOneWidget);
+    });
+  });
+
+  group('No-workspace state', () {
+    testWidgets('shows a create prompt and hides the FAB when no workspace exists', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          activeWorkspaceProvider.overrideWith(() => _EmptyWorkspaceNotifier()),
+        ],
+      );
+      addTearDown(container.dispose);
+      await pumpBoard(tester, container: container);
+
+      expect(find.text('No Workspace Yet'), findsOneWidget);
+      expect(find.text('Create Workspace'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(tester.takeException(), isNull);
     });
   });
 

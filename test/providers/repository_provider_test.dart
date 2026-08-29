@@ -65,7 +65,7 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
     required String userId,
     required String email,
   }) async =>
-      workspaces.isEmpty ? null : (workspaces: List.of(workspaces), lanes: List.of(lanes));
+      (workspaces: List.of(workspaces), lanes: List.of(lanes));
 
   @override
   Future<List<KanbanLane>?> fetchLanes(String workspaceId) async =>
@@ -312,6 +312,19 @@ void main() {
       expect(notifier.state.activeWorkspace.members.single.email, 'a@x.com');
       expect(notifier.state.lanes.single.title, 'To Do');
       expect(notifier.state.isLoading, isFalse);
+    });
+
+    test('loadInitialData shows the no-workspace state when the user has no workspaces', () async {
+      final repo = FakeWorkspaceRepository();
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+
+      expect(notifier.state.hasWorkspace, isFalse);
+      expect(notifier.state.isLoading, isFalse);
+      expect(notifier.state.activeWorkspace.name, 'No Workspace');
     });
 
     test('createWorkspace uses the repository snapshot', () async {
