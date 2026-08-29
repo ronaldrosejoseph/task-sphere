@@ -57,7 +57,7 @@ Only basic sign-in scopes (`email`, `profile`, `openid`) are used - no sensitive
    - The email/profile/openid scopes are requested automatically by the sign-in flow.
 4. Create **OAuth 2.0 Credentials**:
    - Go to **APIs & Services -> Credentials -> Create Credentials -> OAuth client ID**.
-   - **Web Client**: copy its **Client ID** and **Client Secret** into the Supabase Google provider (previous section).
+   - **Web Client**: copy its **Client ID** and **Client Secret** into the Supabase Google provider (previous section). Then, under **Authorized redirect URIs**, add the Supabase OAuth callback URL — `https://<your-project-ref>.supabase.co/auth/v1/callback` (no trailing slash, `<your-project-ref>` from Project Settings → API → Project URL). Without this, web sign-in fails with `Error 400: redirect_uri_mismatch`. Authorized JavaScript origins can stay empty.
    - **Android Client**: Add your package name (`com.tasksphere.app`) and SHA-1 certificate fingerprint.
    - **iOS Client**: Add Bundle ID (`com.tasksphere.app`).
    - **macOS Client**: Add Bundle ID (`com.tasksphere.app`).
@@ -103,7 +103,8 @@ The web build is a fully static Flutter bundle - no server required. A GitHub Ac
 
 ### Required cloud configuration for web sign-in
 
-- **Supabase Auth**: set the **Site URL** to your deployed URL (`https://task-sphere.pages.dev`) under Supabase → Authentication → URL Configuration, so the Google OAuth redirect flow returns to your app. Also add `https://task-sphere.pages.dev/**` to **Redirect URLs**. No changes are needed in the Google Cloud console - web sign-in flows through Supabase's OAuth callback.
+- **Supabase Auth**: set the **Site URL** to your deployed URL (`https://task-sphere.pages.dev`) under Supabase → Authentication → URL Configuration, so the Google OAuth redirect flow returns to your app. Also add `https://task-sphere.pages.dev/**` to **Redirect URLs**.
+- **Google Cloud console**: the Supabase OAuth callback URL must be registered as an **Authorized redirect URI** on the Web OAuth client (see the Google OAuth Sign-In Setup section above) or web sign-in fails with `Error 400: redirect_uri_mismatch`.
 
 ### Manual deploy (optional)
 
