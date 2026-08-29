@@ -5,6 +5,7 @@ import '../../models/task.dart';
 import '../../models/workspace.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
+import '../../core/theme/app_theme.dart';
 
 class AnalyticsView extends ConsumerWidget {
   const AnalyticsView({super.key});
@@ -34,36 +35,51 @@ class AnalyticsView extends ConsumerWidget {
           Text('Track team workload, status distribution, and completion rates.', style: TextStyle(color: Colors.grey[400])),
           const SizedBox(height: 24),
 
-          // KPI Cards Row
-          Row(
-            children: [
-              Expanded(
-                child: _KpiCard(
+          // KPI Cards (row on wide screens, wrap on tablet and below)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 800;
+              final cards = [
+                _KpiCard(
                   title: 'Total Tasks',
                   value: '$totalTasks',
                   icon: Icons.task_alt,
                   color: Colors.blueAccent,
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _KpiCard(
+                _KpiCard(
                   title: 'Completed',
                   value: '$doneTasksCount',
                   icon: Icons.check_circle_outline,
                   color: const Color(0xFF10B981),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _KpiCard(
+                _KpiCard(
                   title: 'Completion Rate',
                   value: '$completionRate%',
                   icon: Icons.trending_up,
                   color: const Color(0xFF8B5CF6),
                 ),
-              ),
-            ],
+              ];
+
+              if (isWide) {
+                return Row(
+                  children: [
+                    for (var i = 0; i < cards.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 16),
+                      Expanded(child: cards[i]),
+                    ],
+                  ],
+                );
+              }
+
+              return Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  for (final card in cards)
+                    SizedBox(width: 280, child: card),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 32),
 
@@ -213,17 +229,57 @@ class _MemberWorkloadChart extends StatelessWidget {
     }
 
     final maxCount = entries.map((e) => e.$3).reduce((a, b) => a > b ? a : b);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final axisColor = isDark ? AppTheme.mutedDark : AppTheme.mutedLight;
+    final tooltipBackground = isDark ? AppTheme.cardDark : const Color(0xFF111827);
+    final tooltipForeground = Colors.white;
 
     return BarChart(
       BarChartData(
         borderData: FlBorderData(show: false),
         gridData: const FlGridData(show: true, drawVerticalLine: false),
         maxY: (maxCount + 1).toDouble(),
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (_) => tooltipBackground,
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final label = entries[group.x].$2;
+              return BarTooltipItem(
+                '$label\n',
+                TextStyle(
+                  color: tooltipForeground,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                children: [
+                  TextSpan(
+                    text: '${rod.toY.round()} task${rod.toY.round() == 1 ? '' : 's'}',
+                    style: TextStyle(
+                      color: tooltipForeground.withValues(alpha: 0.85),
+                      fontSize: 11,
+                      fontWeight: FontWeight.normal,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
         titlesData: FlTitlesData(
           topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: true, reservedSize: 28, interval: 1),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 28,
+              interval: 1,
+              getTitlesWidget: (value, meta) {
+                return Text(
+                  value.toInt().toString(),
+                  style: TextStyle(fontSize: 10, color: axisColor),
+                );
+              },
+            ),
           ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
@@ -236,7 +292,7 @@ class _MemberWorkloadChart extends StatelessWidget {
                 final short = label.length > 7 ? '${label.substring(0, 7)}…' : label;
                 return Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: Text(short, style: const TextStyle(fontSize: 9)),
+                  child: Text(short, style: TextStyle(fontSize: 9, color: axisColor)),
                 );
               },
             ),
@@ -285,13 +341,25 @@ class _KpiCard extends StatelessWidget {
               child: Icon(icon, color: color, size: 28),
             ),
             const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: TextStyle(fontSize: 12, color: Colors.grey[400])),
-                const SizedBox(height: 4),
-                Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-              ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
