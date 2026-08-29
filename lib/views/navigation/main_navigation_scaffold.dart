@@ -62,8 +62,19 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF6366F1),
-                                borderRadius: BorderRadius.circular(12),
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(13),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
                               ),
                               child: const Icon(Icons.grid_view_rounded, color: Colors.white, size: 22),
                             ),
@@ -106,9 +117,9 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF6366F1).withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
+                              color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.35)),
                             ),
                             child: Row(
                               children: [
@@ -251,22 +262,40 @@ class _SidebarNavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        selected: isSelected,
-        selectedTileColor: const Color(0xFF6366F1).withValues(alpha: 0.15),
-        leading: Icon(
-          isSelected ? selectedIcon : icon,
-          color: isSelected ? const Color(0xFF6366F1) : Colors.grey,
-        ),
-        title: Text(
-          label,
-          style: TextStyle(
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            color: isSelected ? const Color(0xFF6366F1) : null,
+      child: Container(
+        decoration: isSelected
+            ? BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                borderRadius: BorderRadius.circular(13),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              )
+            : null,
+        child: ListTile(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+          selected: isSelected,
+          leading: Icon(
+            isSelected ? selectedIcon : icon,
+            color: isSelected ? Colors.white : Colors.grey,
           ),
+          title: Text(
+            label,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: isSelected ? Colors.white : null,
+            ),
+          ),
+          onTap: onTap,
         ),
-        onTap: onTap,
       ),
     );
   }

@@ -70,14 +70,13 @@ class KanbanView extends ConsumerWidget {
           );
         },
         tooltip: 'New Task',
-        backgroundColor: AppTheme.primaryIndigo,
         child: const Icon(Icons.add, color: Colors.white),
       ),
       body: Column(
         children: [
           // Top Filter Bar (wraps onto a second line on narrow screens)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
               color: Theme.of(context).brightness == Brightness.dark
                   ? AppTheme.surfaceDark
@@ -91,69 +90,73 @@ class KanbanView extends ConsumerWidget {
               ),
             ),
             child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
+              spacing: 10,
+              runSpacing: 10,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 // Search Input
                 SizedBox(
-                  width: 220,
-                  height: 40,
+                  width: 240,
                   child: TextField(
                     onChanged: (val) => ref.read(taskFilterSearchProvider.notifier).set(val),
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       hintText: 'Search tasks...',
-                      prefixIcon: const Icon(Icons.search, size: 18),
+                      prefixIcon: Icon(Icons.search, size: 18),
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: EdgeInsets.symmetric(vertical: 10),
                     ),
                   ),
                 ),
 
                 // Priority Filter Dropdown
-                DropdownButton<TaskPriority?>(
-                  value: selectedPriority,
-                  hint: const Text('All Priorities', style: TextStyle(fontSize: 13)),
-                  underline: const SizedBox(),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('All Priorities')),
-                    ...TaskPriority.values.map((p) => DropdownMenuItem(
-                          value: p,
-                          child: Row(
-                            children: [
-                              Icon(Icons.circle, size: 8, color: p.color),
-                              const SizedBox(width: 6),
-                              Text(p.label),
-                            ],
-                          ),
-                        )),
-                  ],
-                  onChanged: (val) => ref.read(taskFilterPriorityProvider.notifier).set(val),
+                _FilterPill(
+                  child: DropdownButton<TaskPriority?>(
+                    value: selectedPriority,
+                    hint: const Text('All Priorities', style: TextStyle(fontSize: 13)),
+                    underline: const SizedBox(),
+                    borderRadius: BorderRadius.circular(12),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All Priorities')),
+                      ...TaskPriority.values.map((p) => DropdownMenuItem(
+                            value: p,
+                            child: Row(
+                              children: [
+                                Icon(Icons.circle, size: 8, color: p.color),
+                                const SizedBox(width: 6),
+                                Text(p.label),
+                              ],
+                            ),
+                          )),
+                    ],
+                    onChanged: (val) => ref.read(taskFilterPriorityProvider.notifier).set(val),
+                  ),
                 ),
 
                 // Assignee Filter Dropdown
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 180),
-                  child: DropdownButton<String?>(
-                    value: selectedAssignee,
-                    isExpanded: true,
-                    hint: const Text('All Assignees', style: TextStyle(fontSize: 13)),
-                    underline: const SizedBox(),
-                    items: [
-                      const DropdownMenuItem(value: null, child: Text('All Assignees')),
-                      ...workspaceState.activeWorkspace.members.map((m) {
-                        return DropdownMenuItem(
-                          value: m.email,
-                          child: Text(
-                            m.email.split('@').first,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        );
-                      }),
-                    ],
-                    onChanged: (val) =>
-                        ref.read(taskFilterAssigneeProvider.notifier).set(val),
+                _FilterPill(
+                  child: SizedBox(
+                    width: 150,
+                    child: DropdownButton<String?>(
+                      value: selectedAssignee,
+                      isExpanded: true,
+                      hint: const Text('All Assignees', style: TextStyle(fontSize: 13)),
+                      underline: const SizedBox(),
+                      borderRadius: BorderRadius.circular(12),
+                      items: [
+                        const DropdownMenuItem(value: null, child: Text('All Assignees')),
+                        ...workspaceState.activeWorkspace.members.map((m) {
+                          return DropdownMenuItem(
+                            value: m.email,
+                            child: Text(
+                              m.email.split('@').first,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }),
+                      ],
+                      onChanged: (val) =>
+                          ref.read(taskFilterAssigneeProvider.notifier).set(val),
+                    ),
                   ),
                 ),
               ],
@@ -184,6 +187,29 @@ class KanbanView extends ConsumerWidget {
   }
 }
 
+/// A rounded, subtly bordered container for a filter control.
+class _FilterPill extends StatelessWidget {
+  final Widget child;
+
+  const _FilterPill({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.cardDark : AppTheme.bgLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? AppTheme.borderDark : AppTheme.borderLight,
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
 class _KanbanColumnWidget extends ConsumerWidget {
   final KanbanLane lane;
   final List<TaskItem> tasks;
@@ -206,21 +232,32 @@ class _KanbanColumnWidget extends ConsumerWidget {
 
           return Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppTheme.radiusLg),
               border: isHighlight
                   ? Border.all(color: lane.color, width: 2)
                   : null,
             ),
             child: Column(
               children: [
-                // Lane Header
+                // Lane Header with color accent
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 10, 12),
                   decoration: BoxDecoration(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(AppTheme.radiusLg),
+                    ),
+                    gradient: LinearGradient(
+                      colors: [
+                        lane.color.withValues(alpha: 0.16),
+                        Colors.transparent,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     border: Border(
                       bottom: BorderSide(
-                        color: lane.color.withValues(alpha: 0.3),
-                        width: 2,
+                        color: lane.color.withValues(alpha: 0.35),
+                        width: 1.5,
                       ),
                     ),
                   ),
@@ -234,7 +271,9 @@ class _KanbanColumnWidget extends ConsumerWidget {
                               width: 12,
                               height: 12,
                               decoration: BoxDecoration(
-                                color: lane.color,
+                                gradient: LinearGradient(
+                                  colors: [lane.color, lane.color.withValues(alpha: 0.6)],
+                                ),
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -242,16 +281,16 @@ class _KanbanColumnWidget extends ConsumerWidget {
                             Flexible(
                               child: Text(
                                 lane.title,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                               decoration: BoxDecoration(
-                                color: lane.color.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(12),
+                                color: lane.color.withValues(alpha: 0.16),
+                                borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
                                 '${tasks.length}',
@@ -281,29 +320,36 @@ class _KanbanColumnWidget extends ConsumerWidget {
 
                 // Lane Cards List
                 Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: tasks.length,
-                    itemBuilder: (context, index) {
-                      final task = tasks[index];
-                      return Draggable<TaskItem>(
-                        data: task,
-                        feedback: SizedBox(
-                          width: 300,
-                          child: Material(
-                            elevation: 8,
-                            borderRadius: BorderRadius.circular(16),
-                            child: _TaskCardWidget(task: task, isDragging: true),
+                  child: tasks.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No tasks',
+                            style: TextStyle(fontSize: 12.5, color: Colors.grey[500]),
                           ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(12),
+                          itemCount: tasks.length,
+                          itemBuilder: (context, index) {
+                            final task = tasks[index];
+                            return Draggable<TaskItem>(
+                              data: task,
+                              feedback: SizedBox(
+                                width: 300,
+                                child: Material(
+                                  elevation: 8,
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: _TaskCardWidget(task: task, isDragging: true),
+                                ),
+                              ),
+                              childWhenDragging: Opacity(
+                                opacity: 0.3,
+                                child: _TaskCardWidget(task: task),
+                              ),
+                              child: _TaskCardWidget(task: task),
+                            ).animate().fadeIn(duration: 200.ms, delay: (index * 50).ms);
+                          },
                         ),
-                        childWhenDragging: Opacity(
-                          opacity: 0.3,
-                          child: _TaskCardWidget(task: task),
-                        ),
-                        child: _TaskCardWidget(task: task),
-                      ).animate().fadeIn(duration: 200.ms, delay: (index * 50).ms);
-                    },
-                  ),
                 ),
               ],
             ),
@@ -329,10 +375,19 @@ class _TaskCardWidget extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: isDark ? AppTheme.cardDark : AppTheme.cardLight,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isOverdue ? Colors.redAccent.withValues(alpha: 0.6) : AppTheme.borderDark.withValues(alpha: 0.3),
+          color: isOverdue
+              ? Colors.redAccent.withValues(alpha: 0.55)
+              : (isDark ? AppTheme.borderDark : AppTheme.borderLight).withValues(alpha: 0.7),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: InkWell(
         onTap: () {
@@ -341,140 +396,175 @@ class _TaskCardWidget extends StatelessWidget {
             builder: (context) => TaskDetailModal(task: task),
           );
         },
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        borderRadius: BorderRadius.circular(16),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Priority Pill & Attachment Badge
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: task.priority.color.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: task.priority.color.withValues(alpha: 0.4)),
-                    ),
-                    child: Text(
-                      task.priority.label.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: task.priority.color,
-                      ),
-                    ),
-                  ),
-                  if (task.attachmentPaths.isNotEmpty)
+            // Priority accent bar
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: task.priority.color,
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(16),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Priority Pill & Attachment Badge
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Icon(Icons.attach_file, size: 14, color: Color(0xFF3B82F6)),
-                        Text(
-                          '${task.attachmentPaths.length}',
-                          style: const TextStyle(fontSize: 11, color: Color(0xFF3B82F6)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: task.priority.color.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: task.priority.color.withValues(alpha: 0.4)),
+                          ),
+                          child: Text(
+                            task.priority.label.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                              color: task.priority.color,
+                            ),
+                          ),
                         ),
+                        if (task.attachmentPaths.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.attach_file, size: 12, color: Color(0xFF3B82F6)),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${task.attachmentPaths.length}',
+                                  style: const TextStyle(fontSize: 11, color: Color(0xFF3B82F6)),
+                                ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
-                ],
-              ),
-              const SizedBox(height: 8),
+                    const SizedBox(height: 9),
 
-              // Title
-              Text(
-                task.title,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (task.description.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  task.description,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-              const SizedBox(height: 12),
-
-              // Subtask Progress Bar
-              if (task.subtasks.isNotEmpty) ...[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
+                    // Title
                     Text(
-                      'Subtasks',
-                      style: TextStyle(fontSize: 11, color: Colors.grey[400]),
+                      task.title,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, height: 1.3),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    Text(
-                      '${(task.subtasksProgress * 100).toInt()}%',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    if (task.description.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        task.description,
+                        style: TextStyle(fontSize: 12, color: Colors.grey[500], height: 1.35),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+
+                    // Subtask Progress
+                    if (task.subtasks.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: task.subtasksProgress,
+                                backgroundColor: Colors.grey.withValues(alpha: 0.18),
+                                color: const Color(0xFF10B981),
+                                minHeight: 5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${(task.subtasksProgress * 100).toInt()}%',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+
+                    // Footer: Assignee & Due Date
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Assignee
+                        Expanded(
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 10,
+                                backgroundColor: AppTheme.primaryIndigo,
+                                child: Text(
+                                  (task.assigneeName ?? 'U')[0].toUpperCase(),
+                                  style: const TextStyle(fontSize: 9.5, color: Colors.white),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  task.assigneeName ?? 'Unassigned',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Due Date Chip
+                        if (task.dueDate != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: (isOverdue ? Colors.redAccent : Colors.grey)
+                                  .withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.schedule,
+                                  size: 11,
+                                  color: isOverdue ? Colors.redAccent : Colors.grey,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  DateFormat('MMM dd').format(task.dueDate!),
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: isOverdue ? FontWeight.bold : FontWeight.w600,
+                                    color: isOverdue ? Colors.redAccent : Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                LinearProgressIndicator(
-                  value: task.subtasksProgress,
-                  backgroundColor: Colors.grey.withValues(alpha: 0.2),
-                  color: const Color(0xFF10B981),
-                  borderRadius: BorderRadius.circular(4),
-                  minHeight: 4,
-                ),
-                const SizedBox(height: 10),
-              ],
-
-              // Footer: Assignee & Due Date
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Assignee Avatar / Name
-                  Expanded(
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 10,
-                          backgroundColor: AppTheme.primaryIndigo,
-                          child: Text(
-                            (task.assigneeName ?? 'U')[0].toUpperCase(),
-                            style: const TextStyle(fontSize: 10, color: Colors.white),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            task.assigneeName ?? 'Unassigned',
-                            style: TextStyle(fontSize: 11, color: Colors.grey[400]),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Due Date Badge
-                  if (task.dueDate != null)
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.schedule,
-                          size: 12,
-                          color: isOverdue ? Colors.redAccent : Colors.grey,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          DateFormat('MMM dd').format(task.dueDate!),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: isOverdue ? FontWeight.bold : FontWeight.normal,
-                            color: isOverdue ? Colors.redAccent : Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                ],
               ),
+            ),
             ],
           ),
         ),

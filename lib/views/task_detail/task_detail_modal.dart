@@ -214,7 +214,12 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                                 children: [
                                   Icon(Icons.circle, size: 10, color: p.color),
                                   const SizedBox(width: 8),
-                                  Text(p.label),
+                                  Flexible(
+                                    child: Text(
+                                      p.label,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
                                 ],
                               ),
                             );

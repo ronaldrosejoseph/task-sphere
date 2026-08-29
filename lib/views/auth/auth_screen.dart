@@ -46,8 +46,19 @@ class AuthScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1),
-                    borderRadius: BorderRadius.circular(20),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(22),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF6366F1).withValues(alpha: 0.45),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
                   child: const Icon(Icons.grid_view_rounded, size: 40, color: Colors.white),
                 ),
@@ -102,8 +113,9 @@ class AuthScreen extends ConsumerWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: Colors.black87,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    minimumSize: const Size(double.infinity, 52),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+                    elevation: 0,
                   ),
                   icon: Image.network(
                     'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg',
@@ -120,9 +132,9 @@ class AuthScreen extends ConsumerWidget {
                     ref.read(authProvider.notifier).setDemoUser();
                   },
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
+                    minimumSize: const Size(double.infinity, 52),
                     side: const BorderSide(color: Color(0xFF6366F1)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
                   ),
                   child: const Text(
                     'Explore Demo Mode (Offline)',
