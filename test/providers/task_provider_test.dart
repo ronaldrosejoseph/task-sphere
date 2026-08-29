@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:task_sphere/core/repositories/workspace_repository.dart';
 import 'package:task_sphere/models/lane.dart';
 import 'package:task_sphere/models/task.dart';
 import 'package:task_sphere/models/workspace.dart';
@@ -8,10 +7,12 @@ import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/providers/workspace_provider.dart';
 
 class _CustomWorkspaceNotifier extends WorkspaceNotifier {
-  _CustomWorkspaceNotifier(WorkspaceState initialState)
-      : super(InMemoryWorkspaceRepository()) {
-    state = initialState;
-  }
+  _CustomWorkspaceNotifier(this.initialState);
+
+  final WorkspaceState initialState;
+
+  @override
+  WorkspaceState build() => initialState;
 }
 
 ProviderContainer makeContainer({WorkspaceState? workspaceState}) {
@@ -20,7 +21,7 @@ ProviderContainer makeContainer({WorkspaceState? workspaceState}) {
         ? []
         : [
             activeWorkspaceProvider.overrideWith(
-              (ref) => _CustomWorkspaceNotifier(workspaceState),
+              () => _CustomWorkspaceNotifier(workspaceState),
             ),
           ],
   );
@@ -210,10 +211,10 @@ void main() {
 
     test('filter values can be set', () {
       final container = makeContainer();
-      container.read(taskFilterSearchProvider.notifier).state = 'design';
-      container.read(taskFilterPriorityProvider.notifier).state = TaskPriority.urgent;
-      container.read(taskFilterAssigneeProvider.notifier).state = 'alex@example.com';
-      container.read(showArchivedTasksProvider.notifier).state = true;
+      container.read(taskFilterSearchProvider.notifier).set('design');
+      container.read(taskFilterPriorityProvider.notifier).set(TaskPriority.urgent);
+      container.read(taskFilterAssigneeProvider.notifier).set('alex@example.com');
+      container.read(showArchivedTasksProvider.notifier).set(true);
 
       expect(container.read(taskFilterSearchProvider), 'design');
       expect(container.read(taskFilterPriorityProvider), TaskPriority.urgent);

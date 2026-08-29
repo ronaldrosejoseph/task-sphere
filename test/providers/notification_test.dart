@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:task_sphere/core/repositories/task_repository.dart';
-import 'package:task_sphere/core/repositories/workspace_repository.dart';
 import 'package:task_sphere/core/services/notification_service.dart';
 import 'package:task_sphere/models/lane.dart';
 import 'package:task_sphere/models/task.dart';
@@ -31,10 +30,12 @@ class FakeNotificationService extends NotificationService {
 }
 
 class _FakeWorkspaceNotifier extends WorkspaceNotifier {
-  _FakeWorkspaceNotifier(WorkspaceState initialState)
-      : super(InMemoryWorkspaceRepository()) {
-    state = initialState;
-  }
+  _FakeWorkspaceNotifier(this.initialState);
+
+  final WorkspaceState initialState;
+
+  @override
+  WorkspaceState build() => initialState;
 }
 
 class _PersistentTaskRepository implements TaskRepository {
@@ -65,7 +66,7 @@ void main() {
   test('seeded demo tasks schedule reminders on startup', () {
     final fake = FakeNotificationService();
     final container = ProviderContainer(
-      overrides: [notificationServiceProvider.overrideWithValue(fake)],
+      overrides: [notificationServiceProvider.overrideWith((ref) => fake)],
     );
     addTearDown(container.dispose);
 
@@ -85,7 +86,7 @@ void main() {
   test('addTask schedules a reminder for future due dates', () {
     final fake = FakeNotificationService();
     final container = ProviderContainer(
-      overrides: [notificationServiceProvider.overrideWithValue(fake)],
+      overrides: [notificationServiceProvider.overrideWith((ref) => fake)],
     );
     addTearDown(container.dispose);
 
@@ -127,10 +128,10 @@ void main() {
 
     final container = ProviderContainer(
       overrides: [
-        taskRepositoryProvider.overrideWithValue(repo),
-        notificationServiceProvider.overrideWithValue(fake),
+        taskRepositoryProvider.overrideWith((ref) => repo),
+        notificationServiceProvider.overrideWith((ref) => fake),
         activeWorkspaceProvider.overrideWith(
-          (ref) => _FakeWorkspaceNotifier(WorkspaceState(
+          () => _FakeWorkspaceNotifier(WorkspaceState(
             activeWorkspace: workspace,
             allWorkspaces: [workspace],
             lanes: lanes,

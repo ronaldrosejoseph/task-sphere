@@ -6,7 +6,7 @@ import FlutterMacOS
 import Foundation
 
 import app_links
-import file_picker
+import file_picker_darwin
 import flutter_local_notifications
 import flutter_timezone
 import google_sign_in_ios

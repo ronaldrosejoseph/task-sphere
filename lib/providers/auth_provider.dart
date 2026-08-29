@@ -7,22 +7,19 @@ import '../models/user_profile.dart';
 import '../core/services/google_auth_service.dart';
 import '../core/services/supabase_service.dart';
 
-final authProvider = StateNotifierProvider<AuthNotifier, UserProfile?>((ref) {
-  final notifier = AuthNotifier();
-  notifier.init();
-  return notifier;
-});
+final authProvider = NotifierProvider<AuthNotifier, UserProfile?>(AuthNotifier.new);
 
-class AuthNotifier extends StateNotifier<UserProfile?> {
+class AuthNotifier extends Notifier<UserProfile?> {
   StreamSubscription<AuthState>? _authSub;
 
-  AuthNotifier()
-      : super(SupabaseService.instance.isInitialized ? null : UserProfile.demo());
-
-  void init() {
-    unawaited(restoreSession());
+  @override
+  UserProfile? build() {
     final client = SupabaseService.instance.client;
-    if (client == null) return;
+    if (client == null) {
+      return UserProfile.demo();
+    }
+
+    ref.onDispose(() => _authSub?.cancel());
     _authSub = client.auth.onAuthStateChange.listen((event) {
       final user = event.session?.user;
       if (user != null) {
@@ -36,12 +33,9 @@ class AuthNotifier extends StateNotifier<UserProfile?> {
         state = null;
       }
     });
-  }
 
-  @override
-  void dispose() {
-    _authSub?.cancel();
-    super.dispose();
+    unawaited(restoreSession());
+    return null;
   }
 
   /// Restores a persisted Supabase session after an app restart.
@@ -50,7 +44,9 @@ class AuthNotifier extends StateNotifier<UserProfile?> {
     if (client == null) return;
     final sessionUser = client.auth.currentUser;
     if (sessionUser == null) return;
-    state = profileFromUser(sessionUser);
+    if (ref.mounted) {
+      state = profileFromUser(sessionUser);
+    }
   }
 
   Future<void> signInWithGoogle() async {

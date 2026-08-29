@@ -10,13 +10,8 @@ import 'auth_provider.dart';
 
 const _uuid = Uuid();
 
-final activeWorkspaceProvider = StateNotifierProvider<WorkspaceNotifier, WorkspaceState>((ref) {
-  final repo = ref.watch(workspaceRepositoryProvider);
-  final user = ref.read(authProvider);
-  final notifier = WorkspaceNotifier(repo, user?.id, user?.email);
-  notifier.loadInitialData();
-  return notifier;
-});
+final activeWorkspaceProvider =
+    NotifierProvider<WorkspaceNotifier, WorkspaceState>(WorkspaceNotifier.new);
 
 class WorkspaceState {
   final Workspace activeWorkspace;
@@ -46,16 +41,39 @@ class WorkspaceState {
   }
 }
 
-class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
-  final WorkspaceRepository _repo;
-  final String? _userId;
-  final String? _userEmail;
+class WorkspaceNotifier extends Notifier<WorkspaceState> {
+  WorkspaceRepository? _repo;
+  String? _userId;
+  String? _userEmail;
 
   StreamSubscription<void>? _workspaceSub;
   Timer? _reloadDebounce;
 
-  WorkspaceNotifier(this._repo, [this._userId, this._userEmail])
-      : super(_repo.isPersistent ? _loadingState() : _initialState());
+  WorkspaceRepository get _repository {
+    final repo = _repo;
+    if (repo == null) {
+      throw StateError('WorkspaceNotifier used before build() completed');
+    }
+    return repo;
+  }
+
+  @override
+  WorkspaceState build() {
+    _repo = ref.watch(workspaceRepositoryProvider);
+    final user = ref.read(authProvider);
+    _userId = user?.id;
+    _userEmail = user?.email;
+
+    ref.onDispose(() {
+      _workspaceSub?.cancel();
+      _reloadDebounce?.cancel();
+    });
+
+    final initial =
+        _repository.isPersistent ? _loadingState() : _initialState();
+    unawaited(loadInitialData());
+    return initial;
+  }
 
   static WorkspaceState _loadingState() {
     return WorkspaceState(
@@ -112,21 +130,15 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
     );
   }
 
-  @override
-  void dispose() {
-    _workspaceSub?.cancel();
-    _reloadDebounce?.cancel();
-    super.dispose();
-  }
-
   Future<void> loadInitialData() async {
-    if (!_repo.isPersistent) return;
+    final repo = _repository;
+    if (!repo.isPersistent) return;
 
-    final snapshot = await _repo.fetchWorkspaces(
+    final snapshot = await repo.fetchWorkspaces(
       userId: _userId ?? '',
       email: _userEmail ?? '',
     );
-    if (snapshot == null || !mounted) return;
+    if (snapshot == null || !ref.mounted) return;
 
     if (snapshot.workspaces.isEmpty) {
       await createWorkspace('My Workspace', _userId ?? '', _userEmail ?? '');
@@ -144,13 +156,14 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
   }
 
   Future<void> createWorkspace(String name, String adminId, String adminEmail) async {
-    if (_repo.isPersistent) {
-      final created = await _repo.createWorkspace(
+    final repo = _repository;
+    if (repo.isPersistent) {
+      final created = await repo.createWorkspace(
         name: name,
         adminId: adminId,
         adminEmail: adminEmail,
       );
-      if (created == null || !mounted) return;
+      if (created == null || !ref.mounted) return;
       state = state.copyWith(
         activeWorkspace: created.workspace,
         allWorkspaces: [...state.allWorkspaces, created.workspace],
@@ -194,11 +207,12 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
 
   Future<void> switchWorkspace(Workspace ws) async {
     state = state.copyWith(activeWorkspace: ws);
-    if (!_repo.isPersistent) return;
+    final repo = _repository;
+    if (!repo.isPersistent) return;
 
     state = state.copyWith(lanes: const [], isLoading: true);
-    final lanes = await _repo.fetchLanes(ws.id);
-    if (!mounted || state.activeWorkspace.id != ws.id) return;
+    final lanes = await repo.fetchLanes(ws.id);
+    if (!ref.mounted || state.activeWorkspace.id != ws.id) return;
     state = state.copyWith(lanes: lanes ?? const [], isLoading: false);
     _subscribeToWorkspace(ws.id);
   }
@@ -216,8 +230,8 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
     );
 
     state = state.copyWith(lanes: [...state.lanes, newLane]);
-    if (_repo.isPersistent) {
-      unawaited(_repo.addLane(newLane));
+    if (_repository.isPersistent) {
+      unawaited(_repository.addLane(newLane));
     }
   }
 
@@ -233,8 +247,8 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
     }).toList();
 
     state = state.copyWith(lanes: updatedLanes);
-    if (_repo.isPersistent && updated != null) {
-      unawaited(_repo.updateLane(updated!));
+    if (_repository.isPersistent && updated != null) {
+      unawaited(_repository.updateLane(updated!));
     }
   }
 
@@ -248,16 +262,16 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
     }).toList();
 
     state = state.copyWith(lanes: reindexed);
-    if (_repo.isPersistent) {
-      unawaited(_repo.reorderLanes(reindexed));
+    if (_repository.isPersistent) {
+      unawaited(_repository.reorderLanes(reindexed));
     }
   }
 
   void deleteLane(String laneId) {
     final updatedLanes = state.lanes.where((l) => l.id != laneId).toList();
     state = state.copyWith(lanes: updatedLanes);
-    if (_repo.isPersistent) {
-      unawaited(_repo.deleteLane(laneId));
+    if (_repository.isPersistent) {
+      unawaited(_repository.deleteLane(laneId));
     }
   }
 
@@ -265,8 +279,8 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
   void updateAutoArchiveThreshold(int days) {
     final updatedWs = state.activeWorkspace.copyWith(autoArchiveDays: days);
     state = state.copyWith(activeWorkspace: updatedWs);
-    if (_repo.isPersistent) {
-      unawaited(_repo.updateAutoArchiveDays(updatedWs.id, days));
+    if (_repository.isPersistent) {
+      unawaited(_repository.updateAutoArchiveDays(updatedWs.id, days));
     }
   }
 
@@ -280,16 +294,16 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
     final updatedMembers = [...state.activeWorkspace.members, newMember];
     final updatedWs = state.activeWorkspace.copyWith(members: updatedMembers);
     state = state.copyWith(activeWorkspace: updatedWs);
-    if (_repo.isPersistent) {
-      unawaited(_repo.inviteMember(newMember));
+    if (_repository.isPersistent) {
+      unawaited(_repository.inviteMember(newMember));
       // Let the invited user sign in without a manual SQL insert.
-      unawaited(_repo.allowlistEmail(email));
+      unawaited(_repository.allowlistEmail(email));
     }
   }
 
   void _subscribeToWorkspace(String workspaceId) {
     _workspaceSub?.cancel();
-    _workspaceSub = _repo.watchWorkspace(workspaceId).listen((_) {
+    _workspaceSub = _repository.watchWorkspace(workspaceId).listen((_) {
       _reloadDebounce?.cancel();
       _reloadDebounce = Timer(
         const Duration(milliseconds: 300),
@@ -299,9 +313,9 @@ class WorkspaceNotifier extends StateNotifier<WorkspaceState> {
   }
 
   Future<void> _reloadWorkspace(String workspaceId) async {
-    final lanes = await _repo.fetchLanes(workspaceId);
-    final members = await _repo.fetchMembers(workspaceId);
-    if (!mounted || state.activeWorkspace.id != workspaceId) return;
+    final lanes = await _repository.fetchLanes(workspaceId);
+    final members = await _repository.fetchMembers(workspaceId);
+    if (!ref.mounted || state.activeWorkspace.id != workspaceId) return;
 
     if (lanes != null) {
       state = state.copyWith(lanes: lanes);

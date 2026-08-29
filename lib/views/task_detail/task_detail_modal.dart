@@ -505,12 +505,11 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
       return;
     }
 
-    final result = await FilePicker.pickFiles(withData: true);
-    if (result == null || result.files.isEmpty) return;
+    final files = await FilePicker.pickFiles();
+    if (files.isEmpty) return;
 
-    final file = result.files.first;
-    final bytes = file.bytes;
-    if (bytes == null) return;
+    final file = files.first;
+    final bytes = await file.readAsBytes();
     final workspaceId = ref.read(activeWorkspaceProvider).activeWorkspace.id;
     final path = await SupabaseStorageService.instance.uploadAttachment(
       workspaceId: workspaceId,

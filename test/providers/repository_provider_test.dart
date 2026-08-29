@@ -8,6 +8,8 @@ import 'package:task_sphere/models/activity_log.dart';
 import 'package:task_sphere/models/lane.dart';
 import 'package:task_sphere/models/task.dart';
 import 'package:task_sphere/models/workspace.dart';
+import 'package:task_sphere/models/user_profile.dart';
+import 'package:task_sphere/providers/auth_provider.dart';
 import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/providers/workspace_provider.dart';
 
@@ -142,10 +144,12 @@ class FakeActivityLogRepository implements ActivityLogRepository {
 }
 
 class _FakeWorkspaceNotifier extends WorkspaceNotifier {
-  _FakeWorkspaceNotifier(WorkspaceState initialState)
-      : super(InMemoryWorkspaceRepository()) {
-    state = initialState;
-  }
+  _FakeWorkspaceNotifier(this.initialState);
+
+  final WorkspaceState initialState;
+
+  @override
+  WorkspaceState build() => initialState;
 }
 
 WorkspaceState _workspaceState(Workspace workspace, List<KanbanLane> lanes) {
@@ -168,10 +172,32 @@ ProviderContainer _makeContainer({
   final notifier = _FakeWorkspaceNotifier(_workspaceState(ws, ls));
   return ProviderContainer(
     overrides: [
-      workspaceRepositoryProvider.overrideWithValue(workspaceRepo),
-      if (taskRepo != null) taskRepositoryProvider.overrideWithValue(taskRepo),
-      if (logRepo != null) activityLogRepositoryProvider.overrideWithValue(logRepo),
-      activeWorkspaceProvider.overrideWith((ref) => notifier),
+      workspaceRepositoryProvider.overrideWith((ref) => workspaceRepo),
+      if (taskRepo != null) taskRepositoryProvider.overrideWith((ref) => taskRepo),
+      if (logRepo != null) activityLogRepositoryProvider.overrideWith((ref) => logRepo),
+      activeWorkspaceProvider.overrideWith(() => notifier),
+    ],
+  );
+}
+
+class _FixedAuthNotifier extends AuthNotifier {
+  _FixedAuthNotifier(this.user);
+
+  final UserProfile? user;
+
+  @override
+  UserProfile? build() => user;
+}
+
+ProviderContainer _workspaceContainer(WorkspaceRepository repo) {
+  return ProviderContainer(
+    overrides: [
+      workspaceRepositoryProvider.overrideWith((ref) => repo),
+      authProvider.overrideWith(
+        () => _FixedAuthNotifier(
+          UserProfile(id: 'a', email: 'a@x.com', displayName: 'A'),
+        ),
+      ),
     ],
   );
 }
@@ -265,8 +291,9 @@ void main() {
         ]
         ..lanes = [KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do')];
 
-      final notifier = WorkspaceNotifier(repo, 'a', 'a@x.com');
-      addTearDown(notifier.dispose);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
 
       await notifier.loadInitialData();
 
@@ -278,8 +305,9 @@ void main() {
 
     test('createWorkspace uses the repository snapshot', () async {
       final repo = FakeWorkspaceRepository();
-      final notifier = WorkspaceNotifier(repo, 'a', 'a@x.com');
-      addTearDown(notifier.dispose);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
 
       await notifier.createWorkspace('Remote Team', 'a', 'a@x.com');
 
@@ -291,8 +319,9 @@ void main() {
 
     test('inviteMember persists to the repository', () async {
       final repo = FakeWorkspaceRepository();
-      final notifier = WorkspaceNotifier(repo, 'a', 'a@x.com');
-      addTearDown(notifier.dispose);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
       await notifier.createWorkspace('Team', 'a', 'a@x.com');
 
       notifier.inviteMember('New@X.com', UserRole.member);
@@ -308,8 +337,9 @@ void main() {
 
     test('addLane persists to the repository', () async {
       final repo = FakeWorkspaceRepository();
-      final notifier = WorkspaceNotifier(repo, 'a', 'a@x.com');
-      addTearDown(notifier.dispose);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
       await notifier.createWorkspace('Team', 'a', 'a@x.com');
 
       notifier.addLane('In Review', const Color(0xFFEC4899));

@@ -88,7 +88,7 @@ class KanbanView extends ConsumerWidget {
                   width: 220,
                   height: 40,
                   child: TextField(
-                    onChanged: (val) => ref.read(taskFilterSearchProvider.notifier).state = val,
+                    onChanged: (val) => ref.read(taskFilterSearchProvider.notifier).set(val),
                     decoration: InputDecoration(
                       hintText: 'Search tasks...',
                       prefixIcon: const Icon(Icons.search, size: 18),
@@ -118,7 +118,7 @@ class KanbanView extends ConsumerWidget {
                           ),
                         )),
                   ],
-                  onChanged: (val) => ref.read(taskFilterPriorityProvider.notifier).state = val,
+                  onChanged: (val) => ref.read(taskFilterPriorityProvider.notifier).set(val),
                 ),
                 const SizedBox(width: 12),
 
@@ -143,7 +143,7 @@ class KanbanView extends ConsumerWidget {
                       }),
                     ],
                     onChanged: (val) =>
-                        ref.read(taskFilterAssigneeProvider.notifier).state = val,
+                        ref.read(taskFilterAssigneeProvider.notifier).set(val),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -156,7 +156,7 @@ class KanbanView extends ConsumerWidget {
                     showArchived ? Icons.visibility : Icons.visibility_off_outlined,
                     size: 16,
                   ),
-                  onSelected: (val) => ref.read(showArchivedTasksProvider.notifier).state = val,
+                  onSelected: (val) => ref.read(showArchivedTasksProvider.notifier).set(val),
                 ),
                 const SizedBox(width: 12),
 
