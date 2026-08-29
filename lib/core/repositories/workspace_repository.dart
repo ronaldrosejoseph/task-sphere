@@ -30,6 +30,8 @@ abstract class WorkspaceRepository {
 
   Future<List<WorkspaceMember>?> fetchMembers(String workspaceId);
 
+  Future<Workspace?> fetchWorkspace(String workspaceId);
+
   Future<WorkspaceSnapshot?> createWorkspace({
     required String name,
     required String adminId,
@@ -71,6 +73,9 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Future<List<WorkspaceMember>?> fetchMembers(String workspaceId) async => null;
+
+  @override
+  Future<Workspace?> fetchWorkspace(String workspaceId) async => null;
 
   @override
   Future<WorkspaceSnapshot?> createWorkspace({
@@ -199,6 +204,22 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
           .toList();
     } catch (e) {
       debugPrint('Lane fetch error: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<Workspace?> fetchWorkspace(String workspaceId) async {
+    try {
+      final response = await _client
+          .from('workspaces')
+          .select()
+          .eq('id', workspaceId)
+          .maybeSingle();
+      if (response == null) return null;
+      return Workspace.fromJson(response);
+    } catch (e) {
+      debugPrint('Workspace row fetch error: $e');
       return null;
     }
   }
@@ -340,6 +361,17 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
             column: 'workspace_id',
+            value: workspaceId,
+          ),
+          callback: (_) => controller.add(null),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'workspaces',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
             value: workspaceId,
           ),
           callback: (_) => controller.add(null),

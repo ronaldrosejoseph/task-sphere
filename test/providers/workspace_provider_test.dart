@@ -160,7 +160,7 @@ void main() {
       expect(invited.role, UserRole.member);
     });
 
-    test('updateAutoArchiveThreshold changes only the active workspace', () {
+    test('updateAutoArchiveThreshold updates the workspace in both lists', () {
       final container = makeContainer();
       final notifier = container.read(activeWorkspaceProvider.notifier);
 
@@ -170,8 +170,22 @@ void main() {
       expect(state.activeWorkspace.autoArchiveDays, 30);
       expect(
         state.allWorkspaces.firstWhere((ws) => ws.id == state.activeWorkspace.id).autoArchiveDays,
-        isNot(30),
+        30,
       );
+    });
+
+    test('settings persist when switching away and back', () async {
+      final container = makeContainer();
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      final demo = container.read(activeWorkspaceProvider).activeWorkspace;
+
+      notifier.updateAutoArchiveThreshold(90);
+
+      await notifier.createWorkspace('Other Team', 'admin-1', 'admin@example.com');
+      expect(container.read(activeWorkspaceProvider).activeWorkspace.autoArchiveDays, 14);
+
+      await notifier.switchWorkspace(demo);
+      expect(container.read(activeWorkspaceProvider).activeWorkspace.autoArchiveDays, 90);
     });
   });
 }

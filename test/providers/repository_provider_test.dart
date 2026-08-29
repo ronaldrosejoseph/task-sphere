@@ -76,6 +76,14 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
       List.of(members.where((m) => m.workspaceId == workspaceId));
 
   @override
+  Future<Workspace?> fetchWorkspace(String workspaceId) async {
+    for (final ws in workspaces) {
+      if (ws.id == workspaceId) return ws;
+    }
+    return null;
+  }
+
+  @override
   Future<WorkspaceSnapshot?> createWorkspace({
     required String name,
     required String adminId,

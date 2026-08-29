@@ -209,7 +209,12 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   }
 
   Future<void> switchWorkspace(Workspace ws) async {
-    state = state.copyWith(activeWorkspace: ws);
+    // Always activate the canonical instance so updated settings are kept.
+    final canonical = state.allWorkspaces.firstWhere(
+      (w) => w.id == ws.id,
+      orElse: () => ws,
+    );
+    state = state.copyWith(activeWorkspace: canonical);
     final repo = _repository;
     if (!repo.isPersistent) return;
 
@@ -281,7 +286,13 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   // --- Workspace Settings ---
   void updateAutoArchiveThreshold(int days) {
     final updatedWs = state.activeWorkspace.copyWith(autoArchiveDays: days);
-    state = state.copyWith(activeWorkspace: updatedWs);
+    state = state.copyWith(
+      activeWorkspace: updatedWs,
+      allWorkspaces: [
+        for (final w in state.allWorkspaces)
+          w.id == updatedWs.id ? updatedWs : w,
+      ],
+    );
     if (_repository.isPersistent) {
       unawaited(_repository.updateAutoArchiveDays(updatedWs.id, days));
     }
@@ -318,13 +329,20 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   Future<void> _reloadWorkspace(String workspaceId) async {
     final lanes = await _repository.fetchLanes(workspaceId);
     final members = await _repository.fetchMembers(workspaceId);
+    final workspace = await _repository.fetchWorkspace(workspaceId);
     if (!ref.mounted || state.activeWorkspace.id != workspaceId) return;
 
     if (lanes != null) {
       state = state.copyWith(lanes: lanes);
     }
     if (members != null) {
-      final updatedWs = state.activeWorkspace.copyWith(members: members);
+      state = state.copyWith(
+        activeWorkspace: state.activeWorkspace.copyWith(members: members),
+      );
+    }
+    if (workspace != null) {
+      final membersForWs = state.activeWorkspace.members;
+      final updatedWs = workspace.copyWith(members: membersForWs);
       state = state.copyWith(
         activeWorkspace: updatedWs,
         allWorkspaces: [
