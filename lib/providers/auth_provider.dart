@@ -24,12 +24,15 @@ class AuthNotifier extends Notifier<UserProfile?> {
   @override
   UserProfile? build() {
     final client = SupabaseService.instance.client;
-    // The demo build always starts on the login page; the demo sandbox is
-    // entered only by clicking the demo button on it.
-    if (ref.read(demoModeProvider)) return null;
     if (client == null) {
-      return UserProfile.demo();
+      // No backend: offline builds enter the demo sandbox directly, while
+      // demo builds stay on the login page until the demo button is clicked.
+      return ref.read(demoModeProvider) ? null : UserProfile.demo();
     }
+    // A client exists: restore any persisted session (covers the OAuth
+    // redirect back on web and returning real users on the demo build) and
+    // listen for future auth changes. First-time visitors still see the
+    // login page; the demo sandbox stays opt-in via the demo button.
 
     ref.onDispose(() => _authSub?.cancel());
     _authSub = client.auth.onAuthStateChange.listen((event) {

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/services/supabase_service.dart';
@@ -8,10 +9,25 @@ import '../navigation/main_navigation_scaffold.dart';
 class AuthScreen extends ConsumerWidget {
   const AuthScreen({super.key});
 
+  /// Supabase reports OAuth failures by redirecting back with
+  /// `?error=...&error_description=...` query params on web.
+  String? _oauthErrorMessage() {
+    if (!kIsWeb) return null;
+    final params = Uri.base.queryParameters;
+    final description = params['error_description'];
+    if (description == null) return null;
+    if (description.contains('Database error saving new user')) {
+      return 'Sign-in blocked: your email is not on the sign-up allowlist. '
+          'Ask an admin to add it in the Supabase SQL editor.';
+    }
+    return 'Sign-in failed: $description';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider);
     final demoMode = ref.watch(demoModeProvider);
+    final oauthError = _oauthErrorMessage();
 
     if (user != null) {
       return const MainNavigationScaffold();
@@ -106,6 +122,32 @@ class AuthScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                if (oauthError != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Color(0xFFF87171), size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            oauthError,
+                            style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
                 // Google Sign-In Button
                 ElevatedButton.icon(
