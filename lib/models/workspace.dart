@@ -41,6 +41,7 @@ class Workspace {
   final String name;
   final String adminId;
   final int autoArchiveDays;
+  final bool showArchivedTasks;
   final DateTime createdAt;
   final List<WorkspaceMember> members;
 
@@ -49,6 +50,7 @@ class Workspace {
     required this.name,
     required this.adminId,
     this.autoArchiveDays = 14,
+    this.showArchivedTasks = false,
     DateTime? createdAt,
     this.members = const [],
   }) : createdAt = createdAt ?? DateTime.now();
@@ -59,6 +61,7 @@ class Workspace {
       'name': name,
       'admin_id': adminId,
       'auto_archive_days': autoArchiveDays,
+      'show_archived_tasks': showArchivedTasks,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -69,6 +72,7 @@ class Workspace {
       name: json['name'] as String? ?? 'Default Workspace',
       adminId: json['admin_id'] as String? ?? '',
       autoArchiveDays: json['auto_archive_days'] as int? ?? 14,
+      showArchivedTasks: json['show_archived_tasks'] as bool? ?? false,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
@@ -79,6 +83,7 @@ class Workspace {
   Workspace copyWith({
     String? name,
     int? autoArchiveDays,
+    bool? showArchivedTasks,
     List<WorkspaceMember>? members,
   }) {
     return Workspace(
@@ -86,6 +91,7 @@ class Workspace {
       name: name ?? this.name,
       adminId: adminId,
       autoArchiveDays: autoArchiveDays ?? this.autoArchiveDays,
+      showArchivedTasks: showArchivedTasks ?? this.showArchivedTasks,
       createdAt: createdAt,
       members: members ?? this.members,
     );

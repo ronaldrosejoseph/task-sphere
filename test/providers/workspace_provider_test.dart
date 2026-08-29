@@ -104,6 +104,53 @@ void main() {
     });
   });
 
+    test('lanes stay scoped to their workspace in demo mode', () async {
+      final container = makeContainer();
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      final demo = container.read(activeWorkspaceProvider).activeWorkspace;
+
+      notifier.addLane('In Review', const Color(0xFFEC4899));
+      expect(
+        container.read(activeWorkspaceProvider).lanes.any((l) => l.title == 'In Review'),
+        isTrue,
+      );
+
+      await notifier.createWorkspace('Other Team', 'admin-1', 'admin@example.com');
+
+      final freshLanes = container.read(activeWorkspaceProvider).lanes;
+      expect(freshLanes.length, 5);
+      expect(freshLanes.any((l) => l.title == 'In Review'), isFalse);
+
+      await notifier.switchWorkspace(demo);
+
+      final demoLanes = container.read(activeWorkspaceProvider).lanes;
+      expect(demoLanes.any((l) => l.title == 'In Review'), isTrue);
+    });
+
+    test('show-archived setting follows the workspace', () async {
+      final container = makeContainer();
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      final demo = container.read(activeWorkspaceProvider).activeWorkspace;
+
+      notifier.updateShowArchivedTasks(true);
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.showArchivedTasks,
+        isTrue,
+      );
+
+      await notifier.createWorkspace('Other Team', 'admin-1', 'admin@example.com');
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.showArchivedTasks,
+        isFalse,
+      );
+
+      await notifier.switchWorkspace(demo);
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.showArchivedTasks,
+        isTrue,
+      );
+    });
+
   group('workspace management', () {
     test('createWorkspace switches to the new workspace with fresh lanes', () async {
       final container = makeContainer();

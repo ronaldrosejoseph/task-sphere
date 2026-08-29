@@ -40,6 +40,8 @@ abstract class WorkspaceRepository {
 
   Future<void> updateAutoArchiveDays(String workspaceId, int days);
 
+  Future<void> updateShowArchivedTasks(String workspaceId, bool show);
+
   Future<void> addLane(KanbanLane lane);
 
   Future<void> updateLane(KanbanLane lane);
@@ -87,6 +89,9 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Future<void> updateAutoArchiveDays(String workspaceId, int days) async {}
+
+  @override
+  Future<void> updateShowArchivedTasks(String workspaceId, bool show) async {}
 
   @override
   Future<void> addLane(KanbanLane lane) async {}
@@ -270,6 +275,17 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
       await _client
           .from('workspaces')
           .update({'auto_archive_days': days}).eq('id', workspaceId);
+    } catch (e) {
+      debugPrint('Workspace update error: $e');
+    }
+  }
+
+  @override
+  Future<void> updateShowArchivedTasks(String workspaceId, bool show) async {
+    try {
+      await _client
+          .from('workspaces')
+          .update({'show_archived_tasks': show}).eq('id', workspaceId);
     } catch (e) {
       debugPrint('Workspace update error: $e');
     }

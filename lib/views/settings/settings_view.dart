@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/task_provider.dart';
 import '../../core/services/supabase_service.dart';
 import '../kanban/widgets/lane_manager_dialog.dart';
 
@@ -16,7 +15,7 @@ class SettingsView extends ConsumerWidget {
     final workspaceState = ref.watch(activeWorkspaceProvider);
     final autoArchiveDays = workspaceState.activeWorkspace.autoArchiveDays;
     final currentUser = ref.watch(authProvider);
-    final showArchived = ref.watch(showArchivedTasksProvider);
+    final showArchived = workspaceState.activeWorkspace.showArchivedTasks;
 
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -83,8 +82,9 @@ class SettingsView extends ConsumerWidget {
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
                   value: showArchived,
-                  onChanged: (val) =>
-                      ref.read(showArchivedTasksProvider.notifier).set(val ?? false),
+                  onChanged: (val) => ref
+                      .read(activeWorkspaceProvider.notifier)
+                      .updateShowArchivedTasks(val ?? false),
                   title: const Text('Show archived tasks on the board'),
                   subtitle: const Text(
                     'When off, archived and auto-expired tasks are hidden from the Kanban view',

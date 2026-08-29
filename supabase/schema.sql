@@ -8,8 +8,13 @@ CREATE TABLE IF NOT EXISTS public.workspaces (
     name TEXT NOT NULL,
     admin_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     auto_archive_days INT NOT NULL DEFAULT 14,
+    show_archived_tasks BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration for databases created before this column existed.
+ALTER TABLE public.workspaces
+    ADD COLUMN IF NOT EXISTS show_archived_tasks BOOLEAN NOT NULL DEFAULT false;
 
 -- 2. WORKSPACE MEMBERS TABLE
 CREATE TABLE IF NOT EXISTS public.workspace_members (

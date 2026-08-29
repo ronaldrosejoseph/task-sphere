@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/theme/app_theme.dart';
 import 'package:task_sphere/models/task.dart';
 import 'package:task_sphere/providers/task_provider.dart';
+import 'package:task_sphere/providers/workspace_provider.dart';
 import 'package:task_sphere/views/kanban/kanban_view.dart';
 
 void main() {
@@ -135,7 +136,7 @@ void main() {
       addTearDown(container.dispose);
       await pumpBoard(tester, container: container);
 
-      container.read(showArchivedTasksProvider.notifier).set(true);
+      container.read(activeWorkspaceProvider.notifier).updateShowArchivedTasks(true);
       await tester.pump();
       // Advance past the entrance animation's delay timer.
       await tester.pump(const Duration(milliseconds: 300));

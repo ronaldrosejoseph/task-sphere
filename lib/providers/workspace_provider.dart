@@ -52,6 +52,10 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   StreamSubscription<void>? _workspaceSub;
   Timer? _reloadDebounce;
 
+  /// Lanes per workspace for the in-memory (offline) path, so switching
+  /// workspaces keeps each workspace's own lane set.
+  final Map<String, List<KanbanLane>> _lanesByWorkspace = {};
+
   WorkspaceRepository get _repository {
     final repo = _repo;
     if (repo == null) {
@@ -74,6 +78,9 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
 
     final initial =
         _repository.isPersistent ? _loadingState() : _initialState();
+    if (!_repository.isPersistent) {
+      _lanesByWorkspace[initial.activeWorkspace.id] = List.of(initial.lanes);
+    }
     unawaited(loadInitialData());
     return initial;
   }
@@ -206,6 +213,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
       allWorkspaces: [...state.allWorkspaces, newWs],
       lanes: newLanes,
     );
+    _lanesByWorkspace[newWs.id] = List.of(newLanes);
   }
 
   Future<void> switchWorkspace(Workspace ws) async {
@@ -214,9 +222,16 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
       (w) => w.id == ws.id,
       orElse: () => ws,
     );
-    state = state.copyWith(activeWorkspace: canonical);
     final repo = _repository;
-    if (!repo.isPersistent) return;
+    if (!repo.isPersistent) {
+      _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
+      state = state.copyWith(
+        activeWorkspace: canonical,
+        lanes: List.of(_lanesByWorkspace[canonical.id] ?? const []),
+      );
+      return;
+    }
+    state = state.copyWith(activeWorkspace: canonical);
 
     state = state.copyWith(lanes: const [], isLoading: true);
     final lanes = await repo.fetchLanes(ws.id);
@@ -238,6 +253,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     );
 
     state = state.copyWith(lanes: [...state.lanes, newLane]);
+    _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
     if (_repository.isPersistent) {
       unawaited(_repository.addLane(newLane));
     }
@@ -255,6 +271,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     }).toList();
 
     state = state.copyWith(lanes: updatedLanes);
+    _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
     if (_repository.isPersistent && updated != null) {
       unawaited(_repository.updateLane(updated!));
     }
@@ -270,6 +287,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     }).toList();
 
     state = state.copyWith(lanes: reindexed);
+    _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
     if (_repository.isPersistent) {
       unawaited(_repository.reorderLanes(reindexed));
     }
@@ -278,6 +296,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   void deleteLane(String laneId) {
     final updatedLanes = state.lanes.where((l) => l.id != laneId).toList();
     state = state.copyWith(lanes: updatedLanes);
+    _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
     if (_repository.isPersistent) {
       unawaited(_repository.deleteLane(laneId));
     }
@@ -295,6 +314,20 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     );
     if (_repository.isPersistent) {
       unawaited(_repository.updateAutoArchiveDays(updatedWs.id, days));
+    }
+  }
+
+  void updateShowArchivedTasks(bool show) {
+    final updatedWs = state.activeWorkspace.copyWith(showArchivedTasks: show);
+    state = state.copyWith(
+      activeWorkspace: updatedWs,
+      allWorkspaces: [
+        for (final w in state.allWorkspaces)
+          w.id == updatedWs.id ? updatedWs : w,
+      ],
+    );
+    if (_repository.isPersistent) {
+      unawaited(_repository.updateShowArchivedTasks(updatedWs.id, show));
     }
   }
 

@@ -21,7 +21,7 @@ class KanbanView extends ConsumerWidget {
     final searchText = ref.watch(taskFilterSearchProvider);
     final selectedPriority = ref.watch(taskFilterPriorityProvider);
     final selectedAssignee = ref.watch(taskFilterAssigneeProvider);
-    final showArchived = ref.watch(showArchivedTasksProvider);
+    final showArchived = workspaceState.activeWorkspace.showArchivedTasks;
     final autoArchiveDays = workspaceState.activeWorkspace.autoArchiveDays;
 
     final now = DateTime.now();

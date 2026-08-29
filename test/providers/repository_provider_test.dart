@@ -102,6 +102,9 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
   Future<void> updateAutoArchiveDays(String workspaceId, int days) async {}
 
   @override
+  Future<void> updateShowArchivedTasks(String workspaceId, bool show) async {}
+
+  @override
   Future<void> addLane(KanbanLane lane) async {
     laneAddCalls += 1;
     lanes.add(lane);

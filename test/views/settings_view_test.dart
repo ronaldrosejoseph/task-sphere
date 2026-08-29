@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/theme/app_theme.dart';
-import 'package:task_sphere/providers/task_provider.dart';
+import 'package:task_sphere/providers/workspace_provider.dart';
 import 'package:task_sphere/views/settings/settings_view.dart';
 
 void main() {
@@ -67,16 +67,25 @@ void main() {
   testWidgets('archived checkbox toggles the show-archived setting', (tester) async {
     final container = await pumpSettings(tester);
 
-    expect(container.read(showArchivedTasksProvider), isFalse);
+    expect(
+      container.read(activeWorkspaceProvider).activeWorkspace.showArchivedTasks,
+      isFalse,
+    );
 
     await tester.tap(find.text('Show archived tasks on the board'));
     await tester.pumpAndSettle();
 
-    expect(container.read(showArchivedTasksProvider), isTrue);
+    expect(
+      container.read(activeWorkspaceProvider).activeWorkspace.showArchivedTasks,
+      isTrue,
+    );
 
     await tester.tap(find.text('Show archived tasks on the board'));
     await tester.pumpAndSettle();
 
-    expect(container.read(showArchivedTasksProvider), isFalse);
+    expect(
+      container.read(activeWorkspaceProvider).activeWorkspace.showArchivedTasks,
+      isFalse,
+    );
   });
 }

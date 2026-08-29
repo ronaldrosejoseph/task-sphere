@@ -228,7 +228,6 @@ void main() {
       expect(container.read(taskFilterSearchProvider), '');
       expect(container.read(taskFilterPriorityProvider), isNull);
       expect(container.read(taskFilterAssigneeProvider), isNull);
-      expect(container.read(showArchivedTasksProvider), isFalse);
     });
 
     test('filter values can be set', () {
@@ -236,12 +235,10 @@ void main() {
       container.read(taskFilterSearchProvider.notifier).set('design');
       container.read(taskFilterPriorityProvider.notifier).set(TaskPriority.urgent);
       container.read(taskFilterAssigneeProvider.notifier).set('alex@example.com');
-      container.read(showArchivedTasksProvider.notifier).set(true);
 
       expect(container.read(taskFilterSearchProvider), 'design');
       expect(container.read(taskFilterPriorityProvider), TaskPriority.urgent);
       expect(container.read(taskFilterAssigneeProvider), 'alex@example.com');
-      expect(container.read(showArchivedTasksProvider), isTrue);
     });
   });
 }

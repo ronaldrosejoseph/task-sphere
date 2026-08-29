@@ -30,9 +30,6 @@ final taskFilterPriorityProvider =
     NotifierProvider<MutableValue<TaskPriority?>, TaskPriority?>(() => MutableValue(null));
 final taskFilterAssigneeProvider =
     NotifierProvider<MutableValue<String?>, String?>(() => MutableValue(null));
-final showArchivedTasksProvider =
-    NotifierProvider<MutableValue<bool>, bool>(() => MutableValue(false));
-
 final notificationServiceProvider = Provider<NotificationService>((ref) {
   return NotificationService.instance;
 });
