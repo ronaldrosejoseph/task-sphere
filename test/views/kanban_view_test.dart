@@ -62,6 +62,32 @@ void main() {
   });
 
   group('Kanban filters', () {
+    testWidgets('narrow screens stack search above the filters', (tester) async {
+      tester.view.physicalSize = const Size(500, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: const Scaffold(body: KanbanView()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final searchField = find.byType(TextField);
+      expect(searchField, findsOneWidget);
+      expect(find.text('All Priorities'), findsOneWidget);
+      expect(find.text('All Assignees'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // Search spans the full width (roughly the screen width minus padding).
+      final searchWidth = tester.getSize(searchField).width;
+      expect(searchWidth, greaterThan(400));
+    });
+
     testWidgets('search filter narrows tasks by title', (tester) async {
       await pumpBoard(tester);
 

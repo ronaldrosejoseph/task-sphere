@@ -74,33 +74,26 @@ class KanbanView extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          // Top Filter Bar (wraps onto a second line on narrow screens)
+          // Top Filter Bar: search left / filters right on wide screens,
+          // full-width search with filters on a second line below.
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              alignment: WrapAlignment.start,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                // Search Input
-                SizedBox(
-                  width: 240,
-                  child: TextField(
-                    onChanged: (val) => ref.read(taskFilterSearchProvider.notifier).set(val),
-                    decoration: const InputDecoration(
-                      hintText: 'Search tasks...',
-                      prefixIcon: Icon(Icons.search, size: 18),
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 10),
-                    ),
-                  ),
-                ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth > 800;
 
-                // Priority Filter Dropdown
-                _FilterPill(
+                final searchField = TextField(
+                  onChanged: (val) => ref.read(taskFilterSearchProvider.notifier).set(val),
+                  decoration: const InputDecoration(
+                    hintText: 'Search tasks...',
+                    prefixIcon: Icon(Icons.search, size: 18),
+                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                  ),
+                );
+
+                final priorityDropdown = _FilterPill(
                   child: SizedBox(
-                    width: 155,
+                    width: 165,
                     child: DropdownButton<TaskPriority?>(
                       value: selectedPriority,
                       isExpanded: true,
@@ -128,12 +121,11 @@ class KanbanView extends ConsumerWidget {
                       onChanged: (val) => ref.read(taskFilterPriorityProvider.notifier).set(val),
                     ),
                   ),
-                ),
+                );
 
-                // Assignee Filter Dropdown
-                _FilterPill(
+                final assigneeDropdown = _FilterPill(
                   child: SizedBox(
-                    width: 150,
+                    width: 165,
                     child: DropdownButton<String?>(
                       value: selectedAssignee,
                       isExpanded: true,
@@ -156,8 +148,33 @@ class KanbanView extends ConsumerWidget {
                           ref.read(taskFilterAssigneeProvider.notifier).set(val),
                     ),
                   ),
-                ),
-              ],
+                );
+
+                if (isWide) {
+                  return Row(
+                    children: [
+                      Expanded(child: searchField),
+                      const SizedBox(width: 12),
+                      priorityDropdown,
+                      const SizedBox(width: 10),
+                      assigneeDropdown,
+                    ],
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    searchField,
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [priorityDropdown, assigneeDropdown],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
 
@@ -195,7 +212,7 @@ class _FilterPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: isDark ? AppTheme.cardDark : AppTheme.bgLight,
         borderRadius: BorderRadius.circular(12),
