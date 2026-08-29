@@ -75,23 +75,12 @@ class KanbanView extends ConsumerWidget {
       body: Column(
         children: [
           // Top Filter Bar (wraps onto a second line on narrow screens)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? AppTheme.surfaceDark
-                  : AppTheme.surfaceLight,
-              border: Border(
-                bottom: BorderSide(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? AppTheme.borderDark
-                      : AppTheme.borderLight,
-                ),
-              ),
-            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Wrap(
               spacing: 10,
               runSpacing: 10,
+              alignment: WrapAlignment.start,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 // Search Input
@@ -110,25 +99,34 @@ class KanbanView extends ConsumerWidget {
 
                 // Priority Filter Dropdown
                 _FilterPill(
-                  child: DropdownButton<TaskPriority?>(
-                    value: selectedPriority,
-                    hint: const Text('All Priorities', style: TextStyle(fontSize: 13)),
-                    underline: const SizedBox(),
-                    borderRadius: BorderRadius.circular(12),
-                    items: [
-                      const DropdownMenuItem(value: null, child: Text('All Priorities')),
-                      ...TaskPriority.values.map((p) => DropdownMenuItem(
-                            value: p,
-                            child: Row(
-                              children: [
-                                Icon(Icons.circle, size: 8, color: p.color),
-                                const SizedBox(width: 6),
-                                Text(p.label),
-                              ],
-                            ),
-                          )),
-                    ],
-                    onChanged: (val) => ref.read(taskFilterPriorityProvider.notifier).set(val),
+                  child: SizedBox(
+                    width: 155,
+                    child: DropdownButton<TaskPriority?>(
+                      value: selectedPriority,
+                      isExpanded: true,
+                      hint: const Text('All Priorities', style: TextStyle(fontSize: 13)),
+                      underline: const SizedBox(),
+                      borderRadius: BorderRadius.circular(12),
+                      items: [
+                        const DropdownMenuItem(value: null, child: Text('All Priorities')),
+                        ...TaskPriority.values.map((p) => DropdownMenuItem(
+                              value: p,
+                              child: Row(
+                                children: [
+                                  Icon(Icons.circle, size: 8, color: p.color),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      p.label,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )),
+                      ],
+                      onChanged: (val) => ref.read(taskFilterPriorityProvider.notifier).set(val),
+                    ),
                   ),
                 ),
 

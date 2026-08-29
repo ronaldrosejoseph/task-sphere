@@ -127,17 +127,21 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
                   ),
                 ),
                 const SizedBox(width: 8),
-                DropdownButton<UserRole>(
-                  value: _selectedRole,
-                  items: UserRole.values.map((r) {
-                    return DropdownMenuItem(
-                      value: r,
-                      child: Text(r.name.toUpperCase()),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) setState(() => _selectedRole = val);
-                  },
+                SizedBox(
+                  width: 130,
+                  child: DropdownButton<UserRole>(
+                    value: _selectedRole,
+                    isExpanded: true,
+                    items: UserRole.values.map((r) {
+                      return DropdownMenuItem(
+                        value: r,
+                        child: Text(r.name.toUpperCase()),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) setState(() => _selectedRole = val);
+                    },
+                  ),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
