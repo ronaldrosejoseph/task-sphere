@@ -100,6 +100,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS on_workspace_created ON public.workspaces;
 CREATE TRIGGER on_workspace_created
     AFTER INSERT ON public.workspaces
     FOR EACH ROW
@@ -264,6 +265,7 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('task-attachments', 'task-attachments', false)
 ON CONFLICT (id) DO NOTHING;
 
+DROP POLICY IF EXISTS "Workspace members can upload attachments" ON storage.objects;
 CREATE POLICY "Workspace members can upload attachments"
     ON storage.objects FOR INSERT TO authenticated
     WITH CHECK (
@@ -271,6 +273,7 @@ CREATE POLICY "Workspace members can upload attachments"
         AND public.is_workspace_member((storage.foldername(name))[1]::uuid)
     );
 
+DROP POLICY IF EXISTS "Workspace members can read attachments" ON storage.objects;
 CREATE POLICY "Workspace members can read attachments"
     ON storage.objects FOR SELECT TO authenticated
     USING (
@@ -278,6 +281,7 @@ CREATE POLICY "Workspace members can read attachments"
         AND public.is_workspace_member((storage.foldername(name))[1]::uuid)
     );
 
+DROP POLICY IF EXISTS "Workspace members can delete attachments" ON storage.objects;
 CREATE POLICY "Workspace members can delete attachments"
     ON storage.objects FOR DELETE TO authenticated
     USING (
