@@ -191,6 +191,13 @@ ProviderContainer _makeContainer({
   final notifier = _FakeWorkspaceNotifier(_workspaceState(ws, ls));
   return ProviderContainer(
     overrides: [
+      // A real signed-in user (not the demo sandbox user, whose mutations
+      // are blocked).
+      authProvider.overrideWith(
+        () => _FixedAuthNotifier(
+          UserProfile(id: 'a', email: 'a@x.com', displayName: 'A'),
+        ),
+      ),
       workspaceRepositoryProvider.overrideWith((ref) => workspaceRepo),
       if (taskRepo != null) taskRepositoryProvider.overrideWith((ref) => taskRepo),
       if (logRepo != null) activityLogRepositoryProvider.overrideWith((ref) => logRepo),
@@ -442,15 +449,15 @@ void main() {
     });
   });
 
-  group('Demo mode guards', () {
+  group('Demo sandbox guards', () {
     final workspace = Workspace(id: 'ws-1', name: 'W', adminId: 'a');
     final lanes = [KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do')];
 
-    test('addTask is a no-op in demo mode', () async {
+    test('addTask is a no-op for the demo user', () async {
       final repo = FakeTaskRepository();
       final container = ProviderContainer(
         overrides: [
-          demoModeProvider.overrideWithValue(true),
+          authProvider.overrideWith(() => _FixedAuthNotifier(UserProfile.demo())),
           workspaceRepositoryProvider.overrideWith((ref) => FakeWorkspaceRepository()),
           taskRepositoryProvider.overrideWith((ref) => repo),
           activeWorkspaceProvider.overrideWith(
@@ -471,17 +478,12 @@ void main() {
       expect(repo.inserted, isEmpty);
     });
 
-    test('createWorkspace and inviteMember are no-ops in demo mode', () async {
+    test('createWorkspace and inviteMember are no-ops for the demo user', () async {
       final repo = FakeWorkspaceRepository();
       final container = ProviderContainer(
         overrides: [
-          demoModeProvider.overrideWithValue(true),
+          authProvider.overrideWith(() => _FixedAuthNotifier(UserProfile.demo())),
           workspaceRepositoryProvider.overrideWith((ref) => repo),
-          authProvider.overrideWith(
-            () => _FixedAuthNotifier(
-              UserProfile(id: 'a', email: 'a@x.com', displayName: 'A'),
-            ),
-          ),
           activeWorkspaceProvider.overrideWith(
             () => _FakeWorkspaceNotifier(_workspaceState(workspace, lanes)),
           ),
@@ -500,6 +502,33 @@ void main() {
 
       expect(notifier.state.activeWorkspace.members, isEmpty);
       expect(repo.inviteCalls, 0);
+    });
+
+    test('demo mode starts logged out so the login page shows', () {
+      final container = ProviderContainer(
+        overrides: [demoModeProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      expect(container.read(authProvider), isNull);
+    });
+
+    test('isDemoUserProvider flags only the demo user', () {
+      final demoContainer = ProviderContainer(
+        overrides: [authProvider.overrideWith(() => _FixedAuthNotifier(UserProfile.demo()))],
+      );
+      addTearDown(demoContainer.dispose);
+      expect(demoContainer.read(isDemoUserProvider), isTrue);
+
+      final realContainer = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith(
+            () => _FixedAuthNotifier(UserProfile(id: 'u-1', email: 'u@x.com', displayName: 'U')),
+          ),
+        ],
+      );
+      addTearDown(realContainer.dispose);
+      expect(realContainer.read(isDemoUserProvider), isFalse);
     });
 
     test('addLane and updateLane ignore empty titles', () {
@@ -595,18 +624,26 @@ void main() {
       expect(notifier.state.activeWorkspace.id, 'ws-1');
     });
 
-    test('demo mode blocks workspace deletion even for admins', () async {
-      final ws1 = adminWorkspace();
+    test('demo user cannot delete the workspace even as its admin', () async {
+      final ws1 = Workspace(
+        id: 'ws-1',
+        name: 'Team',
+        adminId: 'demo-user-123',
+        members: [
+          WorkspaceMember(
+            id: 'm-1',
+            workspaceId: 'ws-1',
+            userId: 'demo-user-123',
+            email: 'alex.admin@tasksphere.app',
+            role: UserRole.admin,
+          ),
+        ],
+      );
       final repo = FakeWorkspaceRepository()..workspaces = [ws1];
       final container = ProviderContainer(
         overrides: [
-          demoModeProvider.overrideWithValue(true),
           workspaceRepositoryProvider.overrideWith((ref) => repo),
-          authProvider.overrideWith(
-            () => _FixedAuthNotifier(
-              UserProfile(id: 'a', email: 'a@x.com', displayName: 'A'),
-            ),
-          ),
+          authProvider.overrideWith(() => _FixedAuthNotifier(UserProfile.demo())),
         ],
       );
       addTearDown(container.dispose);

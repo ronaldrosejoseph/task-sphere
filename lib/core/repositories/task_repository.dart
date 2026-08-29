@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/subtask.dart';
 import '../../models/task.dart';
-import '../../providers/demo_mode_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../services/supabase_service.dart';
 
 /// Persistence boundary for tasks and subtasks.
@@ -162,8 +162,9 @@ class SupabaseTaskRepository implements TaskRepository {
 }
 
 final taskRepositoryProvider = Provider<TaskRepository>((ref) {
-  if (ref.watch(demoModeProvider)) return InMemoryTaskRepository();
   final client = SupabaseService.instance.client;
-  if (client != null) return SupabaseTaskRepository(client);
-  return InMemoryTaskRepository();
+  if (client == null) return InMemoryTaskRepository();
+  // The demo sandbox user stays fully in-memory; real sign-ins use Supabase.
+  if (ref.watch(isDemoUserProvider)) return InMemoryTaskRepository();
+  return SupabaseTaskRepository(client);
 });

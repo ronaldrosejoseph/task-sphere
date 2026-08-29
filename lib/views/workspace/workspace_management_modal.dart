@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/workspace.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/workspace_provider.dart';
-import '../../providers/demo_mode_provider.dart';
 import '../../providers/task_provider.dart';
 
 class WorkspaceManagementModal extends ConsumerStatefulWidget {
@@ -28,7 +27,7 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
   @override
   Widget build(BuildContext context) {
     final workspaceState = ref.watch(activeWorkspaceProvider);
-    final demoMode = ref.watch(demoModeProvider);
+    final isDemoUser = ref.watch(isDemoUserProvider);
     final currentUser = ref.watch(authProvider);
     final activeWs = workspaceState.activeWorkspace;
     final allWs = workspaceState.allWorkspaces;
@@ -83,7 +82,7 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
             ),
             const SizedBox(height: 16),
 
-            if (!demoMode) ...[
+            if (!isDemoUser) ...[
               // Create New Workspace
               Row(
                 children: [
@@ -188,8 +187,8 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
                     ),
                   ],
 
-                  // Danger Zone (admins only, hidden in demo mode)
-                  if (!demoMode && isAdmin) ...[
+                  // Danger Zone (real admins only, hidden in the demo sandbox)
+                  if (!isDemoUser && isAdmin) ...[
                     const SizedBox(height: 8),
                     const Divider(height: 24),
                     Container(

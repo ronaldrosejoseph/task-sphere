@@ -4,9 +4,20 @@ import 'package:task_sphere/core/repositories/task_repository.dart';
 import 'package:task_sphere/core/services/notification_service.dart';
 import 'package:task_sphere/models/lane.dart';
 import 'package:task_sphere/models/task.dart';
+import 'package:task_sphere/models/user_profile.dart';
 import 'package:task_sphere/models/workspace.dart';
+import 'package:task_sphere/providers/auth_provider.dart';
 import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/providers/workspace_provider.dart';
+
+class _FixedAuthNotifier extends AuthNotifier {
+  _FixedAuthNotifier(this.user);
+
+  final UserProfile? user;
+
+  @override
+  UserProfile? build() => user;
+}
 
 class FakeNotificationService extends NotificationService {
   final Map<int, String> scheduled = {};
@@ -86,7 +97,14 @@ void main() {
   test('addTask schedules a reminder for future due dates', () {
     final fake = FakeNotificationService();
     final container = ProviderContainer(
-      overrides: [notificationServiceProvider.overrideWith((ref) => fake)],
+      overrides: [
+        authProvider.overrideWith(
+          () => _FixedAuthNotifier(
+            UserProfile(id: 'u-1', email: 'u@x.com', displayName: 'U'),
+          ),
+        ),
+        notificationServiceProvider.overrideWith((ref) => fake),
+      ],
     );
     addTearDown(container.dispose);
 

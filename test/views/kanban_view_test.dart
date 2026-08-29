@@ -5,7 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/theme/app_theme.dart';
 import 'package:task_sphere/models/task.dart';
-import 'package:task_sphere/providers/demo_mode_provider.dart';
+import 'package:task_sphere/models/user_profile.dart';
+import 'package:task_sphere/providers/auth_provider.dart';
 import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/providers/workspace_provider.dart';
 import 'package:task_sphere/views/kanban/kanban_view.dart';
@@ -13,6 +14,15 @@ import 'package:task_sphere/views/kanban/kanban_view.dart';
 class _EmptyWorkspaceNotifier extends WorkspaceNotifier {
   @override
   WorkspaceState build() => WorkspaceState.empty();
+}
+
+class _FixedAuthNotifier extends AuthNotifier {
+  _FixedAuthNotifier(this.user);
+
+  final UserProfile? user;
+
+  @override
+  UserProfile? build() => user;
 }
 
 void main() {
@@ -171,7 +181,17 @@ void main() {
 
   group('Kanban interactions', () {
     testWidgets('floating action button opens the new task modal', (tester) async {
-      await pumpBoard(tester);
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith(
+            () => _FixedAuthNotifier(
+              UserProfile(id: 'u-1', email: 'u@x.com', displayName: 'U'),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await pumpBoard(tester, container: container);
 
       expect(find.byType(FloatingActionButton), findsOneWidget);
       await tester.tap(find.byType(FloatingActionButton));
@@ -181,12 +201,9 @@ void main() {
       expect(find.text('Save Task'), findsOneWidget);
     });
 
-    testWidgets('demo mode hides all task creation controls', (tester) async {
-      final container = ProviderContainer(
-        overrides: [demoModeProvider.overrideWithValue(true)],
-      );
-      addTearDown(container.dispose);
-      await pumpBoard(tester, container: container);
+    testWidgets('demo user sees no task creation controls', (tester) async {
+      // Default providers sign in the demo user (no Supabase client in tests).
+      await pumpBoard(tester);
 
       expect(find.byType(FloatingActionButton), findsNothing);
       expect(find.byIcon(Icons.add_circle_outline), findsNothing);

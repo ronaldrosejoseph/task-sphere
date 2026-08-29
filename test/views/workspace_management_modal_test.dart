@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:task_sphere/core/repositories/workspace_repository.dart';
 import 'package:task_sphere/models/lane.dart';
 import 'package:task_sphere/models/user_profile.dart';
 import 'package:task_sphere/models/workspace.dart';
 import 'package:task_sphere/providers/auth_provider.dart';
-import 'package:task_sphere/providers/demo_mode_provider.dart';
 import 'package:task_sphere/providers/workspace_provider.dart';
 import 'package:task_sphere/views/workspace/workspace_management_modal.dart';
+import '../providers/repository_provider_test.dart' show FakeWorkspaceRepository;
 
 class _FixedAuthNotifier extends AuthNotifier {
   _FixedAuthNotifier(this.user);
@@ -51,9 +52,14 @@ Future<void> _pumpModal(WidgetTester tester, ProviderContainer container) async 
 }
 
 void main() {
-  testWidgets('shows create workspace and invite sections normally', (tester) async {
+  testWidgets('real users see the create and invite sections', (tester) async {
     final container = ProviderContainer(
       overrides: [
+        authProvider.overrideWith(
+          () => _FixedAuthNotifier(
+            UserProfile(id: 'u-1', email: 'u@x.com', displayName: 'U'),
+          ),
+        ),
         activeWorkspaceProvider.overrideWith(() => _FakeWorkspaceNotifier(_state())),
       ],
     );
@@ -67,10 +73,10 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('demo mode hides create workspace and invite sections', (tester) async {
+  testWidgets('demo user sees no create or invite sections', (tester) async {
+    // Default providers sign in the demo user (no Supabase client in tests).
     final container = ProviderContainer(
       overrides: [
-        demoModeProvider.overrideWithValue(true),
         activeWorkspaceProvider.overrideWith(() => _FakeWorkspaceNotifier(_state())),
       ],
     );
@@ -115,8 +121,32 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('admin sees the danger zone and must type the name to delete', (tester) async {
-    final container = ProviderContainer();
+  testWidgets('admin must type the workspace name to delete it', (tester) async {
+    final adminWs = Workspace(
+      id: 'ws-1',
+      name: 'Team',
+      adminId: 'u-1',
+      members: [
+        WorkspaceMember(
+          id: 'm-1',
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          email: 'u@x.com',
+          role: UserRole.admin,
+        ),
+      ],
+    );
+    final repo = FakeWorkspaceRepository()..workspaces = [adminWs];
+    final container = ProviderContainer(
+      overrides: [
+        workspaceRepositoryProvider.overrideWith((ref) => repo),
+        authProvider.overrideWith(
+          () => _FixedAuthNotifier(
+            UserProfile(id: 'u-1', email: 'u@x.com', displayName: 'U'),
+          ),
+        ),
+      ],
+    );
     addTearDown(container.dispose);
     await pumpPushedModal(tester, container);
 
@@ -131,23 +161,24 @@ void main() {
       find.textContaining('This permanently deletes the workspace'),
       findsOneWidget,
     );
-    expect(find.text('Tasks in this workspace: 5'), findsOneWidget);
+    expect(find.text('Tasks in this workspace: 0'), findsOneWidget);
 
     final confirmButton = find.widgetWithText(ElevatedButton, 'Delete Workspace');
     expect(confirmButton, findsOneWidget);
     expect(tester.widget<ElevatedButton>(confirmButton).onPressed, isNull);
 
     final confirmField = find.ancestor(
-      of: find.text('Type "Engineering & Design Team" to confirm'),
+      of: find.text('Type "Team" to confirm'),
       matching: find.byType(TextField),
     );
-    await tester.enterText(confirmField, 'Engineering & Design Team');
+    await tester.enterText(confirmField, 'Team');
     await tester.pumpAndSettle();
     expect(tester.widget<ElevatedButton>(confirmButton).onPressed, isNotNull);
 
     await tester.tap(confirmButton);
     await tester.pumpAndSettle();
 
+    expect(repo.deleteCalls, ['ws-1']);
     expect(container.read(activeWorkspaceProvider).hasWorkspace, isFalse);
     expect(find.byType(WorkspaceManagementModal), findsNothing);
     expect(tester.takeException(), isNull);
@@ -172,10 +203,10 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('demo mode hides the danger zone even for admins', (tester) async {
-    final container = ProviderContainer(
-      overrides: [demoModeProvider.overrideWithValue(true)],
-    );
+  testWidgets('demo user never sees the danger zone', (tester) async {
+    // Default providers sign in the demo user, who is the demo workspace's
+    // admin but is still barred from destructive actions.
+    final container = ProviderContainer();
     addTearDown(container.dispose);
     await pumpPushedModal(tester, container);
 

@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:task_sphere/models/lane.dart';
 import 'package:task_sphere/models/task.dart';
+import 'package:task_sphere/models/user_profile.dart';
 import 'package:task_sphere/models/workspace.dart';
+import 'package:task_sphere/providers/auth_provider.dart';
 import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/providers/workspace_provider.dart';
 
@@ -15,15 +17,30 @@ class _CustomWorkspaceNotifier extends WorkspaceNotifier {
   WorkspaceState build() => initialState;
 }
 
+class _FixedAuthNotifier extends AuthNotifier {
+  _FixedAuthNotifier(this.user);
+
+  final UserProfile? user;
+
+  @override
+  UserProfile? build() => user;
+}
+
 ProviderContainer makeContainer({WorkspaceState? workspaceState}) {
   final container = ProviderContainer(
-    overrides: workspaceState == null
-        ? []
-        : [
-            activeWorkspaceProvider.overrideWith(
-              () => _CustomWorkspaceNotifier(workspaceState),
-            ),
-          ],
+    overrides: [
+      // A real signed-in user (not the demo sandbox user, whose mutations
+      // are blocked).
+      authProvider.overrideWith(
+        () => _FixedAuthNotifier(
+          UserProfile(id: 'u-1', email: 'u@x.com', displayName: 'U'),
+        ),
+      ),
+      if (workspaceState != null)
+        activeWorkspaceProvider.overrideWith(
+          () => _CustomWorkspaceNotifier(workspaceState),
+        ),
+    ],
   );
   addTearDown(container.dispose);
   return container;

@@ -10,13 +10,24 @@ import 'demo_mode_provider.dart';
 
 final authProvider = NotifierProvider<AuthNotifier, UserProfile?>(AuthNotifier.new);
 
+/// True when the signed-in user is the seeded demo sandbox user. The demo
+/// session runs on in-memory repositories and blocks creations/invites;
+/// real sign-ins use the live Supabase backend.
+final isDemoUserProvider = Provider<bool>((ref) {
+  final user = ref.watch(authProvider);
+  return user?.id == UserProfile.demoUserId;
+});
+
 class AuthNotifier extends Notifier<UserProfile?> {
   StreamSubscription<AuthState>? _authSub;
 
   @override
   UserProfile? build() {
     final client = SupabaseService.instance.client;
-    if (ref.read(demoModeProvider) || client == null) {
+    // The demo build always starts on the login page; the demo sandbox is
+    // entered only by clicking the demo button on it.
+    if (ref.read(demoModeProvider)) return null;
+    if (client == null) {
       return UserProfile.demo();
     }
 

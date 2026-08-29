@@ -1,11 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:task_sphere/models/user_profile.dart';
 import 'package:task_sphere/models/workspace.dart';
+import 'package:task_sphere/providers/auth_provider.dart';
 import 'package:task_sphere/providers/workspace_provider.dart';
 
+class _FixedAuthNotifier extends AuthNotifier {
+  _FixedAuthNotifier(this.user);
+
+  final UserProfile? user;
+
+  @override
+  UserProfile? build() => user;
+}
+
 ProviderContainer makeContainer() {
-  final container = ProviderContainer();
+  final container = ProviderContainer(
+    overrides: [
+      // A real signed-in user (not the demo sandbox user, whose mutations
+      // are blocked).
+      authProvider.overrideWith(
+        () => _FixedAuthNotifier(
+          UserProfile(id: 'u-1', email: 'u@x.com', displayName: 'U'),
+        ),
+      ),
+    ],
+  );
   addTearDown(container.dispose);
   return container;
 }

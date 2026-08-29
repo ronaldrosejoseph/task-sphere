@@ -11,9 +11,12 @@ class UserProfile {
     this.avatarUrl,
   });
 
+  /// Id of the seeded sandbox user; demo-session guards compare against it.
+  static const demoUserId = 'demo-user-123';
+
   factory UserProfile.demo() {
     return UserProfile(
-      id: 'demo-user-123',
+      id: demoUserId,
       email: 'alex.admin@tasksphere.app',
       displayName: 'Alex Morgan (Admin)',
       avatarUrl: null,

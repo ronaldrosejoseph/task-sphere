@@ -6,7 +6,7 @@ import '../../models/task.dart';
 import '../../models/lane.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
-import '../../providers/demo_mode_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../task_detail/task_detail_modal.dart';
 import '../workspace/workspace_management_modal.dart';
@@ -17,7 +17,7 @@ class KanbanView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final workspaceState = ref.watch(activeWorkspaceProvider);
-    final demoMode = ref.watch(demoModeProvider);
+    final isDemoUser = ref.watch(isDemoUserProvider);
     final allTasks = ref.watch(tasksProvider);
     final lanes = workspaceState.lanes;
 
@@ -69,7 +69,7 @@ class KanbanView extends ConsumerWidget {
     }
 
     return Scaffold(
-      floatingActionButton: demoMode
+      floatingActionButton: isDemoUser
           ? null
           : FloatingActionButton(
               onPressed: () {
@@ -297,7 +297,7 @@ class _KanbanColumnWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final demoMode = ref.watch(demoModeProvider);
+    final isDemoUser = ref.watch(isDemoUserProvider);
     return Container(
       width: 320,
       margin: const EdgeInsets.only(right: 16),
@@ -384,7 +384,7 @@ class _KanbanColumnWidget extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      if (!demoMode)
+                      if (!isDemoUser)
                         IconButton(
                           icon: const Icon(Icons.add_circle_outline, size: 20),
                           tooltip: 'Add Task to ${lane.title}',

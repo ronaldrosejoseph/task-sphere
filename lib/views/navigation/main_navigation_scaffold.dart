@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/demo_mode_provider.dart';
 import '../kanban/kanban_view.dart';
 import '../list_calendar/list_calendar_view.dart';
 import '../analytics/analytics_view.dart';
@@ -31,7 +30,6 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
     final workspaceState = ref.watch(activeWorkspaceProvider);
     final activeWs = workspaceState.activeWorkspace;
     final currentUser = ref.watch(authProvider);
-    final demoMode = ref.watch(demoModeProvider);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -199,14 +197,12 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
                           style: const TextStyle(fontSize: 11, color: Colors.grey),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        trailing: demoMode
-                            ? null
-                            : IconButton(
-                                icon: const Icon(Icons.logout, size: 20, color: Colors.grey),
-                                tooltip: 'Sign out',
-                                onPressed: () =>
-                                    ref.read(authProvider.notifier).signOut(),
-                              ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.logout, size: 20, color: Colors.grey),
+                          tooltip: 'Sign out',
+                          onPressed: () =>
+                              ref.read(authProvider.notifier).signOut(),
+                        ),
                       ),
                     ],
                   ),
@@ -235,13 +231,12 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
                   );
                 },
               ),
-              if (!demoMode)
-                IconButton(
-                  icon: const Icon(Icons.logout, color: Colors.grey),
-                  tooltip: 'Sign out',
-                  onPressed: () =>
-                      ref.read(authProvider.notifier).signOut(),
-                ),
+              IconButton(
+                icon: const Icon(Icons.logout, color: Colors.grey),
+                tooltip: 'Sign out',
+                onPressed: () =>
+                    ref.read(authProvider.notifier).signOut(),
+              ),
             ],
           ),
           body: _views[_selectedIndex],

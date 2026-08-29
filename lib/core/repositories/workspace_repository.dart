@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/lane.dart';
 import '../../models/workspace.dart';
-import '../../providers/demo_mode_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../services/supabase_service.dart';
 
 const _uuid = Uuid();
@@ -418,8 +418,9 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
 }
 
 final workspaceRepositoryProvider = Provider<WorkspaceRepository>((ref) {
-  if (ref.watch(demoModeProvider)) return InMemoryWorkspaceRepository();
   final client = SupabaseService.instance.client;
-  if (client != null) return SupabaseWorkspaceRepository(client);
-  return InMemoryWorkspaceRepository();
+  if (client == null) return InMemoryWorkspaceRepository();
+  // The demo sandbox user stays fully in-memory; real sign-ins use Supabase.
+  if (ref.watch(isDemoUserProvider)) return InMemoryWorkspaceRepository();
+  return SupabaseWorkspaceRepository(client);
 });

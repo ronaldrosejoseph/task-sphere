@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/services/supabase_service.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/demo_mode_provider.dart';
 import '../navigation/main_navigation_scaffold.dart';
 
 class AuthScreen extends ConsumerWidget {
@@ -10,6 +11,7 @@ class AuthScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider);
+    final demoMode = ref.watch(demoModeProvider);
 
     if (user != null) {
       return const MainNavigationScaffold();
@@ -136,9 +138,11 @@ class AuthScreen extends ConsumerWidget {
                     side: const BorderSide(color: Color(0xFF6366F1)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
                   ),
-                  child: const Text(
-                    'Explore Demo Mode (Offline)',
-                    style: TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold),
+                  child: Text(
+                    demoMode
+                        ? 'Try the Demo (no sign-in needed)'
+                        : 'Explore Demo Mode (Offline)',
+                    style: const TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
