@@ -1,11 +1,15 @@
 # Supabase CLI configuration.
 #
-# CI does not need a project ref: .github/workflows/production.yml runs
-# `supabase db push --db-url "$SUPABASE_DB_URL"` with the project-scoped
-# connection string from the SUPABASE_DB_URL secret, so no account-level
-# token and no committed ref are required — the repo stays safe to make
-# public.
+# This file must exist: the Supabase CLI treats it as the project marker
+# and refuses to run (`supabase db push` errors with "run supabase init")
+# without it, using it to locate supabase/migrations/. It contains no
+# values on purpose:
 #
-# For local CLI work (e.g. `supabase migration up` against the local
-# stack), run once on your machine:
-#   supabase link --project-ref <your-project-ref>
+# - CI (.github/workflows/production.yml) connects with the project-scoped
+#   connection string from the SUPABASE_DB_URL secret via
+#   `supabase db push --db-url`, so no project ref or account-level token
+#   is needed and nothing sensitive is committed — the repo stays safe to
+#   make public.
+# - For local CLI work (e.g. `supabase migration up` against the local
+#   stack), run once on your machine:
+#     supabase link --project-ref <your-project-ref>
