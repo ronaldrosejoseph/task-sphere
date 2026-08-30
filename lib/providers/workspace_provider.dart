@@ -366,13 +366,16 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     if (!isAdmin(ref.read(authProvider))) return;
     if (title.trim().isEmpty) return;
     final hex = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
-    // New lanes appear at the bottom of the board.
+    // New lanes go to the bottom: one past the highest existing index, so no
+    // other lane's order changes. Only a drag reorder rewrites order_index.
+    final maxIndex = state.lanes
+        .fold<int>(0, (max, l) => l.orderIndex > max ? l.orderIndex : max);
     final newLane = KanbanLane(
       id: _uuid.v4(),
       workspaceId: state.activeWorkspace.id,
       title: title,
       colorHex: hex,
-      orderIndex: state.lanes.length,
+      orderIndex: maxIndex + 1,
       isDefault: false,
     );
 
@@ -381,26 +384,10 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     final repo = _repository;
     if (!repo.isPersistent) return;
 
-    // Persist the lane, then make order_index contiguous and re-fetch the
-    // authoritative order. Awaiting each step avoids the realtime reload
-    // racing an in-flight write and also heals stale order_index values.
+    // Persist only the new lane; the realtime reload reconciles the order.
     _laneWritesInFlight++;
     try {
       await repo.addLane(newLane);
-      final reindexed = state.lanes
-          .asMap()
-          .entries
-          .map((e) => e.value.copyWith(orderIndex: e.key))
-          .toList();
-      await repo.reorderLanes(reindexed);
-      final reloaded = await repo.fetchLanes(state.activeWorkspace.id);
-      if (!ref.mounted || state.activeWorkspace.id != newLane.workspaceId) {
-        return;
-      }
-      if (reloaded != null) {
-        state = state.copyWith(lanes: reloaded);
-        _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
-      }
     } finally {
       _laneWritesInFlight--;
     }

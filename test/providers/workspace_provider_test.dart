@@ -67,6 +67,21 @@ void main() {
       expect(lanes.map((l) => l.orderIndex).toList(), [0, 1, 2, 3, 4, 5]);
     });
 
+    test('addLane uses the highest order_index and leaves other lanes untouched', () {
+      final container = makeContainer();
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      // Deleting a lane leaves a gap in order_index (only a drag reindexes).
+      notifier.deleteLane('lane-2');
+      notifier.addLane('In Review', const Color(0xFFEC4899));
+
+      final lanes = container.read(activeWorkspaceProvider).lanes;
+      expect(lanes.last.title, 'In Review');
+      // One past the highest remaining index (4), not the list length.
+      expect(lanes.last.orderIndex, 5);
+      expect(lanes.map((l) => l.orderIndex).toList(), [0, 2, 3, 4, 5]);
+    });
+
     test('updateLane changes title and color of the matching lane', () {
       final container = makeContainer();
       final notifier = container.read(activeWorkspaceProvider.notifier);

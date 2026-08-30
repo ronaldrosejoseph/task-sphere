@@ -56,6 +56,7 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
   int createCalls = 0;
   int inviteCalls = 0;
   int laneAddCalls = 0;
+  int reorderCalls = 0;
   final List<String> deleteCalls = [];
   final List<String> allowlisted = [];
 
@@ -138,7 +139,14 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
   Future<void> deleteLane(String laneId) async {}
 
   @override
-  Future<void> reorderLanes(List<KanbanLane> orderedLanes) async {}
+  Future<void> reorderLanes(List<KanbanLane> orderedLanes) async {
+    reorderCalls += 1;
+    final byId = {for (final lane in orderedLanes) lane.id: lane.orderIndex};
+    lanes = [
+      for (final lane in lanes)
+        lane.copyWith(orderIndex: byId[lane.id] ?? lane.orderIndex),
+    ];
+  }
 
   @override
   Future<void> inviteMember(WorkspaceMember member) async {
@@ -420,7 +428,7 @@ void main() {
       expect(repo.allowlisted, ['new@x.com']);
     });
 
-    test('addLane persists to the repository', () async {
+    test('addLane persists only the new lane without reindexing', () async {
       final repo = FakeWorkspaceRepository();
       final container = _workspaceContainer(repo);
       addTearDown(container.dispose);
@@ -430,10 +438,31 @@ void main() {
       await notifier.addLane('In Review', const Color(0xFFEC4899));
 
       expect(repo.laneAddCalls, 1);
-      // New lanes are appended at the bottom of the board, and the
-      // authoritative re-fetch keeps them there.
+      // New lanes are appended at the bottom of the board; adding a lane
+      // never rewrites the order of existing lanes.
+      expect(repo.reorderCalls, 0);
       expect(notifier.state.lanes.last.title, 'In Review');
       expect(notifier.state.lanes.first.title, 'To Do');
+    });
+
+    test('dragging a lane is the only action that reindexes the board', () async {
+      final repo = FakeWorkspaceRepository();
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.createWorkspace('Team', 'a', 'a@x.com');
+      await notifier.addLane('In Review', const Color(0xFFEC4899));
+
+      notifier.reorderLanes(0, 1);
+      await _settle();
+
+      expect(repo.reorderCalls, 1);
+      // Reindexing rewrites the order_index of the affected lanes.
+      expect(repo.lanes.map((l) => l.orderIndex).toList(), [1, 0]);
+      expect(notifier.state.lanes.map((l) => l.title).toList(), [
+        'In Review',
+        'To Do',
+      ]);
     });
   });
 
