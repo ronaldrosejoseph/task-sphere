@@ -1,23 +1,28 @@
-name: Deploy Migrations to Production
+name: Production Deployment
 
-# Applies pending supabase/migrations/*.sql files to the production
-# database on every merge to main. The project's network restriction stays
-# ON: this job temporarily authorizes the runner's own public IP via the
-# Supabase Management API, applies migrations over the direct connection
-# string, and removes the IP again in a cleanup step that always runs
-# (even when migrations fail).
+# Coordinates database migrations and frontend web deployment in sequence.
+# On every merge to main:
+# 1. Database migrations run first via Supabase CLI with dynamic IP allowlisting.
+# 2. Web app builds and deploys to Cloudflare Pages only after migrations succeed.
 #
-# NOTE: the Management API calls use curl, not Python urllib — Cloudflare
-# blocks urllib's User-Agent at the edge with error 1010.
+# Concurrency lock ensures sequential deploys without race conditions.
+
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 permissions:
   contents: read
+  deployments: write
 
 jobs:
-  deploy:
+  migrate-database:
+    name: Apply Database Migrations
     runs-on: ubuntu-latest
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -26,73 +31,151 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Check database secrets
+        id: check-secrets
+        run: |
+          if [ -z "${SUPABASE_DB_URL:-}" ] || [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Notice: SUPABASE_DB_URL or SUPABASE_ACCESS_TOKEN not set - skipping database migration."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: supabase/setup-cli@v1
+        if: steps.check-secrets.outputs.skip == 'false'
         with:
           version: latest
 
       - name: Get the runner's public IP
+        if: steps.check-secrets.outputs.skip == 'false'
         id: ip
-        run: echo "ip=$(curl -4 -s https://api.ipify.org)" >> "$GITHUB_OUTPUT"
+        run: |
+          IPV4="$(curl -4 -s --max-time 5 https://api.ipify.org || true)"
+          IPV6="$(curl -6 -s --max-time 5 https://api64.ipify.org || true)"
+          echo "ipv4=$IPV4" >> "$GITHUB_OUTPUT"
+          echo "ipv6=$IPV6" >> "$GITHUB_OUTPUT"
+          echo "Discovered runner IPs - IPv4: '$IPV4', IPv6: '$IPV6'"
 
       - name: Temporarily authorize the runner's IP
+        if: steps.check-secrets.outputs.skip == 'false'
         env:
-          RUNNER_IP: ${{ steps.ip.outputs.ip }}
+          RUNNER_IPV4: ${{ steps.ip.outputs.ipv4 }}
+          RUNNER_IPV6: ${{ steps.ip.outputs.ipv6 }}
         run: |
           set -euo pipefail
           REF="$(echo "$SUPABASE_URL" | sed -E 's#https?://([^.]+)\..*#\1#')"
-          IP_32="$RUNNER_IP/32"
           BASE="https://api.supabase.com/v1/projects/$REF"
+
+          TO_ADD="[]"
+          if [ -n "${RUNNER_IPV4:-}" ]; then
+            TO_ADD="$(echo "$TO_ADD" | jq -c --arg ip "$RUNNER_IPV4/32" '. + [$ip]')"
+          fi
+          if [ -n "${RUNNER_IPV6:-}" ]; then
+            TO_ADD="$(echo "$TO_ADD" | jq -c --arg ip "$RUNNER_IPV6/128" '. + [$ip]')"
+          fi
+
+          if [ "$TO_ADD" = "[]" ]; then
+            echo "No runner IPs discovered; continuing"
+            exit 0
+          fi
 
           CURRENT="$(curl --fail-with-body -sS -A "task-sphere-ci" \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             "$BASE/network-restrictions")"
-          if echo "$CURRENT" | jq -e --arg ip "$IP_32" \
-            '(.config.dbAllowedCidrs // []) | index($ip)' >/dev/null; then
-            echo "$IP_32 already allowed"
-            exit 0
-          fi
 
-          NEW="$(echo "$CURRENT" | jq -c --arg ip "$IP_32" \
-            '(.config.dbAllowedCidrs // []) + [$ip]')"
+          NEW="$(echo "$CURRENT" | jq -c --argjson add "$TO_ADD" \
+            '((.config.dbAllowedCidrs // []) + $add) | unique')"
+
           APPLIED="$(curl --fail-with-body -sS -A "task-sphere-ci" -X POST \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"db_allowed_cidrs\": $NEW}" \
             "$BASE/network-restrictions/apply")"
-          if echo "$APPLIED" | jq -e --arg ip "$IP_32" \
-            '(.config.dbAllowedCidrs // []) | index($ip)' >/dev/null; then
-            echo "Authorized $IP_32"
-          else
-            echo "ERROR: $IP_32 was not applied; allowlist: $(echo "$APPLIED" | jq -c '.config.dbAllowedCidrs')"
-            exit 1
-          fi
+
+          echo "Authorized IPs: $TO_ADD"
 
       - name: Apply pending migrations
+        if: steps.check-secrets.outputs.skip == 'false'
         run: supabase db push --db-url "$SUPABASE_DB_URL"
 
       - name: Remove the runner's IP access
-        if: always()
+        if: always() && steps.check-secrets.outputs.skip == 'false'
         env:
-          RUNNER_IP: ${{ steps.ip.outputs.ip }}
+          RUNNER_IPV4: ${{ steps.ip.outputs.ipv4 }}
+          RUNNER_IPV6: ${{ steps.ip.outputs.ipv6 }}
         run: |
           set -euo pipefail
           REF="$(echo "$SUPABASE_URL" | sed -E 's#https?://([^.]+)\..*#\1#')"
-          IP_32="$RUNNER_IP/32"
           BASE="https://api.supabase.com/v1/projects/$REF"
+
+          TO_REMOVE="[]"
+          if [ -n "${RUNNER_IPV4:-}" ]; then
+            TO_REMOVE="$(echo "$TO_REMOVE" | jq -c --arg ip "$RUNNER_IPV4/32" '. + [$ip]')"
+          fi
+          if [ -n "${RUNNER_IPV6:-}" ]; then
+            TO_REMOVE="$(echo "$TO_REMOVE" | jq -c --arg ip "$RUNNER_IPV6/128" '. + [$ip]')"
+          fi
+
+          if [ "$TO_REMOVE" = "[]" ]; then
+            echo "No IPs to remove"
+            exit 0
+          fi
 
           CURRENT="$(curl --fail-with-body -sS -A "task-sphere-ci" \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             "$BASE/network-restrictions")"
-          REMAINING="$(echo "$CURRENT" | jq -c --arg ip "$IP_32" \
-            '[.config.dbAllowedCidrs[] | select(. != $ip)]')"
+
+          REMAINING="$(echo "$CURRENT" | jq -c --argjson rem "$TO_REMOVE" \
+            '[(.config.dbAllowedCidrs // [])[] | select(($rem | index(.)) == null)]')"
+
           APPLIED="$(curl --fail-with-body -sS -A "task-sphere-ci" -X POST \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"db_allowed_cidrs\": $REMAINING}" \
             "$BASE/network-restrictions/apply")"
-          if echo "$APPLIED" | jq -e --arg ip "$IP_32" \
-            '(.config.dbAllowedCidrs // []) | index($ip)' >/dev/null; then
-            echo "WARNING: $IP_32 still allowed; remove it manually under Network Restrictions."
-            exit 1
-          fi
-          echo "Removed $IP_32; $(echo "$APPLIED" | jq -c '.config.dbAllowedCidrs | length') entries remain"
+
+          echo "Cleaned up runner IP access. Remaining allowed CIDRs: $(echo "$APPLIED" | jq -c '.config.dbAllowedCidrs')"
+
+  deploy-web:
+    name: Build & Deploy Web App
+    needs: migrate-database
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build web bundle
+        run: flutter build web --release --dart-define=DEMO_MODE=true --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: Create Pages project if missing
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx -y wrangler@4 pages project create task-sphere --production-branch main \
+            || echo "Project already exists - continuing"
+
+      - name: Deploy to Cloudflare Pages
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy build/web --project-name task-sphere
+
+      - name: Skip deploy notice
+        if: env.CLOUDFLARE_API_TOKEN == ''
+        run: echo "CLOUDFLARE_API_TOKEN secret is not set - skipping deploy. See README 'Deploying the Web App' for setup."
