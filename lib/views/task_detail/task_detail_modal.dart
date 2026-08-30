@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/task.dart';
 import '../../models/subtask.dart';
+import '../../models/task_comment.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -28,6 +29,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   late TextEditingController _titleController;
   late TextEditingController _descController;
   late TextEditingController _newSubtaskController;
+  late TextEditingController _commentController;
 
   late String _selectedLaneId;
   late TaskPriority _selectedPriority;
@@ -53,6 +55,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     _titleController = TextEditingController(text: widget.task?.title ?? '');
     _descController = TextEditingController(text: widget.task?.description ?? '');
     _newSubtaskController = TextEditingController();
+    _commentController = TextEditingController();
 
     _selectedPriority = widget.task?.priority ?? TaskPriority.medium;
     _assigneeEmail = widget.task?.assigneeEmail;
@@ -70,6 +73,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     _titleController.dispose();
     _descController.dispose();
     _newSubtaskController.dispose();
+    _commentController.dispose();
     super.dispose();
   }
 
@@ -96,6 +100,18 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   @override
   Widget build(BuildContext context) {
     final workspaceState = ref.watch(activeWorkspaceProvider);
+    final currentUser = ref.read(authProvider);
+    final isAdmin = ref.read(activeWorkspaceProvider.notifier).isAdmin(currentUser);
+    final isOwnTicket = widget.task != null &&
+        widget.task!.createdBy != null &&
+        widget.task!.createdBy == currentUser?.id;
+    // Members can edit the title/description only on tickets they created;
+    // admins can edit everything. Other fields stay editable for everyone.
+    final canEditTitleDescription = isAdmin || widget.task == null || isOwnTicket;
+    final canDeleteTask = isAdmin && widget.task != null;
+    final comments = widget.task == null
+        ? null
+        : ref.watch(taskCommentsProvider(widget.task!.id));
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -133,7 +149,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                 ),
                 Row(
                   children: [
-                    if (widget.task != null)
+                    if (canDeleteTask)
                       IconButton(
                         icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                         tooltip: 'Delete Task',
@@ -159,12 +175,22 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   // Title Input
                   TextField(
                     controller: _titleController,
+                    readOnly: !canEditTitleDescription,
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     decoration: const InputDecoration(
                       hintText: 'Task Title...',
                       border: InputBorder.none,
                     ),
                   ),
+                  if (!canEditTitleDescription)
+                    Text(
+                      'Only the creator or an admin can edit the title and description.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey[500],
+                      ),
+                    ),
                   const SizedBox(height: 24),
 
                   // Metadata Grid (Lane, Priority, Assignee, Due Date)
@@ -298,6 +324,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   TextField(
                     controller: _descController,
                     maxLines: 3,
+                    readOnly: !canEditTitleDescription,
                     decoration: InputDecoration(
                       hintText: 'Add details, context, or requirements...',
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -361,7 +388,14 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Subtasks Checklist', style: TextStyle(fontWeight: FontWeight.w600)),
+                      Flexible(
+                        child: Text(
+                          'Subtasks Checklist',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Text(
                         '${_subtasks.where((s) => s.isCompleted).length}/${_subtasks.length} Completed',
                         style: const TextStyle(fontSize: 12, color: Colors.grey),
@@ -427,11 +461,67 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   ),
                   const SizedBox(height: 20),
 
+                  // Comments Thread
+                  if (widget.task != null && comments != null) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Comments', style: TextStyle(fontWeight: FontWeight.w600)),
+                        Text(
+                          '${comments.length}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (comments.isEmpty)
+                      Text(
+                        'No comments yet. Start the discussion!',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                      )
+                    else
+                      for (final comment in comments)
+                        _buildCommentTile(comment, currentUserId: currentUser?.id, isAdmin: isAdmin),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _commentController,
+                            decoration: InputDecoration(
+                              hintText: 'Add a comment...',
+                              isDense: true,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onSubmitted: (_) => _addComment(),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          style: IconButton.styleFrom(
+                            backgroundColor: const Color(0xFF6366F1),
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.send, size: 18),
+                          onPressed: _addComment,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
                   // File Attachments (Supabase Storage)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Attachments', style: TextStyle(fontWeight: FontWeight.w600)),
+                      Flexible(
+                        child: Text(
+                          'Attachments',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       TextButton.icon(
                         onPressed: _pickAndUploadAttachment,
                         icon: const Icon(Icons.cloud_upload_outlined, size: 18),
@@ -501,6 +591,84 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         _newSubtaskController.clear();
       });
     }
+  }
+
+  void _addComment() {
+    final text = _commentController.text.trim();
+    if (text.isEmpty || widget.task == null) return;
+    ref.read(taskCommentsProvider(widget.task!.id).notifier).addComment(text);
+    _commentController.clear();
+  }
+
+  Widget _buildCommentTile(
+    TaskComment comment, {
+    required String? currentUserId,
+    required bool isAdmin,
+  }) {
+    final canDelete =
+        isAdmin || (comment.userId != null && comment.userId == currentUserId);
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: const Color(0xFF6366F1).withValues(alpha: 0.15),
+            child: Text(
+              comment.userName.isNotEmpty ? comment.userName[0].toUpperCase() : '?',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF6366F1),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        comment.userName,
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        DateFormat('MMM d, HH:mm').format(comment.createdAt.toLocal()),
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(comment.body, style: const TextStyle(fontSize: 13)),
+              ],
+            ),
+          ),
+          if (canDelete)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 16, color: Colors.grey),
+              tooltip: 'Delete Comment',
+              onPressed: () => ref
+                  .read(taskCommentsProvider(widget.task!.id).notifier)
+                  .removeComment(comment.id),
+            ),
+        ],
+      ),
+    );
   }
 
   Future<void> _pickDueDate() async {

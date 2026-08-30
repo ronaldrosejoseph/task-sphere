@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/subtask.dart';
 import '../../models/task.dart';
+import '../../models/task_comment.dart';
 import '../../providers/auth_provider.dart';
 import '../services/supabase_service.dart';
 
@@ -22,6 +23,12 @@ abstract class TaskRepository {
   Future<void> updateTask(TaskItem task);
 
   Future<void> deleteTask(String taskId);
+
+  Future<List<TaskComment>?> fetchComments(String taskId);
+
+  Future<void> insertComment(TaskComment comment);
+
+  Future<void> deleteComment(String commentId);
 
   Stream<void> watchTasks(String workspaceId);
 }
@@ -41,6 +48,15 @@ class InMemoryTaskRepository implements TaskRepository {
 
   @override
   Future<void> deleteTask(String taskId) async {}
+
+  @override
+  Future<List<TaskComment>?> fetchComments(String taskId) async => null;
+
+  @override
+  Future<void> insertComment(TaskComment comment) async {}
+
+  @override
+  Future<void> deleteComment(String commentId) async {}
 
   @override
   Stream<void> watchTasks(String workspaceId) => const Stream.empty();
@@ -129,6 +145,41 @@ class SupabaseTaskRepository implements TaskRepository {
     await _client.from('subtasks').insert([
       for (final subtask in subtasks) subtask.toJson(),
     ]);
+  }
+
+  @override
+  Future<List<TaskComment>?> fetchComments(String taskId) async {
+    try {
+      final response = await _client
+          .from('task_comments')
+          .select()
+          .eq('task_id', taskId)
+          .order('created_at');
+      return (response as List)
+          .map((row) => TaskComment.fromJson(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('Comment fetch error: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<void> insertComment(TaskComment comment) async {
+    try {
+      await _client.from('task_comments').insert(comment.toJson());
+    } catch (e) {
+      debugPrint('Comment insert error: $e');
+    }
+  }
+
+  @override
+  Future<void> deleteComment(String commentId) async {
+    try {
+      await _client.from('task_comments').delete().eq('id', commentId);
+    } catch (e) {
+      debugPrint('Comment delete error: $e');
+    }
   }
 
   @override

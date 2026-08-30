@@ -4,6 +4,7 @@ import 'package:task_sphere/core/repositories/task_repository.dart';
 import 'package:task_sphere/core/services/notification_service.dart';
 import 'package:task_sphere/models/lane.dart';
 import 'package:task_sphere/models/task.dart';
+import 'package:task_sphere/models/task_comment.dart';
 import 'package:task_sphere/models/user_profile.dart';
 import 'package:task_sphere/models/workspace.dart';
 import 'package:task_sphere/providers/auth_provider.dart';
@@ -68,6 +69,15 @@ class _PersistentTaskRepository implements TaskRepository {
 
   @override
   Future<void> deleteTask(String taskId) async {}
+
+  @override
+  Future<List<TaskComment>?> fetchComments(String taskId) async => null;
+
+  @override
+  Future<void> insertComment(TaskComment comment) async {}
+
+  @override
+  Future<void> deleteComment(String commentId) async {}
 
   @override
   Stream<void> watchTasks(String workspaceId) => const Stream.empty();

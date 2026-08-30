@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:task_sphere/core/repositories/task_repository.dart';
 import 'package:task_sphere/models/task.dart';
+import 'package:task_sphere/models/task_comment.dart';
 import 'package:task_sphere/models/user_profile.dart';
 import 'package:task_sphere/providers/auth_provider.dart';
 import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/views/task_detail/task_detail_modal.dart';
+import '../providers/repository_provider_test.dart' show FakeTaskRepository;
 
 class _FixedAuthNotifier extends AuthNotifier {
   _FixedAuthNotifier(this.user);
@@ -28,18 +31,19 @@ void main() {
     WidgetTester tester, {
     TaskItem? task,
     Size size = const Size(360, 800),
+    ProviderContainer? container,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     // Default providers provide the demo workspace with seeded tasks.
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
+    final effectiveContainer = container ?? ProviderContainer();
+    if (container == null) addTearDown(effectiveContainer.dispose);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
-        container: container,
+        container: effectiveContainer,
         child: MaterialApp(
           home: Scaffold(
             body: Center(child: TaskDetailModal(task: task)),
@@ -48,8 +52,55 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    return container;
+    return effectiveContainer;
   }
+
+  ProviderContainer memberContainer() => ProviderContainer(
+        overrides: [
+          authProvider.overrideWith(
+            () => _FixedAuthNotifier(
+              UserProfile(
+                id: 'user-456',
+                email: 'sarah.designer@tasksphere.app',
+                displayName: 'Sarah',
+              ),
+            ),
+          ),
+        ],
+      );
+
+  ProviderContainer adminContainer() => ProviderContainer(
+        overrides: [
+          authProvider.overrideWith(
+            () => _FixedAuthNotifier(
+              UserProfile(
+                id: 'demo-user-123',
+                email: 'alex.admin@tasksphere.app',
+                displayName: 'Alex',
+              ),
+            ),
+          ),
+          isDemoUserProvider.overrideWith((ref) => false),
+        ],
+      );
+
+  final adminTicket = TaskItem(
+    id: 't-admin',
+    workspaceId: 'ws-demo-001',
+    laneId: 'lane-1',
+    title: 'Admin ticket',
+    description: 'Made by the admin',
+    createdBy: 'demo-user-123',
+  );
+
+  final ownTicket = TaskItem(
+    id: 't-own',
+    workspaceId: 'ws-demo-001',
+    laneId: 'lane-1',
+    title: 'My ticket',
+    description: 'Made by me',
+    createdBy: 'user-456',
+  );
 
   testWidgets('create mode renders without overflow on a phone-size screen', (tester) async {
     await pumpModal(tester);
@@ -144,5 +195,154 @@ void main() {
     final labelCenter = tester.getCenter(find.text('Time Tracker')).dy;
     expect((buttonCenter - labelCenter).abs(), lessThan(20));
     expect(tester.takeException(), isNull);
+  });
+
+  group('ticket permissions', () {
+    testWidgets('members cannot edit title/description of admin tickets and cannot delete', (tester) async {
+      final container = memberContainer();
+      addTearDown(container.dispose);
+      await pumpModal(tester, task: adminTicket, container: container);
+
+      expect(tester.widget<TextField>(find.byType(TextField).first).readOnly, isTrue);
+      expect(tester.widget<TextField>(find.byType(TextField).at(1)).readOnly, isTrue);
+      expect(find.textContaining('Only the creator or an admin'), findsOneWidget);
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('members can edit their own tickets but still cannot delete', (tester) async {
+      final container = memberContainer();
+      addTearDown(container.dispose);
+      await pumpModal(tester, task: ownTicket, container: container);
+
+      expect(tester.widget<TextField>(find.byType(TextField).first).readOnly, isFalse);
+      expect(tester.widget<TextField>(find.byType(TextField).at(1)).readOnly, isFalse);
+      expect(find.textContaining('Only the creator or an admin'), findsNothing);
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('admins can edit and delete any ticket', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpModal(tester, task: adminTicket, container: container);
+
+      expect(tester.widget<TextField>(find.byType(TextField).first).readOnly, isFalse);
+      expect(tester.widget<TextField>(find.byType(TextField).at(1)).readOnly, isFalse);
+      expect(find.textContaining('Only the creator or an admin'), findsNothing);
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('ticket comments', () {
+    // The comments section sits below the fold inside the modal's scroll
+    // view; drag it into view first (off-screen list children are not built).
+    Future<void> revealComments(WidgetTester tester) async {
+      await tester.dragUntilVisible(
+        find.text('Comments'),
+        find.byType(Scrollable).first,
+        const Offset(0, -200),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('members can add and delete their own comments', (tester) async {
+      final container = memberContainer();
+      addTearDown(container.dispose);
+      await pumpModal(tester, task: adminTicket, container: container);
+      await revealComments(tester);
+
+      expect(find.text('No comments yet. Start the discussion!'), findsOneWidget);
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
+
+      final commentField = find.ancestor(
+        of: find.text('Add a comment...'),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(commentField, 'Adding extra info');
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Adding extra info'), findsOneWidget);
+      expect(find.text('No comments yet. Start the discussion!'), findsNothing);
+      // Their own comment shows the delete control.
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Adding extra info'), findsNothing);
+      expect(find.text('No comments yet. Start the discussion!'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('members cannot delete comments written by others', (tester) async {
+      final repo = FakeTaskRepository()
+        ..commentStore.add(TaskComment(
+          id: 'c-admin',
+          taskId: 't-admin',
+          workspaceId: 'ws-demo-001',
+          userId: 'demo-user-123',
+          userName: 'Alex',
+          body: 'Admin thought this through',
+        ));
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith(
+            () => _FixedAuthNotifier(
+              UserProfile(id: 'user-456', email: 'sarah.designer@tasksphere.app', displayName: 'Sarah'),
+            ),
+          ),
+          taskRepositoryProvider.overrideWith((ref) => repo),
+        ],
+      );
+      addTearDown(container.dispose);
+      await pumpModal(tester, task: adminTicket, container: container);
+      await revealComments(tester);
+
+      expect(find.text('Admin thought this through'), findsOneWidget);
+      // No task delete (member) and no comment delete (not their comment).
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('admins can delete any comment', (tester) async {
+      final repo = FakeTaskRepository()
+        ..commentStore.add(TaskComment(
+          id: 'c-member',
+          taskId: 't-admin',
+          workspaceId: 'ws-demo-001',
+          userId: 'user-456',
+          userName: 'Sarah',
+          body: 'Member note',
+        ));
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith(
+            () => _FixedAuthNotifier(
+              UserProfile(id: 'demo-user-123', email: 'alex.admin@tasksphere.app', displayName: 'Alex'),
+            ),
+          ),
+          isDemoUserProvider.overrideWith((ref) => false),
+          taskRepositoryProvider.overrideWith((ref) => repo),
+        ],
+      );
+      addTearDown(container.dispose);
+      await pumpModal(tester, task: adminTicket, container: container);
+      await revealComments(tester);
+
+      expect(find.text('Member note'), findsOneWidget);
+      // The header task-delete icon may or may not be mounted depending on
+      // how far the list scrolled; the comment's icon is the last one.
+      expect(find.byIcon(Icons.delete_outline), findsAtLeastNWidgets(1));
+
+      await tester.tap(find.byIcon(Icons.delete_outline).last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Member note'), findsNothing);
+      expect(repo.deletedComments, ['c-member']);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

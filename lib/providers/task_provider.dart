@@ -8,6 +8,7 @@ import '../core/services/notification_service.dart';
 import '../models/lane.dart';
 import '../models/task.dart';
 import '../models/subtask.dart';
+import '../models/task_comment.dart';
 import '../models/activity_log.dart';
 import 'workspace_provider.dart';
 import 'auth_provider.dart';
@@ -37,6 +38,73 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 });
 
 final tasksProvider = NotifierProvider<TaskNotifier, List<TaskItem>>(TaskNotifier.new);
+
+final taskCommentsProvider =
+    NotifierProvider.family<TaskCommentsNotifier, List<TaskComment>, String>(
+  TaskCommentsNotifier.new,
+);
+
+class TaskCommentsNotifier extends Notifier<List<TaskComment>> {
+  TaskCommentsNotifier(this.taskId);
+
+  /// The ticket these comments belong to (the family argument).
+  final String taskId;
+
+  TaskRepository? _repo;
+  int _mutationCount = 0;
+
+  TaskRepository get _repository => _repo!;
+
+  @override
+  List<TaskComment> build() {
+    _repo = ref.watch(taskRepositoryProvider);
+    if (_repository.isPersistent) {
+      unawaited(_load());
+    }
+    return const [];
+  }
+
+  Future<void> _load() async {
+    final revision = _mutationCount;
+    final comments = await _repository.fetchComments(taskId);
+    if (comments == null || !ref.mounted) return;
+    if (_mutationCount != revision) {
+      // A local mutation landed while fetching; retry so optimistic changes
+      // are not clobbered by a stale snapshot.
+      unawaited(_load());
+      return;
+    }
+    state = comments;
+  }
+
+  Future<void> addComment(String body) async {
+    final text = body.trim();
+    if (text.isEmpty) return;
+    final user = ref.read(authProvider);
+    final wsId = ref.read(activeWorkspaceProvider).activeWorkspace.id;
+    final comment = TaskComment(
+      id: _uuid.v4(),
+      taskId: taskId,
+      workspaceId: wsId,
+      userId: user?.id,
+      userName: user?.displayName ?? 'User',
+      body: text,
+    );
+    _mutationCount += 1;
+    state = [...state, comment];
+    if (_repository.isPersistent) {
+      await _repository.insertComment(comment);
+    }
+  }
+
+  Future<void> removeComment(String commentId) async {
+    _mutationCount += 1;
+    state = state.where((c) => c.id != commentId).toList();
+    if (_repository.isPersistent) {
+      await _repository.deleteComment(commentId);
+    }
+  }
+}
 
 final activityLogsProvider =
     NotifierProvider<ActivityLogNotifier, List<ActivityLog>>(ActivityLogNotifier.new);
@@ -348,6 +416,10 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
   }
 
   void deleteTask(String taskId) {
+    // Only admins may delete tickets.
+    if (!ref.read(activeWorkspaceProvider.notifier).isAdmin(ref.read(authProvider))) {
+      return;
+    }
     _mutationCount += 1;
     state = state.where((t) => t.id != taskId).toList();
     if (_repository.isPersistent) {

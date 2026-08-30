@@ -218,6 +218,55 @@ void main() {
       expect(container.read(tasksProvider).length, 5);
     });
 
+  group('TaskCommentsNotifier', () {
+    test('starts empty and scopes comments per task', () async {
+      final container = makeContainer();
+      expect(container.read(taskCommentsProvider('task-101')), isEmpty);
+
+      await container.read(taskCommentsProvider('task-101').notifier).addComment('First');
+      await container.read(taskCommentsProvider('task-102').notifier).addComment('Second');
+
+      expect(container.read(taskCommentsProvider('task-101')).single.body, 'First');
+      expect(container.read(taskCommentsProvider('task-102')).single.body, 'Second');
+    });
+
+    test('addComment trims and attaches the current user', () async {
+      final container = makeContainer();
+      final notifier = container.read(taskCommentsProvider('task-101').notifier);
+
+      await notifier.addComment('  Check this out  ');
+
+      final comment = container.read(taskCommentsProvider('task-101')).single;
+      expect(comment.body, 'Check this out');
+      expect(comment.taskId, 'task-101');
+      expect(comment.userId, 'demo-user-123');
+      expect(comment.userName, 'U');
+      expect(comment.workspaceId, 'ws-demo-001');
+    });
+
+    test('removeComment deletes the matching comment only', () async {
+      final container = makeContainer();
+      final notifier = container.read(taskCommentsProvider('task-101').notifier);
+      await notifier.addComment('One');
+      await notifier.addComment('Two');
+
+      await notifier.removeComment(container.read(taskCommentsProvider('task-101')).first.id);
+
+      final comments = container.read(taskCommentsProvider('task-101'));
+      expect(comments.length, 1);
+      expect(comments.single.body, 'Two');
+    });
+
+    test('empty comments are ignored', () async {
+      final container = makeContainer();
+      final notifier = container.read(taskCommentsProvider('task-101').notifier);
+
+      await notifier.addComment('   ');
+
+      expect(container.read(taskCommentsProvider('task-101')), isEmpty);
+    });
+  });
+
   group('ActivityLogNotifier', () {
     test('addLog prepends new entries with generated ids', () {
       final container = makeContainer();

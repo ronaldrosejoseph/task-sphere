@@ -7,6 +7,7 @@ import 'package:task_sphere/core/repositories/workspace_repository.dart';
 import 'package:task_sphere/models/activity_log.dart';
 import 'package:task_sphere/models/lane.dart';
 import 'package:task_sphere/models/task.dart';
+import 'package:task_sphere/models/task_comment.dart';
 import 'package:task_sphere/models/workspace.dart';
 import 'package:task_sphere/models/user_profile.dart';
 import 'package:task_sphere/providers/auth_provider.dart';
@@ -19,6 +20,9 @@ class FakeTaskRepository implements TaskRepository {
   final List<TaskItem> inserted = [];
   final List<TaskItem> updated = [];
   final List<String> deleted = [];
+  final List<TaskComment> commentStore = [];
+  final List<TaskComment> insertedComments = [];
+  final List<String> deletedComments = [];
 
   @override
   bool get isPersistent => true;
@@ -43,6 +47,22 @@ class FakeTaskRepository implements TaskRepository {
   Future<void> deleteTask(String taskId) async {
     deleted.add(taskId);
     stored.removeWhere((t) => t.id == taskId);
+  }
+
+  @override
+  Future<List<TaskComment>?> fetchComments(String taskId) async =>
+      List.of(commentStore.where((c) => c.taskId == taskId));
+
+  @override
+  Future<void> insertComment(TaskComment comment) async {
+    insertedComments.add(comment);
+    commentStore.add(comment);
+  }
+
+  @override
+  Future<void> deleteComment(String commentId) async {
+    deletedComments.add(commentId);
+    commentStore.removeWhere((c) => c.id == commentId);
   }
 
   @override
@@ -207,7 +227,23 @@ ProviderContainer _makeContainer({
   Workspace? workspace,
   List<KanbanLane>? lanes,
 }) {
-  final ws = workspace ?? Workspace(id: 'ws-1', name: 'W', adminId: 'a');
+  // Every real workspace has its admin as a member (seeded on creation), so
+  // the fixture includes one too — admin-only guards rely on it.
+  final ws = workspace ??
+      Workspace(
+        id: 'ws-1',
+        name: 'W',
+        adminId: 'a',
+        members: [
+          WorkspaceMember(
+            id: 'm-1',
+            workspaceId: 'ws-1',
+            userId: 'a',
+            email: 'a@x.com',
+            role: UserRole.admin,
+          ),
+        ],
+      );
   final ls = lanes ?? [KanbanLane(id: 'lane-1', workspaceId: ws.id, title: 'To Do')];
   final notifier = _FakeWorkspaceNotifier(_workspaceState(ws, ls));
   return ProviderContainer(
@@ -320,6 +356,83 @@ void main() {
 
       expect(repo.deleted, ['t-1']);
       expect(container.read(tasksProvider), isEmpty);
+    });
+
+    test('deleteTask is a no-op for non-admins', () async {
+      final repo = FakeTaskRepository()
+        ..stored.add(TaskItem(id: 't-1', workspaceId: 'ws-1', laneId: 'lane-1', title: 'Task'));
+      final container = _makeContainer(
+        workspaceRepo: FakeWorkspaceRepository(),
+        taskRepo: repo,
+        workspace: Workspace(
+          id: 'ws-1',
+          name: 'W',
+          adminId: 'a',
+          members: [
+            // The current user is only a member of this workspace.
+            WorkspaceMember(
+              id: 'm-2',
+              workspaceId: 'ws-1',
+              userId: 'a',
+              email: 'a@x.com',
+              role: UserRole.member,
+            ),
+          ],
+        ),
+      );
+      addTearDown(container.dispose);
+      await _settle();
+
+      container.read(tasksProvider.notifier).deleteTask('t-1');
+      await _settle();
+
+      expect(repo.deleted, isEmpty);
+      expect(container.read(tasksProvider).length, 1);
+    });
+  });
+
+  group('TaskCommentsNotifier with a persistent repository', () {
+    test('loads comments for the task from the repository', () async {
+      final repo = FakeTaskRepository()
+        ..commentStore.add(TaskComment(
+          id: 'c-1',
+          taskId: 't-1',
+          workspaceId: 'ws-1',
+          userId: 'a',
+          userName: 'A',
+          body: 'Hello',
+        ));
+      final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository(), taskRepo: repo);
+      addTearDown(container.dispose);
+
+      // Reading the provider first triggers its build; settle after so the
+      // async fetch can populate the state.
+      expect(container.read(taskCommentsProvider('t-1')), isEmpty);
+      await _settle();
+
+      final comments = container.read(taskCommentsProvider('t-1'));
+      expect(comments.single.body, 'Hello');
+      expect(comments.single.userName, 'A');
+    });
+
+    test('addComment persists and removeComment deletes', () async {
+      final repo = FakeTaskRepository();
+      final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository(), taskRepo: repo);
+      addTearDown(container.dispose);
+
+      final notifier = container.read(taskCommentsProvider('t-1').notifier);
+      await notifier.addComment('  Hello there  ');
+      await _settle();
+
+      expect(repo.insertedComments.single.body, 'Hello there');
+      expect(container.read(taskCommentsProvider('t-1')).single.body, 'Hello there');
+
+      final commentId = repo.insertedComments.single.id;
+      await notifier.removeComment(commentId);
+      await _settle();
+
+      expect(repo.deletedComments, [commentId]);
+      expect(container.read(taskCommentsProvider('t-1')), isEmpty);
     });
   });
 

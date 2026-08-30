@@ -77,6 +77,39 @@ CREATE TABLE IF NOT EXISTS public.subtasks (
     order_index INT NOT NULL DEFAULT 0
 );
 
+-- 5b. TASK COMMENTS TABLE
+CREATE TABLE IF NOT EXISTS public.task_comments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    task_id UUID NOT NULL REFERENCES public.tasks(id) ON DELETE CASCADE,
+    workspace_id UUID NOT NULL REFERENCES public.workspaces(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    user_name TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.task_comments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Workspace members can view comments" ON public.task_comments;
+CREATE POLICY "Workspace members can view comments"
+    ON public.task_comments FOR SELECT
+    USING (public.is_workspace_member(workspace_id));
+
+DROP POLICY IF EXISTS "Workspace members can insert comments" ON public.task_comments;
+CREATE POLICY "Workspace members can insert comments"
+    ON public.task_comments FOR INSERT
+    WITH CHECK (public.is_workspace_member(workspace_id));
+
+DROP POLICY IF EXISTS "Users can delete their own comments" ON public.task_comments;
+CREATE POLICY "Users can delete their own comments"
+    ON public.task_comments FOR DELETE
+    USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Admins can delete any comment" ON public.task_comments;
+CREATE POLICY "Admins can delete any comment"
+    ON public.task_comments FOR DELETE
+    USING (public.is_workspace_admin(workspace_id));
+
 -- 6. ACTIVITY LOGS TABLE
 CREATE TABLE IF NOT EXISTS public.activity_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -403,6 +436,9 @@ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'subtasks') THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.subtasks;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'task_comments') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.task_comments;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'workspace_members') THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.workspace_members;
