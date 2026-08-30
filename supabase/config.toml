@@ -5,11 +5,11 @@
 # without it, using it to locate supabase/migrations/. It contains no
 # values on purpose:
 #
-# - CI (.github/workflows/production.yml) runs the official CLI flow:
-#   `supabase link --project-ref` (the ref is derived from the
-#   SUPABASE_URL secret at deploy time, never committed) followed by
-#   `supabase db push` with SUPABASE_ACCESS_TOKEN and
-#   SUPABASE_DB_PASSWORD — so nothing sensitive lives in this repo.
+# - CI (.github/workflows/production.yml) connects with
+#   `supabase db push --db-url "$SUPABASE_DB_URL"` after temporarily
+#   allowlisting the runner's IP via the Management API. The project ref
+#   is derived from the SUPABASE_URL secret at deploy time — nothing
+#   sensitive is committed, so the repo stays safe to make public.
 # - For local CLI work (e.g. `supabase migration up` against the local
 #   stack), run once on your machine:
 #     supabase link --project-ref <your-project-ref>
