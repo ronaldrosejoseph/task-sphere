@@ -1,11 +1,11 @@
 # Supabase CLI configuration.
 #
-# The project ref is intentionally NOT stored here: it is injected at
-# deploy time from the SUPABASE_PROJECT_ID secret
-# (.github/workflows/production.yml runs `supabase link --project-ref
-# $SUPABASE_PROJECT_ID`, which writes it into this file on the CI runner
-# only), so it never appears in this repo — keeping the repo safe to make
+# CI does not need a project ref: .github/workflows/production.yml runs
+# `supabase db push --db-url "$SUPABASE_DB_URL"` with the project-scoped
+# connection string from the SUPABASE_DB_URL secret, so no account-level
+# token and no committed ref are required — the repo stays safe to make
 # public.
 #
-# To work with the CLI locally, run once on your machine:
+# For local CLI work (e.g. `supabase migration up` against the local
+# stack), run once on your machine:
 #   supabase link --project-ref <your-project-ref>
