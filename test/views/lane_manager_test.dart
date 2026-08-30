@@ -183,6 +183,24 @@ void main() {
     );
   });
 
+  testWidgets('dragging the left handle reorders lanes', (tester) async {
+    final container = await pumpDialog(tester);
+
+    // Lanes start [In Review, To Do, In Progress, ...]; drag In Review's
+    // leading handle below To Do.
+    final handle = find.descendant(
+      of: find.widgetWithText(Card, 'In Review'),
+      matching: find.byIcon(Icons.drag_indicator),
+    );
+    await tester.timedDrag(handle, const Offset(0, 100), const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    final titles =
+        container.read(activeWorkspaceProvider).lanes.map((l) => l.title).toList();
+    expect(titles.first, 'To Do');
+    expect(titles[1], 'In Review');
+  });
+
   testWidgets('editing a lane requires a non-empty name', (tester) async {
     await pumpDialog(tester);
 

@@ -117,6 +117,9 @@ class _LaneManagerDialogState extends ConsumerState<LaneManagerDialog> {
             Expanded(
               child: ReorderableListView.builder(
                 itemCount: lanes.length,
+                // Disable the built-in right-side drag handle; the leading
+                // drag_indicator is the drag button instead.
+                buildDefaultDragHandles: false,
                 onReorderItem: (oldIndex, newIndex) {
                   ref.read(activeWorkspaceProvider.notifier).reorderLanes(oldIndex, newIndex);
                 },
@@ -129,7 +132,10 @@ class _LaneManagerDialogState extends ConsumerState<LaneManagerDialog> {
                       leading: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.drag_indicator, color: Colors.grey),
+                          ReorderableDragStartListener(
+                            index: index,
+                            child: const Icon(Icons.drag_indicator, color: Colors.grey),
+                          ),
                           const SizedBox(width: 8),
                           Container(
                             width: 14,
