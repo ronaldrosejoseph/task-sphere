@@ -108,22 +108,28 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: _selectedPriority.color.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(10),
+                Flexible(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _selectedPriority.color.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(Icons.assignment, color: _selectedPriority.color),
                       ),
-                      child: Icon(Icons.assignment, color: _selectedPriority.color),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      widget.task == null ? 'Create New Task' : 'Task Details',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ],
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: Text(
+                          widget.task == null ? 'Create New Task' : 'Task Details',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 Row(
                   children: [
@@ -307,22 +313,30 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    // Wraps so the Start Timer button drops to its own line
+                    // on narrow phone screens instead of overflowing.
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(Icons.timer_outlined, color: Colors.blueAccent),
                             const SizedBox(width: 10),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Time Tracker', style: TextStyle(fontWeight: FontWeight.bold)),
-                                Text(
-                                  'Total Logged: ${_formatSeconds((widget.task?.loggedSeconds ?? 0) + _sessionSeconds)}',
-                                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                ),
-                              ],
+                            Flexible(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Time Tracker', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  Text(
+                                    'Total Logged: ${_formatSeconds((widget.task?.loggedSeconds ?? 0) + _sessionSeconds)}',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -337,7 +351,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                             _isTimerRunning ? 'Pause (${_formatSeconds(_sessionSeconds)})' : 'Start Timer',
                             style: const TextStyle(color: Colors.white),
                           ),
-                        )
+                        ),
                       ],
                     ),
                   ),
@@ -448,14 +462,15 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
             const Divider(height: 20),
 
             // Save Actions
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 12,
+              runSpacing: 12,
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Cancel'),
                 ),
-                const SizedBox(width: 12),
                 ElevatedButton.icon(
                   onPressed: _saveTask,
                   style: ElevatedButton.styleFrom(
@@ -465,7 +480,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   ),
                   icon: const Icon(Icons.save, color: Colors.white, size: 18),
                   label: const Text('Save Task', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                )
+                ),
               ],
             )
           ],

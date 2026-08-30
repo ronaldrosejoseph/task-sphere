@@ -44,15 +44,21 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.workspaces, color: Color(0xFF6366F1)),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Workspaces & Roles',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ],
+                Flexible(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.workspaces, color: Color(0xFF6366F1)),
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          'Workspaces & Roles',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -121,46 +127,56 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
               // Invite Member & Assign Role
               const Text('Invite Member to Workspace', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              Row(
+              // Email field spans the full width so it stays easy to type on
+              // phones; role + Invite sit on their own row below.
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _emailController,
-                      decoration: InputDecoration(
-                        hintText: 'Member Google email...',
-                        isDense: true,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  TextField(
+                    controller: _emailController,
+                    decoration: InputDecoration(
+                      hintText: 'Member Google email...',
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Wraps on the narrowest phones; gap keeps rows distinct.
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 12,
+                    children: [
+                      SizedBox(
+                        width: 120,
+                        child: DropdownButton<UserRole>(
+                          value: _selectedRole,
+                          isExpanded: true,
+                          items: UserRole.values.map((r) {
+                            return DropdownMenuItem(
+                              value: r,
+                              child: Text(r.name.toUpperCase()),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) setState(() => _selectedRole = val);
+                          },
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 130,
-                    child: DropdownButton<UserRole>(
-                      value: _selectedRole,
-                      isExpanded: true,
-                      items: UserRole.values.map((r) {
-                        return DropdownMenuItem(
-                          value: r,
-                          child: Text(r.name.toUpperCase()),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) setState(() => _selectedRole = val);
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      final email = _emailController.text.trim();
-                      if (email.isNotEmpty) {
-                        ref.read(activeWorkspaceProvider.notifier).inviteMember(email, _selectedRole);
-                        _emailController.clear();
-                      }
-                    },
-                    icon: const Icon(Icons.send, size: 16),
-                    label: const Text('Invite'),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          final email = _emailController.text.trim();
+                          if (email.isNotEmpty) {
+                            ref.read(activeWorkspaceProvider.notifier).inviteMember(email, _selectedRole);
+                            _emailController.clear();
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                        ),
+                        icon: const Icon(Icons.send, size: 16),
+                        label: const Text('Invite'),
+                      ),
+                    ],
                   ),
                 ],
               ),

@@ -86,6 +86,47 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('on mobile the invite email field spans the width and controls sit below', (tester) async {
+    // Regression: the invite row used to squeeze the email field and could
+    // overflow on narrow screens.
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final container = ProviderContainer(
+      overrides: [
+        authProvider.overrideWith(
+          () => _FixedAuthNotifier(
+            UserProfile(id: 'u-1', email: 'u@x.com', displayName: 'U'),
+          ),
+        ),
+        activeWorkspaceProvider.overrideWith(() => _FakeWorkspaceNotifier(_state())),
+      ],
+    );
+    addTearDown(container.dispose);
+    await _pumpModal(tester, container);
+
+    expect(find.text('Invite Member to Workspace'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    final emailField = find.ancestor(
+      of: find.text('Member Google email...'),
+      matching: find.byType(TextField),
+    );
+    expect(emailField, findsOneWidget);
+    // Full-width email entry point on a phone.
+    expect(tester.getSize(emailField).width, greaterThan(200));
+
+    // Role dropdown and Invite button are below the email field, not beside it.
+    final emailBottom = tester.getBottomLeft(emailField).dy;
+    expect(tester.getTopLeft(find.byType(DropdownButton<UserRole>)).dy, greaterThan(emailBottom));
+    expect(
+      tester.getTopLeft(find.widgetWithText(ElevatedButton, 'Invite')).dy,
+      greaterThan(emailBottom),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('user with no workspace can still create their first one', (tester) async {
     final container = ProviderContainer(
       overrides: [

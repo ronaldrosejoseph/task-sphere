@@ -48,17 +48,25 @@ class _LaneManagerDialogState extends ConsumerState<LaneManagerDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.view_column_rounded, color: Color(0xFF6366F1)),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Manage Kanban Lanes',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ],
+                // Flexible so the title wraps instead of pushing the close
+                // button out of the dialog on narrow phone screens.
+                Flexible(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.view_column_rounded, color: Color(0xFF6366F1)),
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          'Manage Kanban Lanes',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),

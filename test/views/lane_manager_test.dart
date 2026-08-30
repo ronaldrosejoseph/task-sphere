@@ -25,8 +25,11 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  Future<ProviderContainer> pumpDialog(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(900, 1600);
+  Future<ProviderContainer> pumpDialog(
+    WidgetTester tester, {
+    Size size = const Size(900, 1600),
+  }) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
@@ -77,6 +80,17 @@ void main() {
     await tester.tap(deleteIcon);
     await tester.pumpAndSettle();
   }
+
+  testWidgets('renders without overflow on a phone-size screen', (tester) async {
+    // Regression: the 'Manage Kanban Lanes' title used to push the close
+    // button out of the dialog on narrow screens.
+    await pumpDialog(tester, size: const Size(360, 800));
+
+    expect(find.text('Manage Kanban Lanes'), findsOneWidget);
+    expect(find.byIcon(Icons.close), findsOneWidget);
+    expect(find.text('Add Lane'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('deleting a lane with tasks warns and requires moving them first', (tester) async {
     final container = await pumpDialog(tester);
