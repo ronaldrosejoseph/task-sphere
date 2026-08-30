@@ -42,8 +42,12 @@ timestamped migration files applied **in order** by `supabase db push`.
   manual SQL-editor hand-offs.
 - Test locally first when possible: `supabase start` (local stack) →
   `supabase migration up` → verify → `supabase stop`.
-- `supabase/config.toml` holds the project ref (`project_id`); it is used by
-  the migration workflow. Link/verify with `supabase link --project-ref <ref>`.
+- The project ref is a **secret, never committed**: the migration workflow
+  injects it at deploy time via `supabase link --project-ref
+  $SUPABASE_PROJECT_ID` (secret), which writes it into `supabase/config.toml`
+  on the CI runner only. For local CLI work, run `supabase link
+  --project-ref <ref>` yourself — it writes the ref into `config.toml` on
+  your machine, and you can revert that file before committing.
 - The old `supabase/schema.sql` was folded into the baseline migration
   (`20260830120000_baseline.sql`) and must not be recreated as a source of
   truth.

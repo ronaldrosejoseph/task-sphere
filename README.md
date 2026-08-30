@@ -64,9 +64,7 @@ this, database changes must be applied by hand in the SQL editor instead.
 2. Click the **gear icon (Project Settings)** in the bottom-left sidebar, then **API**.
 3. Copy the **Project URL** (e.g., `https://abcd1234.supabase.co`).
 4. Your **Project Ref** is the short code before `.supabase.co` — in this example it is `abcd1234`.
-5. Open the file `supabase/config.toml` in this repo and change the line
-   `project_id = "REPLACE_WITH_PROJECT_REF"` to your ref, e.g.
-   `project_id = "abcd1234"`. Save the file and commit it.
+5. Keep it handy for Step 3. You do **not** edit any file in the repo — the ref is stored only as a GitHub secret, so it stays out of the codebase (safe even if the repo is made public).
 
 **Step 2 — Create a Supabase access token**
 

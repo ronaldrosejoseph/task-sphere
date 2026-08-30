@@ -1,10 +1,11 @@
 # Supabase CLI configuration.
 #
-# project_id must match your Supabase project ref — the <ref> in
-# https://<ref>.supabase.co. Set it with the CLI:
-#   supabase link --project-ref <ref>
-# (this writes the ref into this file), or edit it directly.
+# The project ref is intentionally NOT stored here: it is injected at
+# deploy time from the SUPABASE_PROJECT_ID secret
+# (.github/workflows/production.yml runs `supabase link --project-ref
+# $SUPABASE_PROJECT_ID`, which writes it into this file on the CI runner
+# only), so it never appears in this repo — keeping the repo safe to make
+# public.
 #
-# Required for the production migration workflow (.github/workflows/
-# production.yml), which runs `supabase db push` on merges to main.
-project_id = "REPLACE_WITH_PROJECT_REF"
+# To work with the CLI locally, run once on your machine:
+#   supabase link --project-ref <your-project-ref>
