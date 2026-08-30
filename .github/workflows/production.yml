@@ -8,7 +8,9 @@ name: Deploy Migrations to Production
 # (even when migrations fail).
 #
 # NOTE: the Management API calls use curl, not Python urllib — Cloudflare
-# blocks urllib's User-Agent at the edge with error 1010.
+# blocks urllib's User-Agent at the edge with error 1010. The apply body
+# uses camelCase dbAllowedCidrs (the spec'd schema); the snake_case docs
+# variant is silently ignored.
 on:
   push:
     branches: [main]
@@ -43,6 +45,18 @@ jobs:
           IP_32="$RUNNER_IP/32"
           BASE="https://api.supabase.com/v1/projects/$REF"
 
+          apply_restrictions() {
+            local body="$1"
+            curl --fail-with-body -sS -A "task-sphere-ci" -X POST \
+              -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$body" "$BASE/network-restrictions" \
+              || curl --fail-with-body -sS -A "task-sphere-ci" -X POST \
+                -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "$body" "$BASE/network-restrictions/apply"
+          }
+
           CURRENT="$(curl --fail-with-body -sS -A "task-sphere-ci" \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             "$BASE/network-restrictions")"
@@ -54,16 +68,12 @@ jobs:
 
           NEW="$(echo "$CURRENT" | jq -c --arg ip "$IP_32" \
             '(.config.dbAllowedCidrs // []) + [$ip]')"
-          APPLIED="$(curl --fail-with-body -sS -A "task-sphere-ci" -X POST \
-            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"db_allowed_cidrs\": $NEW}" \
-            "$BASE/network-restrictions/apply")"
+          APPLIED="$(apply_restrictions "{\"dbAllowedCidrs\": $NEW}")"
           if echo "$APPLIED" | jq -e --arg ip "$IP_32" \
             '(.config.dbAllowedCidrs // []) | index($ip)' >/dev/null; then
             echo "Authorized $IP_32"
           else
-            echo "ERROR: $IP_32 was not applied; allowlist: $(echo "$APPLIED" | jq -c '.config.dbAllowedCidrs')"
+            echo "ERROR: $IP_32 was not applied; response: $APPLIED"
             exit 1
           fi
 
@@ -80,16 +90,24 @@ jobs:
           IP_32="$RUNNER_IP/32"
           BASE="https://api.supabase.com/v1/projects/$REF"
 
+          apply_restrictions() {
+            local body="$1"
+            curl --fail-with-body -sS -A "task-sphere-ci" -X POST \
+              -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$body" "$BASE/network-restrictions" \
+              || curl --fail-with-body -sS -A "task-sphere-ci" -X POST \
+                -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "$body" "$BASE/network-restrictions/apply"
+          }
+
           CURRENT="$(curl --fail-with-body -sS -A "task-sphere-ci" \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             "$BASE/network-restrictions")"
           REMAINING="$(echo "$CURRENT" | jq -c --arg ip "$IP_32" \
             '[.config.dbAllowedCidrs[] | select(. != $ip)]')"
-          APPLIED="$(curl --fail-with-body -sS -A "task-sphere-ci" -X POST \
-            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"db_allowed_cidrs\": $REMAINING}" \
-            "$BASE/network-restrictions/apply")"
+          APPLIED="$(apply_restrictions "{\"dbAllowedCidrs\": $REMAINING}")"
           if echo "$APPLIED" | jq -e --arg ip "$IP_32" \
             '(.config.dbAllowedCidrs // []) | index($ip)' >/dev/null; then
             echo "WARNING: $IP_32 still allowed; remove it manually under Network Restrictions."
