@@ -150,10 +150,56 @@ AS $$
     SELECT EXISTS (
         SELECT 1 FROM public.workspace_members
         WHERE workspace_id = ws_id
-          AND user_id = auth.uid()
           AND role = 'admin'
+          AND (user_id = auth.uid() OR email = auth.email())
     );
 $$;
+
+-- Link invited members to auth.users so user_id is populated even though
+-- invites are recorded by email. Invites sent before the user's first
+-- sign-in are backfilled by on_auth_user_created.
+CREATE OR REPLACE FUNCTION public.fill_member_user_id()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF NEW.user_id IS NULL THEN
+        SELECT id INTO NEW.user_id
+        FROM auth.users
+        WHERE email = NEW.email;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_member_inserted ON public.workspace_members;
+CREATE TRIGGER on_member_inserted
+    BEFORE INSERT ON public.workspace_members
+    FOR EACH ROW
+    EXECUTE FUNCTION public.fill_member_user_id();
+
+CREATE OR REPLACE FUNCTION public.backfill_member_user_id()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    UPDATE public.workspace_members
+    SET user_id = NEW.id
+    WHERE email = NEW.email
+      AND user_id IS NULL;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.backfill_member_user_id();
 
 CREATE OR REPLACE FUNCTION public.is_any_admin()
 RETURNS BOOLEAN
