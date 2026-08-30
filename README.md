@@ -80,13 +80,29 @@ then removes the IP again — even if the migrations fail.
 | `SUPABASE_ACCESS_TOKEN` | the token from Step 1 (starts with `sbp_...`) |
 | `SUPABASE_DB_URL` | your database connection string (below) |
 
-To build the connection string: Supabase dashboard → **Project Settings** →
-**Database** → **Connection string** → **Session pooler** → **URI**. Copy it
-and replace `[YOUR-PASSWORD]` with your real database password (the one from
-project creation — forgotten it? **Project Settings → Database → Reset
-database password**). If the password contains special characters (`@`, `:`,
-`/`, `#`, `?`), they must be URL-encoded (e.g. `@` becomes `%40`); the easiest
-path is a password with only letters and numbers.
+To get the connection string — **How to get the Free IPv4 Connection String
+in the Supabase Dashboard**:
+
+1. Open your project on supabase.com/dashboard.
+2. Click **Project Settings** (the gear icon at the bottom of the left sidebar).
+3. Click **Database** under **Configuration**.
+4. Scroll down to the **Connection string** section.
+5. In the tabs at the top of that box, click **Session pooler** (do not click
+   **Direct connection**):
+   - **Type:** URI
+   - **Mode:** Session
+   - **Port:** 5432
+6. Copy the URI string shown in that box. It looks like this:
+
+   ```
+   postgresql://postgres.<project-ref>:[YOUR-PASSWORD]@aws-0-<region>.pooler.supabase.com:5432/postgres
+   ```
+
+7. Replace `[YOUR-PASSWORD]` with your real database password (the one from
+   project creation — forgotten it? **Project Settings → Database → Reset
+   database password**). If the password contains special characters (`@`, `:`,
+   `/`, `#`, `?`), they must be URL-encoded (e.g. `@` becomes `%40`); the
+   easiest path is a password with only letters and numbers.
 
 Your project ID is **not** needed as a secret — the deploy derives it
 automatically from the `SUPABASE_URL` secret you already have, so nothing
