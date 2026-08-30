@@ -53,16 +53,12 @@ timestamped migration files applied **in order** by `supabase db push`.
   truth.
 
 ## Deploy pipeline
-
+ 
 Everything deploys automatically on merge to `main`:
-
-- **Web**: `.github/workflows/deploy.yml` — `flutter build web --release` with
-  `--dart-define=DEMO_MODE=true --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`, then `wrangler pages deploy` to Cloudflare Pages.
-- **Database**: `.github/workflows/production.yml` — the project's network
-  restriction stays ON; the job temporarily authorizes the runner's own IP
-  via the Supabase Management API (ref derived from `SUPABASE_URL`),
-  applies migrations with `supabase db push --db-url "$SUPABASE_DB_URL"`,
-  and removes the IP in a cleanup step that always runs.
+ 
+- **Production Deployment**: `.github/workflows/production.yml` — coordinated pipeline with concurrency locking:
+  1. Runs database migrations (`supabase db push`) with dynamic IPv4/IPv6 JIT allowlisting and cleanup.
+  2. Builds and deploys the web bundle to Cloudflare Pages (`wrangler pages deploy`) only after migrations succeed.
 - **CI**: `.github/workflows/ci.yml` — analyze + tests on pushes to `main` and
   every PR.
 

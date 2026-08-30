@@ -156,7 +156,7 @@ flutter run --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-d
 
 ## 🌐 Deploying the Web App (Cloudflare Pages)
 
-The web build is a fully static Flutter bundle - no server required. A GitHub Actions workflow (`.github/workflows/deploy.yml`) builds and deploys it to Cloudflare Pages on every push to `main`.
+The web build is a fully static Flutter bundle - no server required. A coordinated GitHub Actions workflow (`.github/workflows/production.yml`) applies any pending database migrations first and then builds and deploys the web app to Cloudflare Pages on every push to `main`.
 
 ### One-time setup
 
@@ -218,7 +218,7 @@ flutter test             # 91 unit + widget tests
 ```
 
 - **CI** (`.github/workflows/ci.yml`) runs `flutter analyze` and `flutter test` on every push and pull request.
-- **Deploy** (`.github/workflows/deploy.yml`) additionally builds the web bundle and ships it to Cloudflare Pages on every push to `main`.
+- **Deploy** (`.github/workflows/production.yml`) runs migrations against Supabase and deploys the web app to Cloudflare Pages on every push to `main`.
 - **Testing conventions**: model tests live in `test/models/`, provider/state tests in `test/providers/` (with fake repositories for the Supabase layer), and widget tests in `test/views/`.
 
 ---
