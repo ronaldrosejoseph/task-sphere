@@ -61,7 +61,8 @@ class _TaskListView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tasks = ref.watch(tasksProvider).where((t) => !t.isArchived).toList();
-    final lanes = ref.watch(activeWorkspaceProvider).lanes;
+    final lanes = [...ref.watch(activeWorkspaceProvider).lanes]
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
     return ListView.builder(
       padding: const EdgeInsets.all(20),

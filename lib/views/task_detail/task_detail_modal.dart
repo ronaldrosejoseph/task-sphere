@@ -49,7 +49,8 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   @override
   void initState() {
     super.initState();
-    final lanes = ref.read(activeWorkspaceProvider).lanes;
+    final lanes = [...ref.read(activeWorkspaceProvider).lanes]
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     _selectedLaneId = widget.task?.laneId ?? widget.initialLaneId ?? (lanes.isNotEmpty ? lanes.first.id : '');
 
     _titleController = TextEditingController(text: widget.task?.title ?? '');
@@ -205,7 +206,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                           initialValue: _selectedLaneId.isNotEmpty ? _selectedLaneId : null,
                           isExpanded: true,
                           decoration: const InputDecoration(labelText: 'Kanban Lane', isDense: true),
-                          items: workspaceState.lanes.map((lane) {
+                          items: ([...workspaceState.lanes]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex))).map((lane) {
                             return DropdownMenuItem(
                               value: lane.id,
                               child: Row(
