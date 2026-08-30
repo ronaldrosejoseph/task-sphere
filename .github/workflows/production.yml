@@ -89,17 +89,24 @@ jobs:
           NEW="$(echo "$CURRENT" | jq -c --argjson add "$TO_ADD" \
             '((.config.dbAllowedCidrs // []) + $add) | unique')"
 
+          echo "Requesting allowlist update: $NEW"
           APPLIED="$(curl --fail-with-body -sS -A "task-sphere-ci" -X POST \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"db_allowed_cidrs\": $NEW}" \
+            -d "$(jq -nc --argjson cidrs "$NEW" '{dbAllowedCidrs: $cidrs}')" \
             "$BASE/network-restrictions/apply")"
-          # Verify the IP was actually applied
-          APPLIED_CIDRS="$(echo "$APPLIED" | jq -c '.config.dbAllowedCidrs // []')"
-          echo "Applied allowlist: $APPLIED_CIDRS"
+          echo "Apply response: $APPLIED"
+
+          # Verify via a fresh GET (response format may differ from POST)
+          sleep 2
+          VERIFY="$(curl --fail-with-body -sS -A "task-sphere-ci" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "$BASE/network-restrictions")"
+          VERIFY_CIDRS="$(echo "$VERIFY" | jq -c '.config.dbAllowedCidrs // []')"
+          echo "Verified allowlist: $VERIFY_CIDRS"
           for IP in $(echo "$TO_ADD" | jq -r '.[]'); do
-            if ! echo "$APPLIED_CIDRS" | jq -e --arg ip "$IP" 'index($ip)' >/dev/null; then
-              echo "::error::Failed to add $IP to the allowlist"
+            if ! echo "$VERIFY_CIDRS" | jq -e --arg ip "$IP" 'index($ip)' >/dev/null; then
+              echo "::error::Failed to add $IP to the allowlist. Current list: $VERIFY_CIDRS"
               exit 1
             fi
           done
@@ -148,10 +155,10 @@ jobs:
           APPLIED="$(curl --fail-with-body -sS -A "task-sphere-ci" -X POST \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"db_allowed_cidrs\": $REMAINING}" \
+            -d "$(jq -nc --argjson cidrs "$REMAINING" '{dbAllowedCidrs: $cidrs}')" \
             "$BASE/network-restrictions/apply")"
 
-          echo "Cleaned up runner IP access. Remaining allowed CIDRs: $(echo "$APPLIED" | jq -c '.config.dbAllowedCidrs')"
+          echo "Cleaned up runner IP access. Response: $APPLIED"
 
   deploy-web:
     name: Build & Deploy Web App
