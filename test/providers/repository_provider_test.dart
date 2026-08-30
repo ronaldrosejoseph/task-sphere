@@ -418,7 +418,9 @@ void main() {
       await _settle();
 
       expect(repo.laneAddCalls, 1);
-      expect(notifier.state.lanes.last.title, 'In Review');
+      // New lanes are prepended at the top of the board.
+      expect(notifier.state.lanes.first.title, 'In Review');
+      expect(notifier.state.lanes.first.orderIndex, 0);
     });
   });
 

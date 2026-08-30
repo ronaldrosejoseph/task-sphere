@@ -46,7 +46,8 @@ void main() {
     container
         .read(activeWorkspaceProvider.notifier)
         .addLane('In Review', const Color(0xFFEC4899));
-    final laneId = container.read(activeWorkspaceProvider).lanes.last.id;
+    // New lanes are prepended, so the added lane is now first.
+    final laneId = container.read(activeWorkspaceProvider).lanes.first.id;
     container.read(tasksProvider.notifier).addTask(TaskItem(
           id: 'custom-task',
           workspaceId: 'ws-demo-001',
@@ -64,17 +65,22 @@ void main() {
     return container;
   }
 
-  Future<void> tapDelete(WidgetTester tester) async {
-    await tester.ensureVisible(find.byIcon(Icons.delete_outline));
+  // Every lane now has a delete icon, so target the specific lane's card.
+  Future<void> tapDelete(WidgetTester tester, String laneTitle) async {
+    final deleteIcon = find.descendant(
+      of: find.widgetWithText(Card, laneTitle),
+      matching: find.byIcon(Icons.delete_outline),
+    );
+    await tester.ensureVisible(deleteIcon);
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.tap(deleteIcon);
     await tester.pumpAndSettle();
   }
 
   testWidgets('deleting a lane with tasks warns and requires moving them first', (tester) async {
     final container = await pumpDialog(tester);
 
-    await tapDelete(tester);
+    await tapDelete(tester, 'In Review');
 
     expect(find.text('Delete "In Review"?'), findsOneWidget);
     expect(
@@ -104,7 +110,7 @@ void main() {
         .firstWhere((l) => l.title == 'To Do')
         .id;
 
-    await tapDelete(tester);
+    await tapDelete(tester, 'In Review');
 
     // Default target is the first other lane (To Do).
     expect(find.text('To Do'), findsWidgets);
@@ -119,6 +125,26 @@ void main() {
         .read(tasksProvider)
         .firstWhere((t) => t.id == 'custom-task');
     expect(moved.laneId, toDoLaneId);
+  });
+
+  testWidgets('default lanes can be deleted too', (tester) async {
+    final container = await pumpDialog(tester);
+
+    // 'To Do' is a default lane holding the seeded task-102, so the move
+    // dialog is shown; the default target is the first other lane (In Review).
+    await tapDelete(tester, 'To Do');
+
+    expect(find.text('Delete "To Do"?'), findsOneWidget);
+    expect(find.textContaining('still contains'), findsOneWidget);
+    await tester.tap(find.text('Move Tasks & Delete'));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(activeWorkspaceProvider).lanes.any((l) => l.title == 'To Do'),
+      isFalse,
+    );
+    final moved = container.read(tasksProvider).firstWhere((t) => t.id == 'task-102');
+    expect(moved.laneId, container.read(activeWorkspaceProvider).lanes.first.id);
   });
 
   testWidgets('deleting an empty lane asks for a simple confirmation', (tester) async {
@@ -160,9 +186,12 @@ void main() {
   testWidgets('editing a lane requires a non-empty name', (tester) async {
     await pumpDialog(tester);
 
-    await tester.ensureVisible(find.byIcon(Icons.edit).first);
+    final toDoCard = find.widgetWithText(Card, 'To Do');
+    final toDoEditIcon =
+        find.descendant(of: toDoCard, matching: find.byIcon(Icons.edit));
+    await tester.ensureVisible(toDoEditIcon);
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.edit).first);
+    await tester.tap(toDoEditIcon);
     await tester.pumpAndSettle();
 
     expect(find.text('Edit To Do'), findsOneWidget);

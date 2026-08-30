@@ -47,7 +47,7 @@ void main() {
   });
 
   group('lane management', () {
-    test('addLane appends a custom lane with hex color', () {
+    test('addLane prepends a custom lane at the top with hex color', () {
       final container = makeContainer();
       final notifier = container.read(activeWorkspaceProvider.notifier);
 
@@ -55,11 +55,15 @@ void main() {
 
       final lanes = container.read(activeWorkspaceProvider).lanes;
       expect(lanes.length, 6);
-      final added = lanes.last;
+      final added = lanes.first;
       expect(added.title, 'In Review');
       expect(added.colorHex, '#EC4899');
-      expect(added.orderIndex, 5);
+      expect(added.orderIndex, 0);
       expect(added.isDefault, isFalse);
+      // Existing lanes shift down and keep contiguous orderIndex values.
+      expect(lanes[1].title, 'To Do');
+      expect(lanes[1].orderIndex, 1);
+      expect(lanes.map((l) => l.orderIndex).toList(), [0, 1, 2, 3, 4, 5]);
     });
 
     test('updateLane changes title and color of the matching lane', () {

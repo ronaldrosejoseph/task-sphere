@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../core/repositories/activity_log_repository.dart';
 import '../core/repositories/task_repository.dart';
 import '../core/services/notification_service.dart';
+import '../models/lane.dart';
 import '../models/task.dart';
 import '../models/subtask.dart';
 import '../models/activity_log.dart';
@@ -151,7 +152,7 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     // Demo seed data belongs to the original demo workspace only; workspaces
     // the user creates start empty, just like on a real backend.
     if (_workspaceId == demoWorkspaceId) {
-      final seeded = _seedTasks(_workspaceId!, lanes.map((l) => l.id).toList());
+      final seeded = _seedTasks(_workspaceId!, lanes);
       _rescheduleReminders(seeded);
       return seeded;
     }
@@ -193,14 +194,24 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     }
   }
 
-  static List<TaskItem> _seedTasks(String wsId, List<String> laneIds) {
-    if (laneIds.length < 5) return [];
+  static List<TaskItem> _seedTasks(String wsId, List<KanbanLane> lanes) {
+    if (lanes.length < 5) return [];
 
-    final todoLane = laneIds[0];
-    final inProgressLane = laneIds[1];
-    final partiallyDoneLane = laneIds[2];
-    final doneLane = laneIds[3];
-    final wontDoLane = laneIds[4];
+    // Resolve the default lanes by title rather than list position so the
+    // demo tasks stay put even when custom lanes have been prepended.
+    final byTitle = {for (final lane in lanes) lane.title: lane.id};
+    final todoLane = byTitle['To Do'];
+    final inProgressLane = byTitle['In Progress'];
+    final partiallyDoneLane = byTitle['Partially Done'];
+    final doneLane = byTitle['Done'];
+    final wontDoLane = byTitle['Wont Do'];
+    if (todoLane == null ||
+        inProgressLane == null ||
+        partiallyDoneLane == null ||
+        doneLane == null ||
+        wontDoLane == null) {
+      return [];
+    }
 
     final now = DateTime.now();
 

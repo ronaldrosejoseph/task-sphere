@@ -155,11 +155,10 @@ class _LaneManagerDialogState extends ConsumerState<LaneManagerDialog> {
                             icon: const Icon(Icons.edit, size: 18),
                             onPressed: () => _showEditLaneDialog(lane),
                           ),
-                          if (!lane.isDefault)
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-                              onPressed: () => _confirmDeleteLane(lane),
-                            ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                            onPressed: () => _confirmDeleteLane(lane),
+                          ),
                         ],
                       ),
                     ),

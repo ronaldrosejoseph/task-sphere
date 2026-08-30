@@ -355,19 +355,28 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   void addLane(String title, Color color) {
     if (title.trim().isEmpty) return;
     final hex = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+    // New lanes appear at the top of the board; existing lanes shift down.
     final newLane = KanbanLane(
       id: _uuid.v4(),
       workspaceId: state.activeWorkspace.id,
       title: title,
       colorHex: hex,
-      orderIndex: state.lanes.length,
+      orderIndex: 0,
       isDefault: false,
     );
 
-    state = state.copyWith(lanes: [...state.lanes, newLane]);
+    final reindexed = [newLane, ...state.lanes]
+        .asMap()
+        .entries
+        .map((e) => e.value.copyWith(orderIndex: e.key))
+        .toList();
+
+    state = state.copyWith(lanes: reindexed);
     _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
     if (_repository.isPersistent) {
       unawaited(_repository.addLane(newLane));
+      // Keep the persisted order_index values contiguous.
+      unawaited(_repository.reorderLanes(reindexed));
     }
   }
 
