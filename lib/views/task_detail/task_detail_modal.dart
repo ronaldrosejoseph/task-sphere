@@ -600,7 +600,9 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
           for (final subtask in _subtasks) subtask.copyWith(taskId: taskId),
         ],
         attachmentPaths: _attachmentPaths,
-        createdBy: currentUser?.displayName ?? 'Admin',
+        // The column is UUID REFERENCES auth.users(id); a display name
+        // string would fail the INSERT.
+        createdBy: currentUser?.id,
       );
       ref.read(tasksProvider.notifier).addTask(newTask);
       ref.read(activityLogsProvider.notifier).addLog(

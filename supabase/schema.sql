@@ -63,6 +63,11 @@ CREATE TABLE IF NOT EXISTS public.tasks (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Databases created before attachment storage existed (they use
+-- drive_attachment_urls) need the column added in place.
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS attachment_paths TEXT[] DEFAULT '{}';
+
 -- 5. SUBTASKS TABLE (CHECKLIST)
 CREATE TABLE IF NOT EXISTS public.subtasks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
