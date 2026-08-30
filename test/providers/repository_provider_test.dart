@@ -577,6 +577,36 @@ void main() {
         'To Do',
       ]);
     });
+
+    test('reloads sort lanes by orderIndex even if fetched out of order', () async {
+      final repo = FakeWorkspaceRepository();
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.createWorkspace('Team', 'a', 'a@x.com');
+
+      // Put lanes out of order in the repository to simulate unsorted DB response
+      repo.lanes = [
+        KanbanLane(id: 'l-3', workspaceId: 'ws-remote', title: 'Done', orderIndex: 3, isDefault: true),
+        KanbanLane(id: 'l-0', workspaceId: 'ws-remote', title: 'To Do', orderIndex: 0, isDefault: true),
+        KanbanLane(id: 'l-1', workspaceId: 'ws-remote', title: 'In Progress', orderIndex: 1, isDefault: true),
+      ];
+
+      await notifier.switchWorkspace(Workspace(id: 'ws-remote', name: 'Team', adminId: 'a'));
+      await _settle();
+
+      expect(notifier.state.lanes.map((l) => l.title).toList(), [
+        'To Do',
+        'In Progress',
+        'Done',
+      ]);
+      expect(notifier.state.lanes.map((l) => l.orderIndex).toList(), [0, 1, 3]);
+
+      // Adding a new lane appends it at the end with orderIndex 4
+      await notifier.addLane('Review', const Color(0xFF6366F1));
+      expect(notifier.state.lanes.last.title, 'Review');
+      expect(notifier.state.lanes.last.orderIndex, 4);
+    });
   });
 
   group('ActivityLogNotifier with a persistent repository', () {

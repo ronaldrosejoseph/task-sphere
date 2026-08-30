@@ -43,7 +43,7 @@ class KanbanLane {
       workspaceId: json['workspace_id'] as String,
       title: json['title'] as String,
       colorHex: json['color_hex'] as String? ?? '#6366F1',
-      orderIndex: json['order_index'] as int? ?? 0,
+      orderIndex: (json['order_index'] as num?)?.toInt() ?? 0,
       isDefault: json['is_default'] as bool? ?? false,
     );
   }

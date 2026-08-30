@@ -19,7 +19,8 @@ class KanbanView extends ConsumerWidget {
     final workspaceState = ref.watch(activeWorkspaceProvider);
     final isDemoUser = ref.watch(isDemoUserProvider);
     final allTasks = ref.watch(tasksProvider);
-    final lanes = workspaceState.lanes;
+    final lanes = [...workspaceState.lanes]
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
     final searchText = ref.watch(taskFilterSearchProvider);
     final selectedPriority = ref.watch(taskFilterPriorityProvider);

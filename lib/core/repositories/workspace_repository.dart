@@ -211,8 +211,10 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
           .from('workspace_lanes')
           .select()
           .eq('workspace_id', workspaceId)
-          .order('order_index');
-      return response.map(KanbanLane.fromJson).toList();
+          .order('order_index', ascending: true);
+      final lanes = (response as List).map((row) => KanbanLane.fromJson(row as Map<String, dynamic>)).toList();
+      lanes.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+      return lanes;
     } catch (e) {
       debugPrint('Lane fetch error: $e');
       return null;
