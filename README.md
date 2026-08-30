@@ -23,13 +23,22 @@ Task Sphere is a modern, high-performance task management application for mobile
 
 1. Go to [Supabase](https://supabase.com) and create a free account.
 2. Click **New Project** and name your project `task-sphere`.
-3. Go to the **SQL Editor** tab in your Supabase Dashboard.
-4. Open the provided [`supabase/schema.sql`](supabase/schema.sql) file in this codebase, paste it into the Supabase SQL editor, and click **RUN**.
-   - This creates all necessary tables (`workspaces`, `workspace_lanes`, `workspace_members`, `tasks`, `subtasks`, `activity_logs`, `allowed_signup_emails`).
+3. Apply the schema. The database schema is managed as **migrations** in
+   [`supabase/migrations/`](supabase/migrations/). Two options:
+   - **Recommended (automatic):** the GitHub Actions workflow
+     `.github/workflows/production.yml` runs `supabase db push` on every merge
+     to `main`, so new migrations deploy themselves. Configure the
+     [Supabase "Deploy to production"](https://supabase.com/docs/guides/deployment/database-push)
+     integration with `main` as the production branch, set the repo secrets
+     (see CLAUDE.md), and fill `project_id` in `supabase/config.toml`.
+   - **One-off setup:** open the **SQL Editor** and run the baseline
+     migration `supabase/migrations/20260830120000_baseline.sql` (idempotent,
+     safe to re-run).
+   - This creates all necessary tables (`workspaces`, `workspace_lanes`, `workspace_members`, `tasks`, `subtasks`, `task_comments`, `activity_logs`, `allowed_signup_emails`).
    - Configures Row Level Security (RLS) policies for workspace privacy.
    - Creates the private `task-attachments` storage bucket with member-scoped upload/read/delete policies.
-   - Sets up default lane initialization triggers and enables Realtime WebSockets on `workspaces`, `workspace_lanes`, `workspace_members`, `tasks`, `subtasks`, and `activity_logs`.
-   - **Restricts sign-ups to an email allowlist** (see Security below). The script is idempotent - it is safe to re-run after pulling newer versions.
+   - Sets up default lane initialization triggers and enables Realtime WebSockets on the workspace tables.
+   - **Restricts sign-ups to an email allowlist** (see Security below). The baseline is idempotent - it is safe to re-run.
 5. **Allowlist your own email** (before signing up!) in the SQL editor:
    ```sql
    INSERT INTO public.allowed_signup_emails (email) VALUES ('you@example.com');

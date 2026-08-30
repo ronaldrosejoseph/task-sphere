@@ -1,0 +1,32 @@
+name: Deploy Migrations to Production
+
+# Applies pending supabase/migrations/*.sql files to the production
+# database on every merge to main (the Supabase "Deploy to production"
+# integration's branch). Runs `supabase db push`, which applies only
+# migrations not yet recorded in the database.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link the production project
+        run: supabase link --project-ref $SUPABASE_PROJECT_ID
+
+      - name: Apply pending migrations
+        run: supabase db push

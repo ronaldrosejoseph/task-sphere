@@ -1,4 +1,7 @@
--- Task Sphere Supabase Schema & Realtime Setup
+-- Baseline migration: the complete Task Sphere schema (folded from the
+-- former supabase/schema.sql). It is idempotent so it can also be applied
+-- over the existing production database. New schema changes go in NEW
+-- timestamped migration files — never edit this one.
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
