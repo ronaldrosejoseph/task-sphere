@@ -6,6 +6,9 @@ name: Deploy Migrations to Production
 # Supabase Management API, applies migrations over the direct connection
 # string, and removes the IP again in a cleanup step that always runs
 # (even when migrations fail).
+#
+# NOTE: the Management API calls use curl, not Python urllib — Cloudflare
+# blocks urllib's User-Agent at the edge with error 1010.
 on:
   push:
     branches: [main]
@@ -35,43 +38,34 @@ jobs:
         env:
           RUNNER_IP: ${{ steps.ip.outputs.ip }}
         run: |
-          python3 - <<'EOF'
-          import json, os, sys, urllib.error, urllib.request
+          set -euo pipefail
+          REF="$(echo "$SUPABASE_URL" | sed -E 's#https?://([^.]+)\..*#\1#')"
+          IP_32="$RUNNER_IP/32"
+          BASE="https://api.supabase.com/v1/projects/$REF"
 
-          token = os.environ["SUPABASE_ACCESS_TOKEN"]
-          ref = os.environ["SUPABASE_URL"].split("//")[1].split(".")[0]
-          runner = os.environ["RUNNER_IP"] + "/32"
+          CURRENT="$(curl --fail-with-body -sS -A "task-sphere-ci" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "$BASE/network-restrictions")"
+          if echo "$CURRENT" | jq -e --arg ip "$IP_32" \
+            '(.config.dbAllowedCidrs // []) | index($ip)' >/dev/null; then
+            echo "$IP_32 already allowed"
+            exit 0
+          fi
 
-          def api(method, path, body=None):
-              req = urllib.request.Request(
-                  f"https://api.supabase.com/v1/projects/{ref}/{path}",
-                  method=method,
-              )
-              req.add_header("Authorization", f"Bearer {token}")
-              req.add_header("Content-Type", "application/json")
-              data = json.dumps(body).encode() if body is not None else None
-              try:
-                  with urllib.request.urlopen(req, data=data) as resp:
-                      return json.load(resp)
-              except urllib.error.HTTPError as e:
-                  print(f"Supabase API {e.code} on {method} {path}: "
-                        f"{e.read().decode(errors='replace')[:500]}")
-                  print("Check the SUPABASE_ACCESS_TOKEN and SUPABASE_URL secrets.")
-                  sys.exit(1)
-
-          current = api("GET", "network-restrictions")
-          existing = current.get("config", {}).get("dbAllowedCidrs", []) or []
-          if runner in existing:
-              print(f"{runner} already allowed")
-          else:
-              applied = api("POST", "network-restrictions/apply",
-                            {"db_allowed_cidrs": existing + [runner]})
-              allowed = applied.get("config", {}).get("dbAllowedCidrs", []) or []
-              if runner not in allowed:
-                  print(f"ERROR: {runner} was not applied; allowlist is {allowed}")
-                  sys.exit(1)
-              print(f"Authorized {runner}")
-          EOF
+          NEW="$(echo "$CURRENT" | jq -c --arg ip "$IP_32" \
+            '(.config.dbAllowedCidrs // []) + [$ip]')"
+          APPLIED="$(curl --fail-with-body -sS -A "task-sphere-ci" -X POST \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"db_allowed_cidrs\": $NEW}" \
+            "$BASE/network-restrictions/apply")"
+          if echo "$APPLIED" | jq -e --arg ip "$IP_32" \
+            '(.config.dbAllowedCidrs // []) | index($ip)' >/dev/null; then
+            echo "Authorized $IP_32"
+          else
+            echo "ERROR: $IP_32 was not applied; allowlist: $(echo "$APPLIED" | jq -c '.config.dbAllowedCidrs')"
+            exit 1
+          fi
 
       - name: Apply pending migrations
         run: supabase db push --db-url "$SUPABASE_DB_URL"
@@ -81,42 +75,24 @@ jobs:
         env:
           RUNNER_IP: ${{ steps.ip.outputs.ip }}
         run: |
-          python3 - <<'EOF'
-          import json, os, sys, urllib.error, urllib.request
+          set -euo pipefail
+          REF="$(echo "$SUPABASE_URL" | sed -E 's#https?://([^.]+)\..*#\1#')"
+          IP_32="$RUNNER_IP/32"
+          BASE="https://api.supabase.com/v1/projects/$REF"
 
-          token = os.environ["SUPABASE_ACCESS_TOKEN"]
-          ref = os.environ["SUPABASE_URL"].split("//")[1].split(".")[0]
-          runner = os.environ["RUNNER_IP"] + "/32"
-
-          def api(method, path, body=None):
-              req = urllib.request.Request(
-                  f"https://api.supabase.com/v1/projects/{ref}/{path}",
-                  method=method,
-              )
-              req.add_header("Authorization", f"Bearer {token}")
-              req.add_header("Content-Type", "application/json")
-              data = json.dumps(body).encode() if body is not None else None
-              try:
-                  with urllib.request.urlopen(req, data=data) as resp:
-                      return json.load(resp)
-              except urllib.error.HTTPError as e:
-                  print(f"Supabase API {e.code} on {method} {path}: "
-                        f"{e.read().decode(errors='replace')[:500]}")
-                  print("Remove the runner IP manually under Network Restrictions if needed.")
-                  sys.exit(1)
-
-          current = api("GET", "network-restrictions")
-          remaining = [
-              c
-              for c in current.get("config", {}).get("dbAllowedCidrs", []) or []
-              if c != runner
-          ]
-          applied = api("POST", "network-restrictions/apply",
-                        {"db_allowed_cidrs": remaining})
-          allowed = applied.get("config", {}).get("dbAllowedCidrs", []) or []
-          if runner in allowed:
-              print(f"WARNING: {runner} still allowed; remove it manually under "
-                    "Network Restrictions.")
-              sys.exit(1)
-          print(f"Removed {runner}; {len(remaining)} entries remain")
-          EOF
+          CURRENT="$(curl --fail-with-body -sS -A "task-sphere-ci" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "$BASE/network-restrictions")"
+          REMAINING="$(echo "$CURRENT" | jq -c --arg ip "$IP_32" \
+            '[.config.dbAllowedCidrs[] | select(. != $ip)]')"
+          APPLIED="$(curl --fail-with-body -sS -A "task-sphere-ci" -X POST \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"db_allowed_cidrs\": $REMAINING}" \
+            "$BASE/network-restrictions/apply")"
+          if echo "$APPLIED" | jq -e --arg ip "$IP_32" \
+            '(.config.dbAllowedCidrs // []) | index($ip)' >/dev/null; then
+            echo "WARNING: $IP_32 still allowed; remove it manually under Network Restrictions."
+            exit 1
+          fi
+          echo "Removed $IP_32; $(echo "$APPLIED" | jq -c '.config.dbAllowedCidrs | length') entries remain"

@@ -103,7 +103,7 @@ If you configured Supabase's "Deploy to production" integration from the dashboa
 
 **Troubleshooting**
 
-1. The **Temporarily authorize the runner's IP** step fails with `HTTP Error 403` → your access token is being rejected. Verify it from your machine (replace `<TOKEN>` and `<YOUR-REF>`; the ref is the code before `.supabase.co` in your Project URL):
+1. The **Temporarily authorize the runner's IP** step fails with `error code: 1010` → Cloudflare blocked the HTTP client (this used to happen with Python's `urllib`; the workflow now uses `curl`, which is not blocked). If it recurs, the `SUPABASE_ACCESS_TOKEN` or `SUPABASE_URL` secret may be misconfigured. Verify the token from your machine (replace `<TOKEN>` and `<YOUR-REF>`; the ref is the code before `.supabase.co` in your Project URL):
    ```bash
    curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer <TOKEN>" https://api.supabase.com/v1/projects/<YOUR-REF>/network-restrictions
    ```
