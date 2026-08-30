@@ -82,8 +82,9 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
             ),
             const SizedBox(height: 16),
 
-            if (!isDemoUser) ...[
-              // Create New Workspace
+            if (!isDemoUser && (allWs.isEmpty || isAdmin)) ...[
+              // Create New Workspace (everyone without a workspace needs the
+              // entry point; members of existing ones are admin-only).
               Row(
                 children: [
                   Expanded(
@@ -115,7 +116,8 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
                 ],
               ),
               const Divider(height: 32),
-
+            ],
+            if (!isDemoUser && isAdmin) ...[
               // Invite Member & Assign Role
               const Text('Invite Member to Workspace', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),

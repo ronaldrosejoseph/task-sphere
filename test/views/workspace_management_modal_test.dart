@@ -29,7 +29,20 @@ class _FakeWorkspaceNotifier extends WorkspaceNotifier {
 }
 
 WorkspaceState _state() {
-  final ws = Workspace(id: 'ws-1', name: 'Team', adminId: 'a');
+  final ws = Workspace(
+    id: 'ws-1',
+    name: 'Team',
+    adminId: 'a',
+    members: [
+      WorkspaceMember(
+        id: 'm-1',
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        email: 'u@x.com',
+        role: UserRole.admin,
+      ),
+    ],
+  );
   return WorkspaceState(
     activeWorkspace: ws,
     allWorkspaces: [ws],
@@ -70,6 +83,28 @@ void main() {
     expect(find.text('New workspace name...'), findsOneWidget);
     expect(find.text('Invite Member to Workspace'), findsOneWidget);
     expect(find.text('Current Members'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('user with no workspace can still create their first one', (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        authProvider.overrideWith(
+          () => _FixedAuthNotifier(
+            UserProfile(id: 'u-1', email: 'u@x.com', displayName: 'U'),
+          ),
+        ),
+        activeWorkspaceProvider.overrideWith(
+          () => _FakeWorkspaceNotifier(WorkspaceState.empty()),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await _pumpModal(tester, container);
+
+    expect(find.text('New workspace name...'), findsOneWidget);
+    expect(find.text('Invite Member to Workspace'), findsNothing);
+    expect(find.text('Delete Workspace'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -199,6 +234,8 @@ void main() {
 
     expect(find.text('Danger Zone'), findsNothing);
     expect(find.text('Delete Workspace'), findsNothing);
+    expect(find.text('New workspace name...'), findsNothing);
+    expect(find.text('Invite Member to Workspace'), findsNothing);
     expect(find.text('Switch Workspace'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

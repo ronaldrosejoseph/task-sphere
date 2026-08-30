@@ -18,13 +18,14 @@ class _FixedAuthNotifier extends AuthNotifier {
 ProviderContainer makeContainer() {
   final container = ProviderContainer(
     overrides: [
-      // A real signed-in user (not the demo sandbox user, whose mutations
-      // are blocked).
+      // The demo workspace's admin, with the demo sandbox guards disabled,
+      // so admin-only workspace mutations can be exercised.
       authProvider.overrideWith(
         () => _FixedAuthNotifier(
-          UserProfile(id: 'u-1', email: 'u@x.com', displayName: 'U'),
+          UserProfile(id: 'demo-user-123', email: 'u@x.com', displayName: 'U'),
         ),
       ),
+      isDemoUserProvider.overrideWith((ref) => false),
     ],
   );
   addTearDown(container.dispose);

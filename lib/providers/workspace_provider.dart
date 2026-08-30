@@ -222,6 +222,11 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   Future<void> createWorkspace(String name, String adminId, String adminEmail) async {
     // The demo sandbox cannot create workspaces; the UI hides the entry point.
     if (ref.read(isDemoUserProvider)) return;
+    // Only admins may create additional workspaces; users who belong to no
+    // workspace can still create their first one.
+    if (state.allWorkspaces.isNotEmpty && !isAdmin(ref.read(authProvider))) {
+      return;
+    }
     final repo = _repository;
     if (repo.isPersistent) {
       final created = await repo.createWorkspace(
@@ -358,6 +363,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
 
   // --- Admin Lane Customization ---
   Future<void> addLane(String title, Color color) async {
+    if (!isAdmin(ref.read(authProvider))) return;
     if (title.trim().isEmpty) return;
     final hex = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
     // New lanes appear at the bottom of the board.
@@ -401,6 +407,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   }
 
   void updateLane(String laneId, String newTitle, Color newColor) {
+    if (!isAdmin(ref.read(authProvider))) return;
     if (newTitle.trim().isEmpty) return;
     final hex = '#${newColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
     KanbanLane? updated;
@@ -420,6 +427,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   }
 
   void reorderLanes(int oldIndex, int newIndex) {
+    if (!isAdmin(ref.read(authProvider))) return;
     final list = List<KanbanLane>.from(state.lanes);
     final item = list.removeAt(oldIndex);
     list.insert(newIndex, item);
@@ -441,6 +449,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   }
 
   void deleteLane(String laneId) {
+    if (!isAdmin(ref.read(authProvider))) return;
     final updatedLanes = state.lanes.where((l) => l.id != laneId).toList();
     state = state.copyWith(lanes: updatedLanes);
     _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
@@ -456,6 +465,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
 
   // --- Workspace Settings ---
   void updateAutoArchiveThreshold(int days) {
+    if (!isAdmin(ref.read(authProvider))) return;
     final updatedWs = state.activeWorkspace.copyWith(autoArchiveDays: days);
     state = state.copyWith(
       activeWorkspace: updatedWs,
@@ -470,6 +480,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   }
 
   void updateShowArchivedTasks(bool show) {
+    if (!isAdmin(ref.read(authProvider))) return;
     final updatedWs = state.activeWorkspace.copyWith(showArchivedTasks: show);
     state = state.copyWith(
       activeWorkspace: updatedWs,
@@ -486,6 +497,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   void inviteMember(String email, UserRole role) {
     // The demo sandbox cannot invite members; the UI hides the entry point.
     if (ref.read(isDemoUserProvider)) return;
+    if (!isAdmin(ref.read(authProvider))) return;
     final newMember = WorkspaceMember(
       id: _uuid.v4(),
       workspaceId: state.activeWorkspace.id,

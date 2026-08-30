@@ -32,13 +32,14 @@ void main() {
 
     final container = ProviderContainer(
       overrides: [
-        // A real signed-in user so task creation works (the demo sandbox
-        // user cannot create tasks).
+        // The demo workspace's admin, with the demo sandbox guards
+        // disabled, so lane mutations (admin-only) and task creation work.
         authProvider.overrideWith(
           () => _FixedAuthNotifier(
-            UserProfile(id: 'u-1', email: 'u@x.com', displayName: 'U'),
+            UserProfile(id: 'demo-user-123', email: 'u@x.com', displayName: 'U'),
           ),
         ),
+        isDemoUserProvider.overrideWith((ref) => false),
       ],
     );
     addTearDown(container.dispose);

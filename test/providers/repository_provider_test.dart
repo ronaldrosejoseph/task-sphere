@@ -92,7 +92,20 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
     required String adminEmail,
   }) async {
     createCalls += 1;
-    final workspace = Workspace(id: 'ws-remote', name: name, adminId: adminId);
+    final workspace = Workspace(
+      id: 'ws-remote',
+      name: name,
+      adminId: adminId,
+      members: [
+        WorkspaceMember(
+          id: 'm-1',
+          workspaceId: 'ws-remote',
+          userId: adminId,
+          email: adminEmail,
+          role: UserRole.admin,
+        ),
+      ],
+    );
     workspaces = [workspace, ...workspaces];
     lanes = [
       KanbanLane(id: 'rl-1', workspaceId: 'ws-remote', title: 'To Do', orderIndex: 0, isDefault: true),

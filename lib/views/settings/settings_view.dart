@@ -14,6 +14,9 @@ class SettingsView extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     final isDemoUser = ref.watch(isDemoUserProvider);
     final workspaceState = ref.watch(activeWorkspaceProvider);
+    final isAdmin = ref
+        .read(activeWorkspaceProvider.notifier)
+        .isAdmin(ref.watch(authProvider));
     final autoArchiveDays = workspaceState.activeWorkspace.autoArchiveDays;
     final showArchived = workspaceState.activeWorkspace.showArchivedTasks;
 
@@ -25,6 +28,8 @@ class SettingsView extends ConsumerWidget {
         Text('Configure kanban lanes, auto-expiry task archiving, themes, and serverless sync accounts.', style: TextStyle(color: Colors.grey[400])),
         const SizedBox(height: 24),
 
+        // Admin-only: lanes and archiving are workspace settings.
+        if (isAdmin) ...[
         // Manage Lanes
         Card(
           child: ListTile(
@@ -97,6 +102,7 @@ class SettingsView extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 20),
+        ],
 
         // Theme Toggle
         Card(
