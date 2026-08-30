@@ -192,6 +192,13 @@ void main() {
       of: find.widgetWithText(Card, 'In Review'),
       matching: find.byIcon(Icons.drag_indicator),
     );
+    // The handle shows a grab cursor so it reads as draggable on mouse.
+    final mouseRegion = find.ancestor(
+      of: handle,
+      matching: find.byType(MouseRegion),
+    ).first;
+    expect(tester.widget<MouseRegion>(mouseRegion).cursor, SystemMouseCursors.grab);
+
     await tester.timedDrag(handle, const Offset(0, 100), const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
 

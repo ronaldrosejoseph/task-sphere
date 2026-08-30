@@ -134,7 +134,10 @@ class _LaneManagerDialogState extends ConsumerState<LaneManagerDialog> {
                         children: [
                           ReorderableDragStartListener(
                             index: index,
-                            child: const Icon(Icons.drag_indicator, color: Colors.grey),
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.grab,
+                              child: const Icon(Icons.drag_indicator, color: Colors.grey),
+                            ),
                           ),
                           const SizedBox(width: 8),
                           Container(
