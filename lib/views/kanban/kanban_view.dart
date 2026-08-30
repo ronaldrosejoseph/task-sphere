@@ -64,6 +64,12 @@ class KanbanView extends ConsumerWidget {
       return true;
     }).toList();
 
+    if (workspaceState.isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     if (!workspaceState.hasWorkspace) {
       return const _NoWorkspacePrompt();
     }
