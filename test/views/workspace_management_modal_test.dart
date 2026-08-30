@@ -150,10 +150,10 @@ void main() {
     addTearDown(container.dispose);
     await pumpPushedModal(tester, container);
 
-    // The danger zone sits below the fold in the members list; scroll it in.
+    // The delete button sits below the fold in the members list; scroll it in.
     await tester.drag(find.byType(ListView).last, const Offset(0, -250));
     await tester.pumpAndSettle();
-    expect(find.text('Danger Zone'), findsOneWidget);
+    expect(find.text('Delete Workspace'), findsOneWidget);
     await tester.tap(find.text('Delete Workspace'));
     await tester.pumpAndSettle();
 

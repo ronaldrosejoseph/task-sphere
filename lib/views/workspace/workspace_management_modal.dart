@@ -198,39 +198,18 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.redAccent.withValues(alpha: 0.35)),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 18),
-                              SizedBox(width: 8),
-                              Text(
-                                'Danger Zone',
-                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.redAccent),
-                              ),
-                            ],
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _confirmDeleteWorkspace,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.redAccent,
+                            side: const BorderSide(color: Colors.redAccent),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Delete this workspace and everything in it. Tasks, lanes, and members are permanently removed.',
-                            style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: _confirmDeleteWorkspace,
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.redAccent,
-                                side: const BorderSide(color: Colors.redAccent),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                              icon: const Icon(Icons.delete_forever_outlined, size: 18),
-                              label: const Text('Delete Workspace'),
-                            ),
-                          ),
-                        ],
+                          icon: const Icon(Icons.delete_forever_outlined, size: 18),
+                          label: const Text('Delete Workspace'),
+                        ),
                       ),
                     ),
                   ],
