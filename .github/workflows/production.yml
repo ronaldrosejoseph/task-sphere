@@ -37,9 +37,6 @@ jobs:
           if [ -z "${SUPABASE_DB_URL:-}" ] || [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Notice: SUPABASE_DB_URL or SUPABASE_ACCESS_TOKEN not set - skipping database migration."
-          elif echo "$SUPABASE_DB_URL" | grep -q "db\.[^.]*\.supabase\.co"; then
-            echo "::error::SUPABASE_DB_URL is using the Direct Connection string ('db.<ref>.supabase.co'). Supabase direct endpoints are IPv6-only, which causes connection failures on GitHub Actions runners. Please update the SUPABASE_DB_URL secret to use the Session Pooler URI: Go to Supabase Dashboard -> Project Settings -> Database -> Connection string -> Session pooler -> URI (host: aws-0-<region>.pooler.supabase.com, port: 5432)."
-            exit 1
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
@@ -94,8 +91,22 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{\"db_allowed_cidrs\": $NEW}" \
             "$BASE/network-restrictions/apply")"
-
+          # Verify the IP was actually applied
+          APPLIED_CIDRS="$(echo "$APPLIED" | jq -c '.config.dbAllowedCidrs // []')"
+          echo "Applied allowlist: $APPLIED_CIDRS"
+          for IP in $(echo "$TO_ADD" | jq -r '.[]'); do
+            if ! echo "$APPLIED_CIDRS" | jq -e --arg ip "$IP" 'index($ip)' >/dev/null; then
+              echo "::error::Failed to add $IP to the allowlist"
+              exit 1
+            fi
+          done
           echo "Authorized IPs: $TO_ADD"
+
+      - name: Wait for network restrictions to propagate
+        if: steps.check-secrets.outputs.skip == 'false'
+        run: |
+          echo "Waiting 30 seconds for network restriction changes to propagate to the pooler..."
+          sleep 30
 
       - name: Apply pending migrations
         if: steps.check-secrets.outputs.skip == 'false'
