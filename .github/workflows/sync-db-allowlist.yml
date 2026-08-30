@@ -1,0 +1,51 @@
+name: Sync GitHub Actions IPs to Database Allowlist
+
+# GitHub-hosted runners connect from GitHub's published IP ranges, which
+# the project's network restriction blocks by default. This job keeps the
+# Supabase IPv4 allowlist in sync with those ranges (via the Management
+# API), preserving any existing entries (e.g. the owner's home IP). Run it
+# manually once after setup, and it refreshes itself weekly.
+on:
+  schedule:
+    - cron: '23 4 * * 1' # Mondays 04:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+    steps:
+      - name: Update the database allowlist
+        run: |
+          python3 - <<'EOF'
+          import json, os, urllib.request
+
+          token = os.environ["SUPABASE_ACCESS_TOKEN"]
+          ref = os.environ["SUPABASE_URL"].split("//")[1].split(".")[0]
+
+          def api(method, path, body=None):
+              req = urllib.request.Request(
+                  f"https://api.supabase.com/v1/projects/{ref}/{path}",
+                  method=method,
+              )
+              req.add_header("Authorization", f"Bearer {token}")
+              req.add_header("Content-Type", "application/json")
+              data = json.dumps(body).encode() if body is not None else None
+              with urllib.request.urlopen(req, data=data) as resp:
+                  return json.load(resp)
+
+          meta = json.load(urllib.request.urlopen("https://api.github.com/meta"))
+          github = [c for c in meta["actions"] if ":" not in c]  # IPv4 only
+
+          current = api("GET", "network-restrictions")
+          existing = current.get("config", {}).get("dbAllowedCidrs", []) or []
+          merged = sorted(set(existing) | set(github))
+
+          api("PUT", "network-restrictions", {"dbAllowedCidrs": merged})
+          print(f"Allowlist updated: {len(existing)} -> {len(merged)} entries")
+          EOF

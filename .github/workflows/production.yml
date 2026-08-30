@@ -1,9 +1,10 @@
 name: Deploy Migrations to Production
 
 # Applies pending supabase/migrations/*.sql files to the production
-# database on every merge to main. Connects directly with the project's
-# database connection string (SUPABASE_DB_URL secret) — project-scoped, no
-# account-level access token needed.
+# database on every merge to main, using the official Supabase CLI:
+# link the project with the access token, then `supabase db push` with
+# the database password. The project ref is derived from the SUPABASE_URL
+# secret so it is never committed to the repo.
 on:
   push:
     branches: [main]
@@ -15,7 +16,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
     steps:
       - uses: actions/checkout@v5
 
@@ -23,5 +26,12 @@ jobs:
         with:
           version: latest
 
+      - name: Derive the project ref from SUPABASE_URL
+        id: ref
+        run: echo "ref=$(echo "$SUPABASE_URL" | sed -E 's#https?://([^.]+)\..*#\1#')" >> "$GITHUB_OUTPUT"
+
+      - name: Link the production project
+        run: supabase link --project-ref ${{ steps.ref.outputs.ref }}
+
       - name: Apply pending migrations
-        run: supabase db push --db-url "$SUPABASE_DB_URL"
+        run: supabase db push

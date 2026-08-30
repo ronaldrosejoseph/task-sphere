@@ -55,30 +55,41 @@ Task Sphere is a modern, high-performance task management application for mobile
 
 Every time you merge code into `main`, GitHub automatically applies any database
 changes (migrations) to your Supabase project — you never need to paste SQL
-again. This needs **one secret** set once (about 5 minutes). If you skip this,
+again. This needs **two secrets** set once (about 5 minutes). If you skip this,
 database changes must be applied by hand in the SQL editor instead.
 
-**Step 1 — Copy your database connection string**
+**Step 1 — Create a Supabase access token**
 
-1. Open your [Supabase dashboard](https://supabase.com/dashboard) and select the `task-sphere` project.
-2. Click the **gear icon (Project Settings)** in the bottom-left sidebar, then **Database**.
-3. Scroll down to **Connection string**, choose **Session pooler** (port 5432 — migrations need a stable session, not the transaction pooler) and the **URI** option.
-4. Copy the string — it looks like this:
-   `postgresql://postgres.abcd1234:[YOUR-PASSWORD]@aws-0-us-east-1.pooler.supabase.com:5432/postgres`
-5. Replace `[YOUR-PASSWORD]` with your real database password (the one you chose when creating the project — forgotten it? **Project Settings → Database → Reset database password**).
-   - If your password contains special characters (`@`, `:`, `/`, `#`, `?`), they must be URL-encoded (e.g. `@` becomes `%40`). The easiest path: reset the password to one with only letters and numbers.
-6. This string is **secret** — it contains your database credentials. It goes only into a GitHub secret below, never into any file in the repo (the repo is safe to make public).
+1. In the Supabase dashboard, click your **account avatar** (top-left corner) → **Account settings**.
+2. Click **Access Tokens** → **Generate new token**.
+3. Name it `GitHub Actions` and click **Generate**.
+4. **Copy the token right away** (it starts with `sbp_...`) — it is only shown once. If you lose it, generate a new one.
 
-**Step 2 — Add the secret to GitHub**
+**Step 2 — Add the secrets to GitHub**
 
 1. Go to your repository: `https://github.com/ronaldrosejoseph/task-sphere` → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
-2. Name: `SUPABASE_DB_URL`
-3. Value: the full connection string from Step 1.
-4. Click **Add secret**.
+2. Add these two secrets (the table shows the name on the left, and what to put in the **Value** box on the right):
 
-That's it — no account-level tokens and no project IDs are needed; the deploy connects directly to this one project's database.
+| Secret name | Value to enter |
+|---|---|
+| `SUPABASE_ACCESS_TOKEN` | the token from Step 1 (starts with `sbp_...`) |
+| `SUPABASE_DB_PASSWORD` | the database password you chose when creating the Supabase project. Forgotten it? Supabase dashboard → **Project Settings** → **Database** → **Reset database password** |
 
-**Step 3 — Make sure only one database-deploy workflow exists**
+Your project ID is **not** needed as a secret — the deploy derives it
+automatically from the `SUPABASE_URL` secret you already have, so nothing
+identifying your project is ever stored in the repo.
+
+**Step 3 — Let GitHub's build machines reach your database**
+
+Your Supabase project blocks database connections from unknown IPs (a good
+thing). GitHub's build machines connect from GitHub's own IP ranges, so a
+workflow (`.github/workflows/sync-db-allowlist.yml`) keeps your allowlist
+up to date automatically — it runs every Monday and adds GitHub's published
+ranges while keeping your own entries. Right after setup, run it once
+manually: repo → **Actions** → **Sync GitHub Actions IPs to Database
+Allowlist** → **Run workflow**. Your network restriction stays **on**.
+
+**Step 4 — Make sure only one database-deploy workflow exists**
 
 If you configured Supabase's "Deploy to production" integration from the dashboard, it may have added its own workflow file to the repo. Pull the latest code and check the `.github/workflows/` folder:
 
@@ -86,6 +97,15 @@ If you configured Supabase's "Deploy to production" integration from the dashboa
 - If you also see a file named `production.yaml` (note the `.yaml` ending), delete it and commit the deletion, so the database is never deployed twice.
 
 **Done!** The next time you merge to `main`, the repo's **Actions** tab will show a job named **Deploy Migrations to Production** — it turns green when your database changes have been applied.
+
+**Troubleshooting: "failed to connect to postgres"**
+
+If the deploy still can't connect, the allowlist likely hasn't caught the
+runner's IP yet:
+
+1. Repo → **Actions** → **Sync GitHub Actions IPs to Database Allowlist** → **Run workflow** (it picks up the newest GitHub ranges).
+2. Re-run the failed **Deploy Migrations to Production** run.
+3. If it fails again, the error message in the run will point you at the exact IP — you can add that one range manually under Supabase → **Project Settings** → **Database** → **Network Restrictions** as a temporary fix.
 
 ---
 
