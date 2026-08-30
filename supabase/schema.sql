@@ -201,6 +201,12 @@ CREATE TRIGGER on_auth_user_created
     FOR EACH ROW
     EXECUTE FUNCTION public.backfill_member_user_id();
 
+-- Link any members invited before their first sign-in (idempotent).
+UPDATE public.workspace_members m
+SET user_id = u.id
+FROM auth.users u
+WHERE m.email = u.email AND m.user_id IS NULL;
+
 CREATE OR REPLACE FUNCTION public.is_any_admin()
 RETURNS BOOLEAN
 LANGUAGE sql
