@@ -36,7 +36,7 @@ jobs:
           RUNNER_IP: ${{ steps.ip.outputs.ip }}
         run: |
           python3 - <<'EOF'
-          import json, os, urllib.request
+          import json, os, sys, urllib.error, urllib.request
 
           token = os.environ["SUPABASE_ACCESS_TOKEN"]
           ref = os.environ["SUPABASE_URL"].split("//")[1].split(".")[0]
@@ -50,15 +50,26 @@ jobs:
               req.add_header("Authorization", f"Bearer {token}")
               req.add_header("Content-Type", "application/json")
               data = json.dumps(body).encode() if body is not None else None
-              with urllib.request.urlopen(req, data=data) as resp:
-                  return json.load(resp)
+              try:
+                  with urllib.request.urlopen(req, data=data) as resp:
+                      return json.load(resp)
+              except urllib.error.HTTPError as e:
+                  print(f"Supabase API {e.code} on {method} {path}: "
+                        f"{e.read().decode(errors='replace')[:500]}")
+                  print("Check the SUPABASE_ACCESS_TOKEN and SUPABASE_URL secrets.")
+                  sys.exit(1)
 
           current = api("GET", "network-restrictions")
           existing = current.get("config", {}).get("dbAllowedCidrs", []) or []
           if runner in existing:
               print(f"{runner} already allowed")
           else:
-              api("PUT", "network-restrictions", {"dbAllowedCidrs": existing + [runner]})
+              applied = api("POST", "network-restrictions/apply",
+                            {"db_allowed_cidrs": existing + [runner]})
+              allowed = applied.get("config", {}).get("dbAllowedCidrs", []) or []
+              if runner not in allowed:
+                  print(f"ERROR: {runner} was not applied; allowlist is {allowed}")
+                  sys.exit(1)
               print(f"Authorized {runner}")
           EOF
 
@@ -71,7 +82,7 @@ jobs:
           RUNNER_IP: ${{ steps.ip.outputs.ip }}
         run: |
           python3 - <<'EOF'
-          import json, os, urllib.request
+          import json, os, sys, urllib.error, urllib.request
 
           token = os.environ["SUPABASE_ACCESS_TOKEN"]
           ref = os.environ["SUPABASE_URL"].split("//")[1].split(".")[0]
@@ -85,8 +96,14 @@ jobs:
               req.add_header("Authorization", f"Bearer {token}")
               req.add_header("Content-Type", "application/json")
               data = json.dumps(body).encode() if body is not None else None
-              with urllib.request.urlopen(req, data=data) as resp:
-                  return json.load(resp)
+              try:
+                  with urllib.request.urlopen(req, data=data) as resp:
+                      return json.load(resp)
+              except urllib.error.HTTPError as e:
+                  print(f"Supabase API {e.code} on {method} {path}: "
+                        f"{e.read().decode(errors='replace')[:500]}")
+                  print("Remove the runner IP manually under Network Restrictions if needed.")
+                  sys.exit(1)
 
           current = api("GET", "network-restrictions")
           remaining = [
@@ -94,6 +111,12 @@ jobs:
               for c in current.get("config", {}).get("dbAllowedCidrs", []) or []
               if c != runner
           ]
-          api("PUT", "network-restrictions", {"dbAllowedCidrs": remaining})
+          applied = api("POST", "network-restrictions/apply",
+                        {"db_allowed_cidrs": remaining})
+          allowed = applied.get("config", {}).get("dbAllowedCidrs", []) or []
+          if runner in allowed:
+              print(f"WARNING: {runner} still allowed; remove it manually under "
+                    "Network Restrictions.")
+              sys.exit(1)
           print(f"Removed {runner}; {len(remaining)} entries remain")
           EOF

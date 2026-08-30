@@ -101,9 +101,14 @@ If you configured Supabase's "Deploy to production" integration from the dashboa
 
 **Done!** The next time you merge to `main`, the repo's **Actions** tab will show a job named **Deploy Migrations to Production** — it turns green when your database changes have been applied.
 
-**Troubleshooting: "failed to connect to postgres"**
+**Troubleshooting**
 
-1. Open the failed run and check the **Temporarily authorize the runner's IP** step — if it shows an error, your `SUPABASE_ACCESS_TOKEN` or `SUPABASE_DB_URL` secret is wrong.
+1. The **Temporarily authorize the runner's IP** step fails with `HTTP Error 403` → your access token is being rejected. Verify it from your machine (replace `<TOKEN>` and `<YOUR-REF>`; the ref is the code before `.supabase.co` in your Project URL):
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer <TOKEN>" https://api.supabase.com/v1/projects/<YOUR-REF>/network-restrictions
+   ```
+   - `200` → the token is fine; re-run the workflow.
+   - `401`/`403` → the token value is wrong or belongs to another account. Generate a fresh token (account avatar → **Account settings** → **Access Tokens**) and update the `SUPABASE_ACCESS_TOKEN` secret.
 2. If the authorize step succeeded but the connection still failed, simply **re-run the workflow** — the next runner gets a fresh IP and a fresh authorization.
 3. The last step, **Remove the runner's IP access**, always runs; if it ever fails, the runner's IP stays on the allowlist — remove it manually under Supabase → **Project Settings** → **Database** → **Network Restrictions**.
 
