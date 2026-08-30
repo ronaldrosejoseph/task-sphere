@@ -29,8 +29,8 @@ Task Sphere is a modern, high-performance task management application for mobile
      `.github/workflows/production.yml` runs `supabase db push` on every merge
      to `main`, so new migrations deploy themselves. Configure the
      [Supabase "Deploy to production"](https://supabase.com/docs/guides/deployment/database-push)
-     integration with `main` as the production branch, set the repo secrets
-     (see CLAUDE.md), and fill `project_id` in `supabase/config.toml`.
+     integration with `main` as the production branch, then follow the
+     **"Automatic database deployments — one-time setup"** steps below.
    - **One-off setup:** open the **SQL Editor** and run the baseline
      migration `supabase/migrations/20260830120000_baseline.sql` (idempotent,
      safe to re-run).
@@ -50,6 +50,50 @@ Task Sphere is a modern, high-performance task management application for mobile
 7. Go to **Project Settings -> API** in Supabase and copy your:
    - `Project URL` (e.g., `https://xyzcompany.supabase.co`)
    - `anon public key` (e.g., `eyJhbGciOi...`)
+
+### Automatic database deployments — one-time setup (recommended)
+
+Every time you merge code into `main`, GitHub automatically applies any database
+changes (migrations) to your Supabase project — you never need to paste SQL
+again. This needs three small things set once (about 10 minutes). If you skip
+this, database changes must be applied by hand in the SQL editor instead.
+
+**Step 1 — Find your Project Ref**
+
+1. Open your [Supabase dashboard](https://supabase.com/dashboard) and select the `task-sphere` project.
+2. Click the **gear icon (Project Settings)** in the bottom-left sidebar, then **API**.
+3. Copy the **Project URL** (e.g., `https://abcd1234.supabase.co`).
+4. Your **Project Ref** is the short code before `.supabase.co` — in this example it is `abcd1234`.
+5. Open the file `supabase/config.toml` in this repo and change the line
+   `project_id = "REPLACE_WITH_PROJECT_REF"` to your ref, e.g.
+   `project_id = "abcd1234"`. Save the file and commit it.
+
+**Step 2 — Create a Supabase access token**
+
+1. In the Supabase dashboard, click your **account avatar** (top-left corner) → **Account settings**.
+2. Click **Access Tokens** → **Generate new token**.
+3. Name it `GitHub Actions` and click **Generate**.
+4. **Copy the token right away** (it starts with `sbp_...`) — it is only shown once. If you lose it, generate a new one.
+
+**Step 3 — Add the secrets to GitHub**
+
+1. Go to your repository: `https://github.com/ronaldrosejoseph/task-sphere` → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
+2. Add these three secrets (the table shows the name on the left, and what to put in the **Value** box on the right):
+
+| Secret name | Value to enter |
+|---|---|
+| `SUPABASE_PROJECT_ID` | your **Project Ref** from Step 1 (e.g., `abcd1234`) |
+| `SUPABASE_ACCESS_TOKEN` | the token from Step 2 (starts with `sbp_...`) |
+| `SUPABASE_DB_PASSWORD` | the database password you chose when creating the Supabase project. Forgotten it? Supabase dashboard → **Project Settings** → **Database** → **Reset database password** |
+
+**Step 4 — Make sure only one database-deploy workflow exists**
+
+If you configured Supabase's "Deploy to production" integration from the dashboard, it may have added its own workflow file to the repo. Pull the latest code and check the `.github/workflows/` folder:
+
+- Keep `.github/workflows/production.yml` (the one this README documents).
+- If you also see a file named `production.yaml` (note the `.yaml` ending), delete it and commit the deletion, so the database is never deployed twice.
+
+**Done!** The next time you merge to `main`, the repo's **Actions** tab will show a job named **Deploy Migrations to Production** — it turns green when your database changes have been applied.
 
 ---
 
