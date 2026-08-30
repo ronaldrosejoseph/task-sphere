@@ -414,12 +414,13 @@ void main() {
       final notifier = container.read(activeWorkspaceProvider.notifier);
       await notifier.createWorkspace('Team', 'a', 'a@x.com');
 
-      notifier.addLane('In Review', const Color(0xFFEC4899));
-      await _settle();
+      await notifier.addLane('In Review', const Color(0xFFEC4899));
 
       expect(repo.laneAddCalls, 1);
-      // New lanes are appended at the bottom of the board.
+      // New lanes are appended at the bottom of the board, and the
+      // authoritative re-fetch keeps them there.
       expect(notifier.state.lanes.last.title, 'In Review');
+      expect(notifier.state.lanes.first.title, 'To Do');
     });
   });
 

@@ -352,11 +352,10 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   }
 
   // --- Admin Lane Customization ---
-  void addLane(String title, Color color) {
+  Future<void> addLane(String title, Color color) async {
     if (title.trim().isEmpty) return;
     final hex = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
-    // New lanes appear at the bottom; existing orderIndex values are
-    // already contiguous, so only the new lane is persisted.
+    // New lanes appear at the bottom of the board.
     final newLane = KanbanLane(
       id: _uuid.v4(),
       workspaceId: state.activeWorkspace.id,
@@ -368,8 +367,24 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
 
     state = state.copyWith(lanes: [...state.lanes, newLane]);
     _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
-    if (_repository.isPersistent) {
-      unawaited(_repository.addLane(newLane));
+    final repo = _repository;
+    if (!repo.isPersistent) return;
+
+    // Persist the lane, then make order_index contiguous and re-fetch the
+    // authoritative order. Awaiting each step avoids the realtime reload
+    // racing an in-flight write and also heals stale order_index values.
+    await repo.addLane(newLane);
+    final reindexed = state.lanes
+        .asMap()
+        .entries
+        .map((e) => e.value.copyWith(orderIndex: e.key))
+        .toList();
+    await repo.reorderLanes(reindexed);
+    final reloaded = await repo.fetchLanes(state.activeWorkspace.id);
+    if (!ref.mounted || state.activeWorkspace.id != newLane.workspaceId) return;
+    if (reloaded != null) {
+      state = state.copyWith(lanes: reloaded);
+      _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
     }
   }
 

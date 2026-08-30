@@ -213,6 +213,31 @@ void main() {
     expect(titles, ['To Do', 'Partially Done', 'In Progress', 'Done', 'Wont Do', 'In Review']);
   });
 
+  testWidgets('editing a lane can change its color', (tester) async {
+    final container = await pumpDialog(tester);
+    final toDoCard = find.widgetWithText(Card, 'To Do');
+    final toDoEditIcon =
+        find.descendant(of: toDoCard, matching: find.byIcon(Icons.edit));
+    await tester.ensureVisible(toDoEditIcon);
+    await tester.pumpAndSettle();
+    await tester.tap(toDoEditIcon);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit To Do'), findsOneWidget);
+
+    // Pick the pink preset swatch, then save.
+    await tester.tap(find.byKey(const ValueKey('edit-color-ffec4899')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    final lane = container
+        .read(activeWorkspaceProvider)
+        .lanes
+        .firstWhere((l) => l.title == 'To Do');
+    expect(lane.colorHex, '#EC4899');
+  });
+
   testWidgets('editing a lane requires a non-empty name', (tester) async {
     await pumpDialog(tester);
 

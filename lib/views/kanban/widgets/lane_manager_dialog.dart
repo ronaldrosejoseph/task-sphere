@@ -345,14 +345,32 @@ class _LaneManagerDialogState extends ConsumerState<LaneManagerDialog> {
                   onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 16),
-                Row(
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Accent Color: ', style: TextStyle(fontSize: 13)),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
                   children: [
-                    const Text('Accent Color: '),
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(color: editColor, shape: BoxShape.circle),
-                    ),
+                    for (final color in _presetColors)
+                      GestureDetector(
+                        key: ValueKey('edit-color-${color.toARGB32().toRadixString(16)}'),
+                        onTap: () => setState(() => editColor = color),
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: editColor == color ? Colors.white : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ],
