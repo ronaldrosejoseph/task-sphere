@@ -1,9 +1,11 @@
 name: Deploy Migrations to Production
 
 # Applies pending supabase/migrations/*.sql files to the production
-# database on every merge to main. Connects directly with the project's
-# database connection string (SUPABASE_DB_URL secret) — project-scoped, no
-# account-level access token needed.
+# database on every merge to main. The project's network restriction stays
+# ON: this job temporarily authorizes the runner's own public IP via the
+# Supabase Management API, applies migrations over the direct connection
+# string, and removes the IP again in a cleanup step that always runs
+# (even when migrations fail).
 on:
   push:
     branches: [main]
@@ -15,7 +17,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
     steps:
       - uses: actions/checkout@v5
 
@@ -23,5 +27,73 @@ jobs:
         with:
           version: latest
 
+      - name: Get the runner's public IP
+        id: ip
+        run: echo "ip=$(curl -4 -s https://api.ipify.org)" >> "$GITHUB_OUTPUT"
+
+      - name: Temporarily authorize the runner's IP
+        env:
+          RUNNER_IP: ${{ steps.ip.outputs.ip }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, urllib.request
+
+          token = os.environ["SUPABASE_ACCESS_TOKEN"]
+          ref = os.environ["SUPABASE_URL"].split("//")[1].split(".")[0]
+          runner = os.environ["RUNNER_IP"] + "/32"
+
+          def api(method, path, body=None):
+              req = urllib.request.Request(
+                  f"https://api.supabase.com/v1/projects/{ref}/{path}",
+                  method=method,
+              )
+              req.add_header("Authorization", f"Bearer {token}")
+              req.add_header("Content-Type", "application/json")
+              data = json.dumps(body).encode() if body is not None else None
+              with urllib.request.urlopen(req, data=data) as resp:
+                  return json.load(resp)
+
+          current = api("GET", "network-restrictions")
+          existing = current.get("config", {}).get("dbAllowedCidrs", []) or []
+          if runner in existing:
+              print(f"{runner} already allowed")
+          else:
+              api("PUT", "network-restrictions", {"dbAllowedCidrs": existing + [runner]})
+              print(f"Authorized {runner}")
+          EOF
+
       - name: Apply pending migrations
         run: supabase db push --db-url "$SUPABASE_DB_URL"
+
+      - name: Remove the runner's IP access
+        if: always()
+        env:
+          RUNNER_IP: ${{ steps.ip.outputs.ip }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, urllib.request
+
+          token = os.environ["SUPABASE_ACCESS_TOKEN"]
+          ref = os.environ["SUPABASE_URL"].split("//")[1].split(".")[0]
+          runner = os.environ["RUNNER_IP"] + "/32"
+
+          def api(method, path, body=None):
+              req = urllib.request.Request(
+                  f"https://api.supabase.com/v1/projects/{ref}/{path}",
+                  method=method,
+              )
+              req.add_header("Authorization", f"Bearer {token}")
+              req.add_header("Content-Type", "application/json")
+              data = json.dumps(body).encode() if body is not None else None
+              with urllib.request.urlopen(req, data=data) as resp:
+                  return json.load(resp)
+
+          current = api("GET", "network-restrictions")
+          remaining = [
+              c
+              for c in current.get("config", {}).get("dbAllowedCidrs", []) or []
+              if c != runner
+          ]
+          api("PUT", "network-restrictions", {"dbAllowedCidrs": remaining})
+          print(f"Removed {runner}; {len(remaining)} entries remain")
+          EOF

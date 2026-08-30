@@ -42,13 +42,12 @@ timestamped migration files applied **in order** by `supabase db push`.
   manual SQL-editor hand-offs.
 - Test locally first when possible: `supabase start` (local stack) →
   `supabase migration up` → verify → `supabase stop`.
-- The database connection is a **secret, never committed**: the migration
-  workflow runs `supabase db push --db-url "$SUPABASE_DB_URL"` with the
-  project-scoped connection string from the `SUPABASE_DB_URL` secret — no
-  account-level access token and no project ref in the repo (it stays safe
-  to make public). For local CLI work, run `supabase link
-  --project-ref <ref>` yourself — it writes the ref into `config.toml` on
-  your machine, and you can revert that file before committing.
+- The project ref is a **secret, never committed**: the migration workflow
+  derives it from the `SUPABASE_URL` secret at deploy time so nothing
+  identifying the project lives in the repo (it stays safe to make
+  public). For local CLI work, run `supabase link --project-ref <ref>`
+  yourself — it writes the ref into `config.toml` on your machine, and you
+  can revert that file before committing.
 - The old `supabase/schema.sql` was folded into the baseline migration
   (`20260830120000_baseline.sql`) and must not be recreated as a source of
   truth.
@@ -59,16 +58,20 @@ Everything deploys automatically on merge to `main`:
 
 - **Web**: `.github/workflows/deploy.yml` — `flutter build web --release` with
   `--dart-define=DEMO_MODE=true --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`, then `wrangler pages deploy` to Cloudflare Pages.
-- **Database**: `.github/workflows/production.yml` — `supabase db push
-  --db-url "$SUPABASE_DB_URL"` against the production database.
+- **Database**: `.github/workflows/production.yml` — the project's network
+  restriction stays ON; the job temporarily authorizes the runner's own IP
+  via the Supabase Management API (ref derived from `SUPABASE_URL`),
+  applies migrations with `supabase db push --db-url "$SUPABASE_DB_URL"`,
+  and removes the IP in a cleanup step that always runs.
 - **CI**: `.github/workflows/ci.yml` — analyze + tests on pushes to `main` and
   every PR.
 
 Required repository secrets (Settings → Secrets and variables → Actions):
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `CLOUDFLARE_API_TOKEN`,
-`CLOUDFLARE_ACCOUNT_ID`, `SUPABASE_DB_URL` (project-scoped database
-connection string — the only secret the migration deploy needs; no
-account-level Supabase tokens are used).
+`CLOUDFLARE_ACCOUNT_ID`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_URL`
+(connection string with password). No project ID is stored anywhere in the
+repo; the only IPs ever allowlisted are the runner's own, briefly, per
+deploy.
 
 ## App architecture notes
 
