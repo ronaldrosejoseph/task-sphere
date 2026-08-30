@@ -39,15 +39,14 @@ Task Sphere is a modern, high-performance task management application for mobile
    - Creates the private `task-attachments` storage bucket with member-scoped upload/read/delete policies.
    - Sets up default lane initialization triggers and enables Realtime WebSockets on the workspace tables.
    - **Restricts sign-ups to an email allowlist** (see Security below). The baseline is idempotent - it is safe to re-run.
-5. **Allowlist your own email** (before signing up!) in the SQL editor:
+5. **Allowlist your own email** (before signing up!) and make it the **site
+   admin** — the one account that is never revoked when a workspace is
+   deleted and can always create workspaces — in the SQL editor (run once,
+   after the migrations have been applied):
    ```sql
-   INSERT INTO public.allowed_signup_emails (email) VALUES ('you@example.com');
-   ```
-   Then make that account the **site admin** — the one account that is never
-   revoked when a workspace is deleted and can always create workspaces (run
-   once, after the migrations have been applied):
-   ```sql
-   UPDATE public.allowed_signup_emails SET is_site_admin = true WHERE email = 'you@example.com';
+   INSERT INTO public.allowed_signup_emails (email, is_site_admin)
+   VALUES ('you@example.com', true)
+   ON CONFLICT (email) DO UPDATE SET is_site_admin = true;
    ```
    The flag can only be changed from the SQL editor (the app blocks it), and
    deleting a workspace never removes the site admin from the allowlist.
