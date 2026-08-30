@@ -38,6 +38,10 @@ CREATE TABLE IF NOT EXISTS public.workspace_lanes (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Databases created before this column existed need it added in place.
+ALTER TABLE public.workspace_lanes
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
 -- 4. TASKS TABLE
 CREATE TABLE IF NOT EXISTS public.tasks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

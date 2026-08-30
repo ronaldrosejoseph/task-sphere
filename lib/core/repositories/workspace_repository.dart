@@ -207,15 +207,21 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
   @override
   Future<List<KanbanLane>?> fetchLanes(String workspaceId) async {
     try {
-      final response = await _client
+      final baseQuery = _client
           .from('workspace_lanes')
           .select()
           .eq('workspace_id', workspaceId)
-          .order('order_index')
-          // Tie-break so lanes sharing an order_index (legacy rows) sort by
-          // creation time instead of arbitrary physical row order.
-          .order('created_at');
-      return (response as List)
+          .order('order_index');
+      List<dynamic> response;
+      try {
+        // Tie-break so lanes sharing an order_index (legacy rows) sort by
+        // creation time instead of arbitrary physical row order.
+        response = await baseQuery.order('created_at');
+      } on PostgrestException {
+        // Databases created before the created_at column existed.
+        response = await baseQuery;
+      }
+      return response
           .map((row) => KanbanLane.fromJson(row as Map<String, dynamic>))
           .toList();
     } catch (e) {
