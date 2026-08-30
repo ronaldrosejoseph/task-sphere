@@ -211,7 +211,10 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
           .from('workspace_lanes')
           .select()
           .eq('workspace_id', workspaceId)
-          .order('order_index');
+          .order('order_index')
+          // Tie-break so lanes sharing an order_index (legacy rows) sort by
+          // creation time instead of arbitrary physical row order.
+          .order('created_at');
       return (response as List)
           .map((row) => KanbanLane.fromJson(row as Map<String, dynamic>))
           .toList();

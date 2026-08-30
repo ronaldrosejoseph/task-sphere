@@ -78,6 +78,11 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   StreamSubscription<void>? _workspaceSub;
   Timer? _reloadDebounce;
 
+  /// Number of lane writes in flight. Realtime reloads are suppressed while
+  /// this is non-zero so a reload can never snapshot the database mid-write
+  /// and clobber the state with a half-written lane order.
+  int _laneWritesInFlight = 0;
+
   /// Lanes per workspace for the in-memory (offline) path, so switching
   /// workspaces keeps each workspace's own lane set.
   final Map<String, List<KanbanLane>> _lanesByWorkspace = {};
@@ -373,18 +378,25 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     // Persist the lane, then make order_index contiguous and re-fetch the
     // authoritative order. Awaiting each step avoids the realtime reload
     // racing an in-flight write and also heals stale order_index values.
-    await repo.addLane(newLane);
-    final reindexed = state.lanes
-        .asMap()
-        .entries
-        .map((e) => e.value.copyWith(orderIndex: e.key))
-        .toList();
-    await repo.reorderLanes(reindexed);
-    final reloaded = await repo.fetchLanes(state.activeWorkspace.id);
-    if (!ref.mounted || state.activeWorkspace.id != newLane.workspaceId) return;
-    if (reloaded != null) {
-      state = state.copyWith(lanes: reloaded);
-      _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
+    _laneWritesInFlight++;
+    try {
+      await repo.addLane(newLane);
+      final reindexed = state.lanes
+          .asMap()
+          .entries
+          .map((e) => e.value.copyWith(orderIndex: e.key))
+          .toList();
+      await repo.reorderLanes(reindexed);
+      final reloaded = await repo.fetchLanes(state.activeWorkspace.id);
+      if (!ref.mounted || state.activeWorkspace.id != newLane.workspaceId) {
+        return;
+      }
+      if (reloaded != null) {
+        state = state.copyWith(lanes: reloaded);
+        _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
+      }
+    } finally {
+      _laneWritesInFlight--;
     }
   }
 
@@ -419,7 +431,12 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     state = state.copyWith(lanes: reindexed);
     _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
     if (_repository.isPersistent) {
-      unawaited(_repository.reorderLanes(reindexed));
+      _laneWritesInFlight++;
+      unawaited(
+        _repository
+            .reorderLanes(reindexed)
+            .whenComplete(() => _laneWritesInFlight--),
+      );
     }
   }
 
@@ -428,7 +445,12 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     state = state.copyWith(lanes: updatedLanes);
     _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
     if (_repository.isPersistent) {
-      unawaited(_repository.deleteLane(laneId));
+      _laneWritesInFlight++;
+      unawaited(
+        _repository
+            .deleteLane(laneId)
+            .whenComplete(() => _laneWritesInFlight--),
+      );
     }
   }
 
@@ -483,6 +505,10 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   void _subscribeToWorkspace(String workspaceId) {
     _workspaceSub?.cancel();
     _workspaceSub = _repository.watchWorkspace(workspaceId).listen((_) {
+      // Drop change events fired by our own in-flight lane writes: the write
+      // sequence ends with an authoritative fetch, so reloading here could
+      // only snapshot a half-written database.
+      if (_laneWritesInFlight > 0) return;
       _reloadDebounce?.cancel();
       _reloadDebounce = Timer(
         const Duration(milliseconds: 300),
