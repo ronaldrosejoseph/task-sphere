@@ -46,8 +46,8 @@ void main() {
     container
         .read(activeWorkspaceProvider.notifier)
         .addLane('In Review', const Color(0xFFEC4899));
-    // New lanes are prepended, so the added lane is now first.
-    final laneId = container.read(activeWorkspaceProvider).lanes.first.id;
+    // New lanes are appended, so the added lane is now last.
+    final laneId = container.read(activeWorkspaceProvider).lanes.last.id;
     container.read(tasksProvider.notifier).addTask(TaskItem(
           id: 'custom-task',
           workspaceId: 'ws-demo-001',
@@ -129,9 +129,15 @@ void main() {
 
   testWidgets('default lanes can be deleted too', (tester) async {
     final container = await pumpDialog(tester);
-
     // 'To Do' is a default lane holding the seeded task-102, so the move
-    // dialog is shown; the default target is the first other lane (In Review).
+    // dialog is shown; the default target is the first other lane
+    // (In Progress, since the custom lane is appended last).
+    final inProgressId = container
+        .read(activeWorkspaceProvider)
+        .lanes
+        .firstWhere((l) => l.title == 'In Progress')
+        .id;
+
     await tapDelete(tester, 'To Do');
 
     expect(find.text('Delete "To Do"?'), findsOneWidget);
@@ -144,7 +150,7 @@ void main() {
       isFalse,
     );
     final moved = container.read(tasksProvider).firstWhere((t) => t.id == 'task-102');
-    expect(moved.laneId, container.read(activeWorkspaceProvider).lanes.first.id);
+    expect(moved.laneId, inProgressId);
   });
 
   testWidgets('deleting an empty lane asks for a simple confirmation', (tester) async {
@@ -186,10 +192,10 @@ void main() {
   testWidgets('dragging the left handle reorders lanes', (tester) async {
     final container = await pumpDialog(tester);
 
-    // Lanes start [In Review, To Do, In Progress, ...]; drag In Review's
-    // leading handle below To Do.
+    // Lanes start [To Do, In Progress, Partially Done, ...]; drag In
+    // Progress's leading handle below Partially Done.
     final handle = find.descendant(
-      of: find.widgetWithText(Card, 'In Review'),
+      of: find.widgetWithText(Card, 'In Progress'),
       matching: find.byIcon(Icons.drag_indicator),
     );
     // The handle shows a grab cursor so it reads as draggable on mouse.
@@ -204,8 +210,7 @@ void main() {
 
     final titles =
         container.read(activeWorkspaceProvider).lanes.map((l) => l.title).toList();
-    expect(titles.first, 'To Do');
-    expect(titles[1], 'In Review');
+    expect(titles, ['To Do', 'Partially Done', 'In Progress', 'Done', 'Wont Do', 'In Review']);
   });
 
   testWidgets('editing a lane requires a non-empty name', (tester) async {

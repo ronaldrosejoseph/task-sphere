@@ -418,9 +418,8 @@ void main() {
       await _settle();
 
       expect(repo.laneAddCalls, 1);
-      // New lanes are prepended at the top of the board.
-      expect(notifier.state.lanes.first.title, 'In Review');
-      expect(notifier.state.lanes.first.orderIndex, 0);
+      // New lanes are appended at the bottom of the board.
+      expect(notifier.state.lanes.last.title, 'In Review');
     });
   });
 
