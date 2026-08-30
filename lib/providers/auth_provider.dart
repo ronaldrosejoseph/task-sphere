@@ -122,7 +122,16 @@ class AuthNotifier extends Notifier<UserProfile?> {
   }
 
   Future<void> signOut() async {
-    await GoogleAuthService.instance.signOut();
+    // Web sign-ins go through the Supabase PKCE redirect and never use
+    // google_sign_in; its plugin can hang on web when uninitialized, so
+    // only disconnect the Google account on native platforms.
+    if (!kIsWeb) {
+      try {
+        await GoogleAuthService.instance.signOut();
+      } catch (e) {
+        debugPrint('Google sign-out error: $e');
+      }
+    }
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
