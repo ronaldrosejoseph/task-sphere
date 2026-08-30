@@ -35,7 +35,8 @@ class _LaneManagerDialogState extends ConsumerState<LaneManagerDialog> {
   @override
   Widget build(BuildContext context) {
     final workspaceState = ref.watch(activeWorkspaceProvider);
-    final lanes = workspaceState.lanes;
+    final lanes = [...workspaceState.lanes]
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

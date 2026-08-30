@@ -14,7 +14,8 @@ class AnalyticsView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tasks = ref.watch(tasksProvider);
     final workspaceState = ref.watch(activeWorkspaceProvider);
-    final lanes = workspaceState.lanes;
+    final lanes = [...workspaceState.lanes]
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     final members = workspaceState.activeWorkspace.members;
 
     final totalTasks = tasks.length;

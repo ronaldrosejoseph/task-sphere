@@ -181,10 +181,12 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     final active = snapshot.workspaces.first;
     final lanes = await _ensureLanes(active.id);
     if (!ref.mounted) return;
+    final sortedLanes = List<KanbanLane>.from(lanes)
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     state = WorkspaceState(
       activeWorkspace: active,
       allWorkspaces: snapshot.workspaces,
-      lanes: lanes,
+      lanes: sortedLanes,
       isLoading: false,
     );
     _subscribeToWorkspace(active.id);
@@ -216,7 +218,8 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
       }
       lanes = await _repository.fetchLanes(workspaceId) ?? const [];
     }
-    return lanes;
+    return List<KanbanLane>.from(lanes)
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
   }
 
   Future<void> createWorkspace(String name, String adminId, String adminEmail) async {
@@ -368,8 +371,11 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     final hex = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
     // New lanes go to the bottom: one past the highest existing index, so no
     // other lane's order changes. Only a drag reorder rewrites order_index.
-    final maxIndex = state.lanes
-        .fold<int>(0, (max, l) => l.orderIndex > max ? l.orderIndex : max);
+    final maxIndex = state.lanes.isEmpty
+        ? -1
+        : state.lanes
+            .map((l) => l.orderIndex)
+            .reduce((max, val) => val > max ? val : max);
     final newLane = KanbanLane(
       id: _uuid.v4(),
       workspaceId: state.activeWorkspace.id,
@@ -379,7 +385,9 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
       isDefault: false,
     );
 
-    state = state.copyWith(lanes: [...state.lanes, newLane]);
+    final updatedLanes = [...state.lanes, newLane]
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    state = state.copyWith(lanes: updatedLanes);
     _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
     final repo = _repository;
     if (!repo.isPersistent) return;
@@ -404,7 +412,8 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
         return updated!;
       }
       return l;
-    }).toList();
+    }).toList()
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
     state = state.copyWith(lanes: updatedLanes);
     _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
@@ -437,7 +446,8 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
 
   void deleteLane(String laneId) {
     if (!isAdmin(ref.read(authProvider))) return;
-    final updatedLanes = state.lanes.where((l) => l.id != laneId).toList();
+    final updatedLanes = state.lanes.where((l) => l.id != laneId).toList()
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     state = state.copyWith(lanes: updatedLanes);
     _lanesByWorkspace[state.activeWorkspace.id] = List.of(state.lanes);
     if (_repository.isPersistent) {
@@ -504,14 +514,19 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   void _subscribeToWorkspace(String workspaceId) {
     _workspaceSub?.cancel();
     _workspaceSub = _repository.watchWorkspace(workspaceId).listen((_) {
-      // Drop change events fired by our own in-flight lane writes: the write
-      // sequence ends with an authoritative fetch, so reloading here could
-      // only snapshot a half-written database.
-      if (_laneWritesInFlight > 0) return;
       _reloadDebounce?.cancel();
       _reloadDebounce = Timer(
         const Duration(milliseconds: 300),
-        () => _reloadWorkspace(workspaceId),
+        () {
+          if (_laneWritesInFlight > 0) {
+            _reloadDebounce = Timer(
+              const Duration(milliseconds: 300),
+              () => _reloadWorkspace(workspaceId),
+            );
+          } else {
+            _reloadWorkspace(workspaceId);
+          }
+        },
       );
     });
   }
@@ -523,7 +538,10 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     if (!ref.mounted || state.activeWorkspace.id != workspaceId) return;
 
     if (lanes != null) {
-      state = state.copyWith(lanes: lanes);
+      final sortedLanes = List<KanbanLane>.from(lanes)
+        ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+      state = state.copyWith(lanes: sortedLanes);
+      _lanesByWorkspace[workspaceId] = sortedLanes;
     }
     if (members != null) {
       state = state.copyWith(
