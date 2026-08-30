@@ -219,6 +219,7 @@ class _NoWorkspacePrompt extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final canCreate = ref.watch(canCreateWorkspaceProvider).value ?? false;
     return Scaffold(
       body: Center(
         child: Container(
@@ -247,24 +248,31 @@ class _NoWorkspacePrompt extends ConsumerWidget {
                 style: TextStyle(fontSize: 13, color: Colors.grey[400]),
               ),
               const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => const WorkspaceManagementModal(),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6366F1),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              if (canCreate)
+                ElevatedButton.icon(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => const WorkspaceManagementModal(),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6366F1),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  ),
+                  icon: const Icon(Icons.add, color: Colors.white, size: 18),
+                  label: const Text(
+                    'Create Workspace',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                )
+              else
+                Text(
+                  'Contact an admin for access to create a workspace.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Colors.grey[400]),
                 ),
-                icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                label: const Text(
-                  'Create Workspace',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ),
             ],
           ),
         ),

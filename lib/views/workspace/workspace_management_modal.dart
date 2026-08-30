@@ -32,6 +32,7 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
     final activeWs = workspaceState.activeWorkspace;
     final allWs = workspaceState.allWorkspaces;
     final isAdmin = ref.read(activeWorkspaceProvider.notifier).isAdmin(currentUser);
+    final canCreate = ref.watch(canCreateWorkspaceProvider).value ?? false;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -88,7 +89,7 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
             ),
             const SizedBox(height: 16),
 
-            if (!isDemoUser && (allWs.isEmpty || isAdmin)) ...[
+            if (!isDemoUser && ((allWs.isEmpty && canCreate) || isAdmin)) ...[
               // Create New Workspace (everyone without a workspace needs the
               // entry point; members of existing ones are admin-only).
               Row(
@@ -258,6 +259,11 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
                 const Text(
                   'This permanently deletes the workspace, all of its kanban lanes, and every task and member in it. This cannot be undone.',
                   style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Warning: members who are not part of another workspace will lose access to the app.',
+                  style: TextStyle(fontSize: 13, color: Colors.redAccent),
                 ),
                 const SizedBox(height: 12),
                 Text(

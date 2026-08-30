@@ -4,11 +4,25 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_profile.dart';
+import '../core/repositories/workspace_repository.dart';
 import '../core/services/google_auth_service.dart';
 import '../core/services/supabase_service.dart';
 import 'demo_mode_provider.dart';
 
 final authProvider = NotifierProvider<AuthNotifier, UserProfile?>(AuthNotifier.new);
+
+/// Non-null when a session was established but the access gate rejected it
+/// (e.g. the user's workspace was deleted and their allowlist entry
+/// revoked). The auth screen shows this message and the user is signed out.
+class SignInBlockedMessage extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String message) => state = message;
+}
+
+final signInBlockedMessageProvider =
+    NotifierProvider<SignInBlockedMessage, String?>(SignInBlockedMessage.new);
 
 /// True when the signed-in user is the seeded demo sandbox user. The demo
 /// session runs on in-memory repositories and blocks creations/invites;
@@ -44,6 +58,7 @@ class AuthNotifier extends Notifier<UserProfile?> {
         if (current == null || current.id != user.id) {
           state = profileFromUser(user);
         }
+        unawaited(_enforceAccessGate());
       } else if (event.event == AuthChangeEvent.signedOut) {
         state = null;
       }
@@ -61,7 +76,25 @@ class AuthNotifier extends Notifier<UserProfile?> {
     if (sessionUser == null) return;
     if (ref.mounted) {
       state = profileFromUser(sessionUser);
+      unawaited(_enforceAccessGate());
     }
+  }
+
+  /// Revoked members (workspace deleted, allowlist entry removed) must not
+  /// enter the app: sign them back out and surface the reason on the login
+  /// screen.
+  Future<void> _enforceAccessGate() async {
+    final user = state;
+    if (user == null || user.id == UserProfile.demoUserId) return;
+    final repo = ref.read(workspaceRepositoryProvider);
+    if (!repo.isPersistent) return;
+    final allowed = await repo.canAccessApp();
+    if (!ref.mounted || allowed) return;
+    if (state?.id != user.id) return;
+    ref.read(signInBlockedMessageProvider.notifier).set(
+      'You are not part of any workspace. Please contact an admin to add you.',
+    );
+    await signOut();
   }
 
   Future<void> signInWithGoogle() async {

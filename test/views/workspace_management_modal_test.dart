@@ -238,6 +238,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Tasks in this workspace: 0'), findsOneWidget);
+    expect(
+      find.textContaining('members who are not part of another workspace'),
+      findsOneWidget,
+    );
 
     final confirmButton = find.widgetWithText(ElevatedButton, 'Delete Workspace');
     expect(confirmButton, findsOneWidget);

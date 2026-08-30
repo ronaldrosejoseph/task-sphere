@@ -17,6 +17,14 @@ const demoWorkspaceId = 'ws-demo-001';
 final activeWorkspaceProvider =
     NotifierProvider<WorkspaceNotifier, WorkspaceState>(WorkspaceNotifier.new);
 
+/// Whether the signed-in user may create a workspace (site admin, or
+/// allowlisted and not a plain member anywhere). Drives the create entry
+/// points in the UI; the provider and database enforce the same rule.
+final canCreateWorkspaceProvider = FutureProvider<bool>((ref) async {
+  if (ref.watch(isDemoUserProvider)) return false;
+  return ref.watch(workspaceRepositoryProvider).canCreateWorkspace();
+});
+
 class WorkspaceState {
   final Workspace activeWorkspace;
   final List<Workspace> allWorkspaces;
@@ -225,12 +233,17 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   Future<void> createWorkspace(String name, String adminId, String adminEmail) async {
     // The demo sandbox cannot create workspaces; the UI hides the entry point.
     if (ref.read(isDemoUserProvider)) return;
-    // Only admins may create additional workspaces; users who belong to no
-    // workspace can still create their first one.
-    if (state.allWorkspaces.isNotEmpty && !isAdmin(ref.read(authProvider))) {
+    final repo = _repository;
+    if (repo.isPersistent) {
+      // Mirrors can_create_workspace(): the site admin, or allowlisted users
+      // who are not plain members anywhere, may create workspaces.
+      final canCreate = await repo.canCreateWorkspace();
+      if (!canCreate || !ref.mounted) return;
+    } else if (state.allWorkspaces.isNotEmpty &&
+        !isAdmin(ref.read(authProvider))) {
+      // In-memory fallback: only admins may create additional workspaces.
       return;
     }
-    final repo = _repository;
     if (repo.isPersistent) {
       final created = await repo.createWorkspace(
         name: name,

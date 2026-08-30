@@ -43,6 +43,14 @@ Task Sphere is a modern, high-performance task management application for mobile
    ```sql
    INSERT INTO public.allowed_signup_emails (email) VALUES ('you@example.com');
    ```
+   Then make that account the **site admin** — the one account that is never
+   revoked when a workspace is deleted and can always create workspaces (run
+   once, after the migrations have been applied):
+   ```sql
+   UPDATE public.allowed_signup_emails SET is_site_admin = true WHERE email = 'you@example.com';
+   ```
+   The flag can only be changed from the SQL editor (the app blocks it), and
+   deleting a workspace never removes the site admin from the allowlist.
 6. Enable the **Google provider** (required for sign-in on every platform):
    - Go to **Authentication -> Providers -> Google**.
    - Toggle **Enable Sign in with Google**.
@@ -214,6 +222,7 @@ npx wrangler pages deploy build/web --project-name task-sphere
   INSERT INTO public.allowed_signup_emails (email) VALUES ('new.member@example.com');
   ```
   Note: the allowlist only gates the *first* sign-in. Removing an email later does not revoke an existing account - remove the member from the workspace instead. Any workspace admin can allowlist emails, so grant the admin role carefully.
+- **Workspace deletion revokes members**: deleting a workspace removes its members from the allowlist (unless they are the site admin or still belong to another workspace), and the app blocks their sign-in with an access message. The site admin can always create workspaces; plain (non-admin) members can never create new workspaces.
 - **Web sign-in** uses Supabase's PKCE OAuth redirect; mobile uses the Google idToken flow. Sessions are Supabase JWTs validated server-side.
 
 ### Rules to keep it secure

@@ -43,6 +43,15 @@ abstract class WorkspaceRepository {
   /// activity logs are removed by the database cascade. Admin-only (RLS).
   Future<void> deleteWorkspace(String workspaceId);
 
+  /// True when the signed-in user may enter the app: the site admin, still
+  /// allowlisted, or a member of at least one workspace. Revoked members
+  /// (workspace deleted, allowlist entry removed) get false.
+  Future<bool> canAccessApp();
+
+  /// True when the signed-in user may create a workspace: the site admin, or
+  /// allowlisted and not a plain member of any workspace.
+  Future<bool> canCreateWorkspace();
+
   Future<void> updateAutoArchiveDays(String workspaceId, int days);
 
   Future<void> updateShowArchivedTasks(String workspaceId, bool show);
@@ -97,6 +106,12 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Future<void> deleteWorkspace(String workspaceId) async {}
+
+  @override
+  Future<bool> canAccessApp() async => true;
+
+  @override
+  Future<bool> canCreateWorkspace() async => true;
 
   @override
   Future<void> updateShowArchivedTasks(String workspaceId, bool show) async {}
@@ -283,6 +298,28 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
       await _client.from('workspaces').delete().eq('id', workspaceId);
     } catch (e) {
       debugPrint('Workspace delete error: $e');
+    }
+  }
+
+  @override
+  Future<bool> canAccessApp() async {
+    try {
+      return await _client.rpc('can_access_app') == true;
+    } catch (e) {
+      // Fail open so a transient RPC error never locks users out; the
+      // database triggers remain the hard backstop.
+      debugPrint('can_access_app error: $e');
+      return true;
+    }
+  }
+
+  @override
+  Future<bool> canCreateWorkspace() async {
+    try {
+      return await _client.rpc('can_create_workspace') == true;
+    } catch (e) {
+      debugPrint('can_create_workspace error: $e');
+      return true;
     }
   }
 

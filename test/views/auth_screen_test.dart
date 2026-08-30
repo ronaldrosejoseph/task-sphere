@@ -30,4 +30,41 @@ void main() {
     expect(container.read(authProvider), isNull);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('shows the access-blocked banner when sign-in is rejected',
+      (tester) async {
+    const message = 'You are not part of any workspace. '
+        'Please contact an admin to add you.';
+    final container = ProviderContainer(
+      overrides: [
+        signInBlockedMessageProvider.overrideWith(
+          () => _FixedSignInBlockedMessage(message),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    // Offline mode seeds the demo user; sign out so the login screen shows.
+    await container.read(authProvider.notifier).signOut();
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: AuthScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(message), findsOneWidget);
+    expect(find.text('Sign in with Google'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+class _FixedSignInBlockedMessage extends SignInBlockedMessage {
+  _FixedSignInBlockedMessage(this.message);
+
+  final String? message;
+
+  @override
+  String? build() => message;
 }

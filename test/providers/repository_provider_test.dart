@@ -79,6 +79,8 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
   int reorderCalls = 0;
   final List<String> deleteCalls = [];
   final List<String> allowlisted = [];
+  bool canAccess = true;
+  bool canCreate = true;
 
   @override
   bool get isPersistent => true;
@@ -139,6 +141,12 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
     deleteCalls.add(workspaceId);
     workspaces.removeWhere((w) => w.id == workspaceId);
   }
+
+  @override
+  Future<bool> canAccessApp() async => canAccess;
+
+  @override
+  Future<bool> canCreateWorkspace() async => canCreate;
 
   @override
   Future<void> updateAutoArchiveDays(String workspaceId, int days) async {}
@@ -521,6 +529,18 @@ void main() {
       expect(notifier.state.activeWorkspace.id, 'ws-remote');
       expect(notifier.state.activeWorkspace.name, 'Remote Team');
       expect(notifier.state.lanes.single.id, 'rl-1');
+    });
+
+    test('createWorkspace is a no-op when the repository denies creation', () async {
+      final repo = FakeWorkspaceRepository()..canCreate = false;
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.createWorkspace('Remote Team', 'a', 'a@x.com');
+
+      expect(repo.createCalls, 0);
+      expect(notifier.state.activeWorkspace.name, 'No Workspace');
     });
 
     test('inviteMember persists to the repository', () async {
