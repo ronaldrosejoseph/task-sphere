@@ -167,11 +167,11 @@ class AuthScreen extends ConsumerWidget {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
                     elevation: 0,
                   ),
-                  icon: Image.network(
-                    // Official Google CDN asset; the old Wikimedia URL 404s.
-                    'https://www.gstatic.com/images/branding/googleg/1x/googleg_standard_color_128dp.png',
+                  icon: Image.asset(
+                    // Bundled asset: the gstatic CDN lacks CORS headers, which
+                    // blocks display under the CanvasKit web renderer.
+                    'assets/images/google_logo.png',
                     height: 20,
-                    errorBuilder: (_, _, _) => const Icon(Icons.g_mobiledata, color: Colors.blue),
                   ),
                   label: const Text('Sign in with Google', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
