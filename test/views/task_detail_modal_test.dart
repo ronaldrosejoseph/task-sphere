@@ -599,4 +599,58 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('time tracker', () {
+    testWidgets('a running timer survives closing and reopening the modal', (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final task = TaskItem(
+        id: 'task-timer',
+        workspaceId: 'ws-demo-001',
+        laneId: 'lane-1',
+        title: 'Timed ticket',
+      );
+
+      await pumpModal(
+        tester,
+        task: task,
+        container: container,
+        size: const Size(900, 1400),
+      );
+      expect(find.widgetWithText(ElevatedButton, 'Start Timer'), findsOneWidget);
+
+      await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Start Timer'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Start Timer'));
+      // The running session starts a periodic ticker, so pump fixed frames
+      // rather than pumpAndSettle.
+      await tester.pump();
+      expect(find.widgetWithText(ElevatedButton, 'Pause'), findsOneWidget);
+      // Regression: the button used to duplicate the session time next to
+      // the label while "Total Logged" showed it again below.
+      expect(find.textContaining('Pause ('), findsNothing);
+
+      // Reopen the ticket: the session still runs, so the button shows Pause.
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: Center(child: TaskDetailModal(task: task)),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.widgetWithText(ElevatedButton, 'Pause'), findsOneWidget);
+      expect(container.read(runningTimersProvider).containsKey('task-timer'), isTrue);
+
+      // Stop the timer so the periodic ticker is cancelled before teardown.
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Pause'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ElevatedButton, 'Start Timer'), findsOneWidget);
+      expect(container.read(runningTimersProvider), isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

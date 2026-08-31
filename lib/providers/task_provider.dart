@@ -498,3 +498,41 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     }
   }
 }
+
+/// Running stopwatch sessions keyed by task id. The start wall-clock time is
+/// the source of truth, so a session survives closing the task modal; only an
+/// explicit pause commits the elapsed time to the task.
+class RunningTimersNotifier extends Notifier<Map<String, DateTime>> {
+  RunningTimersNotifier({DateTime Function()? clock})
+      : _clock = clock ?? DateTime.now;
+
+  final DateTime Function() _clock;
+
+  @override
+  Map<String, DateTime> build() => const {};
+
+  bool isRunning(String taskId) => state.containsKey(taskId);
+
+  int elapsedSeconds(String taskId) {
+    final start = state[taskId];
+    if (start == null) return 0;
+    return _clock().difference(start).inSeconds;
+  }
+
+  void start(String taskId) {
+    state = {...state, taskId: _clock()};
+  }
+
+  void pause(String taskId) {
+    final elapsed = elapsedSeconds(taskId);
+    state = {...state}..remove(taskId);
+    if (elapsed > 0) {
+      ref.read(tasksProvider.notifier).addLoggedTime(taskId, elapsed);
+    }
+  }
+}
+
+final runningTimersProvider =
+    NotifierProvider<RunningTimersNotifier, Map<String, DateTime>>(
+  RunningTimersNotifier.new,
+);

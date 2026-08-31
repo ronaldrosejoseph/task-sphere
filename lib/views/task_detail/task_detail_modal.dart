@@ -52,11 +52,11 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   List<String> _attachmentPaths = [];
   late final String _newTaskId;
 
-  // Stopwatch state
-  bool _isTimerRunning = false;
-  int _sessionSeconds = 0;
-  Timer? _timer;
+  // The running session lives in runningTimersProvider so it survives modal
+  // close; this ticker only redraws the elapsed time each second.
+  Timer? _ticker;
 
+  String get _timerTaskId => widget.task?.id ?? _newTaskId;
 
   @override
   void initState() {
@@ -78,11 +78,12 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     _subtasks = List.from(widget.task?.subtasks ?? []);
     _attachmentPaths = List.from(widget.task?.attachmentPaths ?? []);
     _newTaskId = widget.task?.id ?? _uuid.v4();
+    _startTickerIfRunning();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _ticker?.cancel();
     _titleController.dispose();
     _descController.dispose();
     _newSubtaskController.dispose();
@@ -90,15 +91,20 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     super.dispose();
   }
 
+  void _startTickerIfRunning() {
+    if (_ticker != null) return;
+    if (!ref.read(runningTimersProvider).containsKey(_timerTaskId)) return;
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      setState(() {});
+    });
+  }
+
   void _toggleTimer() {
-    if (_isTimerRunning) {
-      _timer?.cancel();
-      setState(() => _isTimerRunning = false);
+    final notifier = ref.read(runningTimersProvider.notifier);
+    if (notifier.isRunning(_timerTaskId)) {
+      notifier.pause(_timerTaskId);
     } else {
-      setState(() => _isTimerRunning = true);
-      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        setState(() => _sessionSeconds += 1);
-      });
+      notifier.start(_timerTaskId);
     }
   }
 
@@ -112,6 +118,16 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
 
   @override
   Widget build(BuildContext context) {
+    // Riverpod 3 requires listen inside build; starts/stops the elapsed-time
+    // ticker when the running session for this task starts or stops.
+    ref.listen(runningTimersProvider, (_, next) {
+      if (next.containsKey(_timerTaskId)) {
+        _startTickerIfRunning();
+      } else {
+        _ticker?.cancel();
+        _ticker = null;
+      }
+    });
     final workspaceState = ref.watch(activeWorkspaceProvider);
     final currentUser = ref.read(authProvider);
     final isAdmin = ref.read(activeWorkspaceProvider.notifier).isAdmin(currentUser);
@@ -313,28 +329,38 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                       ),
 
                       // Due Date Picker
-                      InkWell(
-                        onTap: _pickDueDate,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.withValues(alpha: 0.5)),
-                            borderRadius: BorderRadius.circular(8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Due Date',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.calendar_today, size: 16, color: Color(0xFF6366F1)),
-                              const SizedBox(width: 8),
-                              Text(
-                                _dueDate == null
-                                    ? 'Set Due Date'
-                                    : DateFormat('MMM dd, yyyy').format(_dueDate!),
-                                style: const TextStyle(fontSize: 13),
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: _pickDueDate,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.withValues(alpha: 0.5)),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                            ],
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.calendar_today, size: 16, color: Color(0xFF6366F1)),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    _dueDate == null
+                                        ? 'Set Due Date'
+                                        : DateFormat('MMM dd, yyyy').format(_dueDate!),
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
@@ -358,55 +384,61 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   const SizedBox(height: 20),
 
                   // Stopwatch & Time Tracker
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.blueAccent.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
-                    ),
-                    // Wraps so the Start Timer button drops to its own line
-                    // on narrow phone screens instead of overflowing.
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.timer_outlined, color: Colors.blueAccent),
-                            const SizedBox(width: 10),
-                            Flexible(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('Time Tracker', style: TextStyle(fontWeight: FontWeight.bold)),
-                                  Text(
-                                    'Total Logged: ${_formatSeconds((widget.task?.loggedSeconds ?? 0) + _sessionSeconds)}',
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                  ),
-                                ],
+                  Builder(builder: (context) {
+                    final running = ref.watch(runningTimersProvider).containsKey(_timerTaskId);
+                    final elapsed =
+                        ref.read(runningTimersProvider.notifier).elapsedSeconds(_timerTaskId);
+                    final totalLogged = (widget.task?.loggedSeconds ?? 0) + elapsed;
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                      ),
+                      // Wraps so the Start Timer button drops to its own line
+                      // on narrow phone screens instead of overflowing.
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.timer_outlined, color: Colors.blueAccent),
+                              const SizedBox(width: 10),
+                              Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Time Tracker', style: TextStyle(fontWeight: FontWeight.bold)),
+                                    Text(
+                                      'Total Logged: ${_formatSeconds(totalLogged)}',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                    ),
+                                  ],
+                                ),
                               ),
+                            ],
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: _toggleTimer,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: running ? Colors.redAccent : Colors.blueAccent,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
-                          ],
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: _toggleTimer,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _isTimerRunning ? Colors.redAccent : Colors.blueAccent,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            icon: Icon(running ? Icons.pause : Icons.play_arrow, color: Colors.white),
+                            label: Text(
+                              running ? 'Pause' : 'Start Timer',
+                              style: const TextStyle(color: Colors.white),
+                            ),
                           ),
-                          icon: Icon(_isTimerRunning ? Icons.pause : Icons.play_arrow, color: Colors.white),
-                          label: Text(
-                            _isTimerRunning ? 'Pause (${_formatSeconds(_sessionSeconds)})' : 'Start Timer',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                        ],
+                      ),
+                    );
+                  }),
                   const SizedBox(height: 20),
 
                   // Checklist Subtasks Section
@@ -851,7 +883,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         priority: _selectedPriority,
         dueDate: _dueDate,
         estimatedHours: _estimatedHours,
-        loggedSeconds: _sessionSeconds,
+        loggedSeconds: 0,
         subtasks: [
           for (final subtask in _subtasks) subtask.copyWith(taskId: taskId),
         ],
@@ -878,7 +910,6 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         priority: _selectedPriority,
         dueDate: _dueDate,
         estimatedHours: _estimatedHours,
-        loggedSeconds: widget.task!.loggedSeconds + _sessionSeconds,
         subtasks: _subtasks,
         attachmentPaths: _attachmentPaths,
       );
