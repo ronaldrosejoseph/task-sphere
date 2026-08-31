@@ -167,6 +167,11 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           activeWorkspaceProvider.overrideWith(() => _EmptyWorkspaceNotifier()),
+          authProvider.overrideWith(
+            () => _FixedAuthNotifier(
+              UserProfile(id: 'u-1', email: 'u@x.com', displayName: 'U'),
+            ),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -174,6 +179,26 @@ void main() {
 
       expect(find.text('No Workspace Yet'), findsOneWidget);
       expect(find.text('Create Workspace'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('hides the create button when workspace creation is denied', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          activeWorkspaceProvider.overrideWith(() => _EmptyWorkspaceNotifier()),
+          canCreateWorkspaceProvider.overrideWith((ref) async => false),
+        ],
+      );
+      addTearDown(container.dispose);
+      await pumpBoard(tester, container: container);
+
+      expect(find.text('No Workspace Yet'), findsOneWidget);
+      expect(find.text('Create Workspace'), findsNothing);
+      expect(
+        find.text('Contact an admin for access to create a workspace.'),
+        findsOneWidget,
+      );
       expect(find.byType(FloatingActionButton), findsNothing);
       expect(tester.takeException(), isNull);
     });

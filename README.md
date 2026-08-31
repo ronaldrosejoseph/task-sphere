@@ -39,10 +39,17 @@ Task Sphere is a modern, high-performance task management application for mobile
    - Creates the private `task-attachments` storage bucket with member-scoped upload/read/delete policies.
    - Sets up default lane initialization triggers and enables Realtime WebSockets on the workspace tables.
    - **Restricts sign-ups to an email allowlist** (see Security below). The baseline is idempotent - it is safe to re-run.
-5. **Allowlist your own email** (before signing up!) in the SQL editor:
+5. **Allowlist your own email** (before signing up!) and make it the **site
+   admin** — the one account that is never revoked when a workspace is
+   deleted and can always create workspaces — in the SQL editor (run once,
+   after the migrations have been applied):
    ```sql
-   INSERT INTO public.allowed_signup_emails (email) VALUES ('you@example.com');
+   INSERT INTO public.allowed_signup_emails (email, is_site_admin)
+   VALUES ('you@example.com', true)
+   ON CONFLICT (email) DO UPDATE SET is_site_admin = true;
    ```
+   The flag can only be changed from the SQL editor (the app blocks it), and
+   deleting a workspace never removes the site admin from the allowlist.
 6. Enable the **Google provider** (required for sign-in on every platform):
    - Go to **Authentication -> Providers -> Google**.
    - Toggle **Enable Sign in with Google**.
@@ -80,13 +87,29 @@ then removes the IP again — even if the migrations fail.
 | `SUPABASE_ACCESS_TOKEN` | the token from Step 1 (starts with `sbp_...`) |
 | `SUPABASE_DB_URL` | your database connection string (below) |
 
-To build the connection string: Supabase dashboard → **Project Settings** →
-**Database** → **Connection string** → **Session pooler** → **URI**. Copy it
-and replace `[YOUR-PASSWORD]` with your real database password (the one from
-project creation — forgotten it? **Project Settings → Database → Reset
-database password**). If the password contains special characters (`@`, `:`,
-`/`, `#`, `?`), they must be URL-encoded (e.g. `@` becomes `%40`); the easiest
-path is a password with only letters and numbers.
+To get the connection string — **How to get the Free IPv4 Connection String
+in the Supabase Dashboard**:
+
+1. Open your project on supabase.com/dashboard.
+2. Click **Project Settings** (the gear icon at the bottom of the left sidebar).
+3. Click **Database** under **Configuration**.
+4. Scroll down to the **Connection string** section.
+5. In the tabs at the top of that box, click **Session pooler** (do not click
+   **Direct connection**):
+   - **Type:** URI
+   - **Mode:** Session
+   - **Port:** 5432
+6. Copy the URI string shown in that box. It looks like this:
+
+   ```
+   postgresql://postgres.<project-ref>:[YOUR-PASSWORD]@aws-0-<region>.pooler.supabase.com:5432/postgres
+   ```
+
+7. Replace `[YOUR-PASSWORD]` with your real database password (the one from
+   project creation — forgotten it? **Project Settings → Database → Reset
+   database password**). If the password contains special characters (`@`, `:`,
+   `/`, `#`, `?`), they must be URL-encoded (e.g. `@` becomes `%40`); the
+   easiest path is a password with only letters and numbers.
 
 Your project ID is **not** needed as a secret — the deploy derives it
 automatically from the `SUPABASE_URL` secret you already have, so nothing
@@ -198,6 +221,7 @@ npx wrangler pages deploy build/web --project-name task-sphere
   INSERT INTO public.allowed_signup_emails (email) VALUES ('new.member@example.com');
   ```
   Note: the allowlist only gates the *first* sign-in. Removing an email later does not revoke an existing account - remove the member from the workspace instead. Any workspace admin can allowlist emails, so grant the admin role carefully.
+- **Workspace deletion revokes members**: deleting a workspace removes its members from the allowlist (unless they are the site admin or still belong to another workspace), and the app blocks their sign-in with an access message. The site admin can always create workspaces; plain (non-admin) members can never create new workspaces.
 - **Web sign-in** uses Supabase's PKCE OAuth redirect; mobile uses the Google idToken flow. Sessions are Supabase JWTs validated server-side.
 
 ### Rules to keep it secure

@@ -28,6 +28,7 @@ class AuthScreen extends ConsumerWidget {
     final user = ref.watch(authProvider);
     final demoMode = ref.watch(demoModeProvider);
     final oauthError = _oauthErrorMessage();
+    final accessBlockedMessage = ref.watch(signInBlockedMessageProvider);
 
     if (user != null) {
       return const MainNavigationScaffold();
@@ -123,7 +124,7 @@ class AuthScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
 
-                if (oauthError != null) ...[
+                if (oauthError != null || accessBlockedMessage != null) ...[
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -139,7 +140,7 @@ class AuthScreen extends ConsumerWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            oauthError,
+                            accessBlockedMessage ?? oauthError!,
                             style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 12),
                           ),
                         ),
