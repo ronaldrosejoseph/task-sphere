@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/repositories/task_repository.dart';
+import 'package:task_sphere/core/services/supabase_service.dart';
 import 'package:task_sphere/models/task.dart';
 import 'package:task_sphere/models/task_comment.dart';
 import 'package:task_sphere/models/user_profile.dart';
@@ -309,6 +310,52 @@ void main() {
       expect(tester.widget<TextField>(descField).maxLines, isNull);
       expect(tester.widget<TextField>(descField).minLines, 3);
       expect(find.text('Read more'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('attachment upload feedback', () {
+    testWidgets('shows a snackbar instead of failing silently when storage is unavailable', (tester) async {
+      await pumpModal(tester);
+
+      // The attachments row sits below the fold in the modal's scroll view.
+      await tester.dragUntilVisible(
+        find.text('Upload File'),
+        find.byType(Scrollable).first,
+        const Offset(0, -200),
+      );
+      await tester.tap(find.text('Upload File'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Attachments require a connected Supabase project.'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('picker failures surface a snackbar instead of failing silently', (tester) async {
+      // Make the storage service look connected so the flow reaches the
+      // picker; in the test environment FilePicker has no platform
+      // implementation and throws. runAsync is required because
+      // Supabase.initialize touches real I/O (session recovery).
+      await tester.runAsync(() => SupabaseService.instance.initialize(
+            url: 'http://localhost:54321',
+            anonKey: 'fake-anon-key',
+          ));
+      addTearDown(SupabaseService.instance.reset);
+
+      await pumpModal(tester);
+
+      await tester.dragUntilVisible(
+        find.text('Upload File'),
+        find.byType(Scrollable).first,
+        const Offset(0, -200),
+      );
+      await tester.tap(find.text('Upload File'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Could not open the file picker'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

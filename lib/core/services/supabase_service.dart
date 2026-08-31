@@ -31,4 +31,12 @@ class SupabaseService {
       _isInitialized = false;
     }
   }
+
+  @visibleForTesting
+  Future<void> reset() async {
+    _isInitialized = false;
+    if (Supabase.instance.isInitialized) {
+      await Supabase.instance.dispose();
+    }
+  }
 }
