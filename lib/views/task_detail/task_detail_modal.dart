@@ -171,10 +171,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                       IconButton(
                         icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                         tooltip: 'Delete Task',
-                        onPressed: () {
-                          ref.read(tasksProvider.notifier).deleteTask(widget.task!.id);
-                          Navigator.pop(context);
-                        },
+                        onPressed: _confirmDeleteTask,
                       ),
                     IconButton(
                       icon: const Icon(Icons.close),
@@ -704,6 +701,37 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmDeleteTask() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete this task?'),
+        content: const Text(
+          'This permanently deletes the task along with its comments, '
+          'subtasks, and attached files. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      ref.read(tasksProvider.notifier).deleteTask(widget.task!.id);
+      Navigator.pop(context);
+    }
   }
 
   Future<void> _pickDueDate() async {
