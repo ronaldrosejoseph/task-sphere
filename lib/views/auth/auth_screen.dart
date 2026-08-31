@@ -152,8 +152,13 @@ class AuthScreen extends ConsumerWidget {
 
                 // Google Sign-In Button
                 ElevatedButton.icon(
-                  onPressed: () {
-                    ref.read(authProvider.notifier).signInWithGoogle();
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final error =
+                        await ref.read(authProvider.notifier).signInWithGoogle();
+                    if (error != null) {
+                      messenger.showSnackBar(SnackBar(content: Text(error)));
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,

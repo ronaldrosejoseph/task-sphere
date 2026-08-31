@@ -161,9 +161,19 @@ flutter run -d chrome --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.c
 # macOS Desktop
 flutter run -d macos --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
 
-# Android / iOS
-flutter run --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
+# Android / iOS (mobile sign-in also needs the Google client IDs from the
+# OAuth clients created in the Google OAuth Sign-In Setup section below)
+flutter run --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY \
+  --dart-define=GOOGLE_CLIENT_ID=YOUR_ANDROID_OR_IOS_CLIENT_ID \
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=YOUR_WEB_CLIENT_ID
 ```
+
+> **Google client IDs for mobile builds**: `GOOGLE_CLIENT_ID` is the platform
+> OAuth client ID (the Android or iOS client you created) and
+> `GOOGLE_SERVER_CLIENT_ID` is the **Web** OAuth client ID. Without them,
+> tapping "Sign in with Google" on a phone fails (the app shows an error
+> instead of signing in). Building an APK:
+> `flutter build apk --release --dart-define=...` with the same four defines.
 
 > **Demo / Local Offline Mode**: If no Supabase credentials are input, Task Sphere automatically falls back to local in-memory/mock storage so you can immediately evaluate the app offline! (Attachments are disabled in offline mode.)
 
