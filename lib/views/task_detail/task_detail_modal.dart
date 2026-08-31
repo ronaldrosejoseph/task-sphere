@@ -313,28 +313,38 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                       ),
 
                       // Due Date Picker
-                      InkWell(
-                        onTap: _pickDueDate,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.withValues(alpha: 0.5)),
-                            borderRadius: BorderRadius.circular(8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Due Date',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.calendar_today, size: 16, color: Color(0xFF6366F1)),
-                              const SizedBox(width: 8),
-                              Text(
-                                _dueDate == null
-                                    ? 'Set Due Date'
-                                    : DateFormat('MMM dd, yyyy').format(_dueDate!),
-                                style: const TextStyle(fontSize: 13),
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: _pickDueDate,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.withValues(alpha: 0.5)),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                            ],
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.calendar_today, size: 16, color: Color(0xFF6366F1)),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    _dueDate == null
+                                        ? 'Set Due Date'
+                                        : DateFormat('MMM dd, yyyy').format(_dueDate!),
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
