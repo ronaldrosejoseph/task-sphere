@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/repositories/task_repository.dart';
+import 'package:task_sphere/core/services/supabase_service.dart';
 import 'package:task_sphere/models/task.dart';
 import 'package:task_sphere/models/task_comment.dart';
 import 'package:task_sphere/models/user_profile.dart';
@@ -262,10 +263,10 @@ void main() {
   group('description readability', () {
     final longDescription = 'A' * 500;
 
-    testWidgets('read-only long description collapses with a Read more toggle', (tester) async {
+    testWidgets('read-only long description grows to show all of the content', (tester) async {
       final container = memberContainer();
       addTearDown(container.dispose);
-      // Tall viewport so the expanded field and its toggle stay on screen.
+      // Tall viewport so the full grown field stays on screen.
       await pumpModal(
         tester,
         task: adminTicket.copyWith(description: longDescription),
@@ -278,28 +279,20 @@ void main() {
       final descField = find.byWidgetPredicate(
         (w) => w is TextField && w.controller?.text == longDescription,
       );
-      expect(tester.widget<TextField>(descField).maxLines, 3);
-      expect(find.text('Read more'), findsOneWidget);
-
-      await tester.tap(find.text('Read more'));
-      await tester.pumpAndSettle();
-
       expect(tester.widget<TextField>(descField).maxLines, isNull);
-      expect(find.text('Show less'), findsOneWidget);
-
-      await tester.tap(find.text('Show less'));
-      await tester.pumpAndSettle();
-
-      expect(tester.widget<TextField>(descField).maxLines, 3);
-      expect(find.text('Read more'), findsOneWidget);
+      expect(tester.widget<TextField>(descField).minLines, 3);
+      expect(find.text('Read more'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('read-only short description has no toggle', (tester) async {
+    testWidgets('read-only short description also grows with the content', (tester) async {
       final container = memberContainer();
       addTearDown(container.dispose);
       await pumpModal(tester, task: adminTicket, container: container);
 
+      final descField = find.byType(TextField).at(1);
+      expect(tester.widget<TextField>(descField).maxLines, isNull);
+      expect(tester.widget<TextField>(descField).minLines, 3);
       expect(find.text('Read more'), findsNothing);
       expect(tester.takeException(), isNull);
     });
@@ -321,6 +314,7 @@ void main() {
     });
   });
 
+<<<<<<< HEAD
   group('task deletion', () {
     // Pushed on a real dialog route so the confirm flow can pop the modal.
     Future<void> pumpDeletableModal(WidgetTester tester, ProviderContainer container) async {
@@ -414,6 +408,52 @@ void main() {
       expect(container.read(tasksProvider).any((t) => t.id == 't-admin'), isFalse);
       expect(repo.deleted, ['t-admin']);
       expect(find.byType(TaskDetailModal), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('attachment upload feedback', () {
+    testWidgets('shows a snackbar instead of failing silently when storage is unavailable', (tester) async {
+      await pumpModal(tester);
+
+      // The attachments row sits below the fold in the modal's scroll view.
+      await tester.dragUntilVisible(
+        find.text('Upload File'),
+        find.byType(Scrollable).first,
+        const Offset(0, -200),
+      );
+      await tester.tap(find.text('Upload File'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Attachments require a connected Supabase project.'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('picker failures surface a snackbar instead of failing silently', (tester) async {
+      // Make the storage service look connected so the flow reaches the
+      // picker; in the test environment FilePicker has no platform
+      // implementation and throws. runAsync is required because
+      // Supabase.initialize touches real I/O (session recovery).
+      await tester.runAsync(() => SupabaseService.instance.initialize(
+            url: 'http://localhost:54321',
+            anonKey: 'fake-anon-key',
+          ));
+      addTearDown(SupabaseService.instance.reset);
+
+      await pumpModal(tester);
+
+      await tester.dragUntilVisible(
+        find.text('Upload File'),
+        find.byType(Scrollable).first,
+        const Offset(0, -200),
+      );
+      await tester.tap(find.text('Upload File'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Could not open the file picker'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
