@@ -143,9 +143,9 @@ Only basic sign-in scopes (`email`, `profile`, `openid`) are used - no sensitive
 4. Create **OAuth 2.0 Credentials**:
    - Go to **APIs & Services -> Credentials -> Create Credentials -> OAuth client ID**.
    - **Web Client**: copy its **Client ID** and **Client Secret** into the Supabase Google provider (previous section). Then, under **Authorized redirect URIs**, add the Supabase OAuth callback URL — `https://<your-project-ref>.supabase.co/auth/v1/callback` (no trailing slash, `<your-project-ref>` from Project Settings → API → Project URL). Without this, web sign-in fails with `Error 400: redirect_uri_mismatch`. Authorized JavaScript origins can stay empty.
-   - **Android Client**: Add your package name (`com.tasksphere.app`) and SHA-1 certificate fingerprint.
-   - **iOS Client**: Add Bundle ID (`com.tasksphere.app`).
-   - **macOS Client**: Add Bundle ID (`com.tasksphere.app`).
+   - **Android Client**: Add your package name (`com.tasksphere.app.task_sphere`) and the SHA-1 fingerprint of the keystore that signs the app — find it with `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android` (the debug keystore signs the current builds).
+   - **iOS Client**: Add Bundle ID (`com.tasksphere.app.taskSphere`).
+   - **macOS Client**: Add Bundle ID (`com.tasksphere.app.taskSphere`).
 
 ---
 
