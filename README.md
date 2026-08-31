@@ -146,6 +146,7 @@ Only basic sign-in scopes (`email`, `profile`, `openid`) are used - no sensitive
    - **Android Client**: Add your package name (`com.tasksphere.app.task_sphere`) and the SHA-1 fingerprint of the keystore that signs the app — find it with `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android` (the debug keystore signs the current builds).
    - **iOS Client**: Add Bundle ID (`com.tasksphere.app.taskSphere`).
    - **macOS Client**: Add Bundle ID (`com.tasksphere.app.taskSphere`).
+5. **Retrieving the IDs later for mobile builds**: back on **APIs & Services → Credentials**, click any client row to view its **Client ID** (a string ending in `.apps.googleusercontent.com`). The Android client's ID feeds `GOOGLE_CLIENT_ID` and the Web client's ID feeds `GOOGLE_SERVER_CLIENT_ID` when building the mobile app — see Running the App.
 
 ---
 
@@ -174,6 +175,16 @@ flutter run --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-d
 > tapping "Sign in with Google" on a phone fails (the app shows an error
 > instead of signing in). Building an APK:
 > `flutter build apk --release --dart-define=...` with the same four defines.
+>
+> **Where to find the IDs**: open
+> [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
+> with your project selected, then in the **OAuth 2.0 Client IDs** list click
+> the **Android** row for `GOOGLE_CLIENT_ID` and the **Web** row for
+> `GOOGLE_SERVER_CLIENT_ID`, and copy each **Client ID** — a long string
+> ending in `.apps.googleusercontent.com` (not the package name or the SHA-1
+> fingerprint). No Android row yet? Create one via **Create Credentials →
+> OAuth client ID → Android** with package `com.tasksphere.app.task_sphere`
+> and your keystore's SHA-1 (see the Google OAuth Sign-In Setup section).
 
 > **Demo / Local Offline Mode**: If no Supabase credentials are input, Task Sphere automatically falls back to local in-memory/mock storage so you can immediately evaluate the app offline! (Attachments are disabled in offline mode.)
 
