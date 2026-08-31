@@ -90,22 +90,14 @@ then removes the IP again — even if the migrations fail.
 To get the connection string — **How to get the Free IPv4 Connection String
 in the Supabase Dashboard**:
 
-1. Open your project on supabase.com/dashboard.
-2. Click **Project Settings** (the gear icon at the bottom of the left sidebar).
-3. Click **Database** under **Configuration**.
-4. Scroll down to the **Connection string** section.
-5. In the tabs at the top of that box, click **Session pooler** (do not click
-   **Direct connection**):
-   - **Type:** URI
-   - **Mode:** Session
-   - **Port:** 5432
-6. Copy the URI string shown in that box. It looks like this:
-
+1. Open your supabase project.
+2. Click **Connect** in the header.
+3. Click **Direct Connection Strings** tab.
+4. Scroll down to the **Connection string** and copy it. It looks like this:
    ```
    postgresql://postgres.<project-ref>:[YOUR-PASSWORD]@aws-0-<region>.pooler.supabase.com:5432/postgres
    ```
-
-7. Replace `[YOUR-PASSWORD]` with your real database password (the one from
+5. Replace `[YOUR-PASSWORD]` with your real database password (the one from
    project creation — forgotten it? **Project Settings → Database → Reset
    database password**). If the password contains special characters (`@`, `:`,
    `/`, `#`, `?`), they must be URL-encoded (e.g. `@` becomes `%40`); the
