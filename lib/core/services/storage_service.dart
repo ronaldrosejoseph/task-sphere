@@ -17,6 +17,13 @@ class SupabaseStorageService {
 
   SupabaseClient? get _client => SupabaseService.instance.client;
 
+  /// Storage object keys reject spaces and other special characters, so the
+  /// picker filename (e.g. "Screenshot 2026-08-31 at 12.01.26 AM.png") must
+  /// be scrubbed before it becomes part of the key, or uploads fail with
+  /// statusCode 400 InvalidKey.
+  static String sanitizeFileName(String fileName) =>
+      fileName.replaceAll(RegExp(r'[^\w.\-]+'), '_');
+
   /// Returns the storage path on success, or null when unavailable/failed.
   Future<String?> uploadAttachment({
     required String workspaceId,
@@ -29,7 +36,7 @@ class SupabaseStorageService {
     if (client == null) return null;
     try {
       final path =
-          '$workspaceId/$taskId/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+          '$workspaceId/$taskId/${DateTime.now().millisecondsSinceEpoch}_${sanitizeFileName(fileName)}';
       await client.storage.from(bucketName).uploadBinary(
             path,
             fileBytes,
