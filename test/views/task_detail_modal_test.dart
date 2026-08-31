@@ -235,6 +235,92 @@ void main() {
     });
   });
 
+  group('modal sizing', () {
+    testWidgets('on a phone the dialog fills the screen instead of the default 40px insets', (tester) async {
+      await pumpModal(tester);
+
+      final dialog = tester.widget<Dialog>(find.byType(Dialog));
+      expect(
+        dialog.insetPadding,
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('on a wide screen the dialog keeps the default insets', (tester) async {
+      await pumpModal(tester, size: const Size(900, 1600));
+
+      final dialog = tester.widget<Dialog>(find.byType(Dialog));
+      expect(
+        dialog.insetPadding,
+        const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      );
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('description readability', () {
+    final longDescription = 'A' * 500;
+
+    testWidgets('read-only long description collapses with a Read more toggle', (tester) async {
+      final container = memberContainer();
+      addTearDown(container.dispose);
+      // Tall viewport so the expanded field and its toggle stay on screen.
+      await pumpModal(
+        tester,
+        task: adminTicket.copyWith(description: longDescription),
+        container: container,
+        size: const Size(500, 1600),
+      );
+
+      // Locate by controller text: scrolling disposes off-screen fields, so
+      // positional finders are unreliable once the list has moved.
+      final descField = find.byWidgetPredicate(
+        (w) => w is TextField && w.controller?.text == longDescription,
+      );
+      expect(tester.widget<TextField>(descField).maxLines, 3);
+      expect(find.text('Read more'), findsOneWidget);
+
+      await tester.tap(find.text('Read more'));
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<TextField>(descField).maxLines, isNull);
+      expect(find.text('Show less'), findsOneWidget);
+
+      await tester.tap(find.text('Show less'));
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<TextField>(descField).maxLines, 3);
+      expect(find.text('Read more'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('read-only short description has no toggle', (tester) async {
+      final container = memberContainer();
+      addTearDown(container.dispose);
+      await pumpModal(tester, task: adminTicket, container: container);
+
+      expect(find.text('Read more'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('editable description grows with the content', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpModal(
+        tester,
+        task: adminTicket.copyWith(description: longDescription),
+        container: container,
+      );
+
+      final descField = find.byType(TextField).at(1);
+      expect(tester.widget<TextField>(descField).maxLines, isNull);
+      expect(tester.widget<TextField>(descField).minLines, 3);
+      expect(find.text('Read more'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('ticket comments', () {
     // The comments section sits below the fold inside the modal's scroll
     // view; drag it into view first (off-screen list children are not built).

@@ -46,6 +46,9 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   int _sessionSeconds = 0;
   Timer? _timer;
 
+  // Long read-only descriptions collapse to 3 lines until expanded.
+  bool _descExpanded = false;
+
   @override
   void initState() {
     super.initState();
@@ -113,12 +116,26 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     final comments = widget.task == null
         ? null
         : ref.watch(taskCommentsProvider(widget.task!.id));
+    final descText = _descController.text.trim();
+    final descTooLong = descText.length > 160 || descText.split('\n').length > 3;
+
+    // On phones the default 40px dialog insets squeeze the modal to ~280px
+    // wide; shrink the insets so it fills the screen instead.
+    final screenSize = MediaQuery.sizeOf(context);
+    final isNarrow = screenSize.width < 600;
 
     return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isNarrow ? 16 : 40,
+        vertical: isNarrow ? 16 : 24,
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
         padding: const EdgeInsets.all(24),
-        constraints: const BoxConstraints(maxWidth: 700, maxHeight: 800),
+        constraints: BoxConstraints(
+          maxWidth: isNarrow ? screenSize.width - 32 : 700,
+          maxHeight: isNarrow ? screenSize.height - 32 : 800,
+        ),
         child: Column(
           children: [
             // Modal Header
@@ -324,13 +341,30 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: _descController,
-                    maxLines: 3,
+                    // Editable fields grow with the content so long
+                    // descriptions are never clipped; read-only views
+                    // collapse to 3 lines until expanded via Read more.
+                    minLines: canEditTitleDescription ? 3 : null,
+                    maxLines: canEditTitleDescription || _descExpanded ? null : 3,
                     readOnly: !canEditTitleDescription,
                     decoration: InputDecoration(
                       hintText: 'Add details, context, or requirements...',
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
+                  if (!canEditTitleDescription && descTooLong)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            setState(() => _descExpanded = !_descExpanded),
+                        icon: Icon(
+                          _descExpanded ? Icons.expand_less : Icons.expand_more,
+                          size: 18,
+                        ),
+                        label: Text(_descExpanded ? 'Show less' : 'Read more'),
+                      ),
+                    ),
                   const SizedBox(height: 20),
 
                   // Stopwatch & Time Tracker
