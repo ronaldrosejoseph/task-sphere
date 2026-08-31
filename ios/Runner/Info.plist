@@ -24,6 +24,18 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- Replace YOUR_IOS_CLIENT_ID with your Google Cloud iOS OAuth
+				     client ID (see the README's Google OAuth Sign-In Setup);
+				     without this scheme the sign-in flow cannot return to the app. -->
+				<string>com.googleusercontent.apps.YOUR_IOS_CLIENT_ID</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

@@ -152,8 +152,13 @@ class AuthScreen extends ConsumerWidget {
 
                 // Google Sign-In Button
                 ElevatedButton.icon(
-                  onPressed: () {
-                    ref.read(authProvider.notifier).signInWithGoogle();
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final error =
+                        await ref.read(authProvider.notifier).signInWithGoogle();
+                    if (error != null) {
+                      messenger.showSnackBar(SnackBar(content: Text(error)));
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
@@ -163,7 +168,8 @@ class AuthScreen extends ConsumerWidget {
                     elevation: 0,
                   ),
                   icon: Image.network(
-                    'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg',
+                    // Official Google CDN asset; the old Wikimedia URL 404s.
+                    'https://www.gstatic.com/images/branding/googleg/1x/googleg_standard_color_128dp.png',
                     height: 20,
                     errorBuilder: (_, _, _) => const Icon(Icons.g_mobiledata, color: Colors.blue),
                   ),

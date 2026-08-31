@@ -143,9 +143,10 @@ Only basic sign-in scopes (`email`, `profile`, `openid`) are used - no sensitive
 4. Create **OAuth 2.0 Credentials**:
    - Go to **APIs & Services -> Credentials -> Create Credentials -> OAuth client ID**.
    - **Web Client**: copy its **Client ID** and **Client Secret** into the Supabase Google provider (previous section). Then, under **Authorized redirect URIs**, add the Supabase OAuth callback URL — `https://<your-project-ref>.supabase.co/auth/v1/callback` (no trailing slash, `<your-project-ref>` from Project Settings → API → Project URL). Without this, web sign-in fails with `Error 400: redirect_uri_mismatch`. Authorized JavaScript origins can stay empty.
-   - **Android Client**: Add your package name (`com.tasksphere.app`) and SHA-1 certificate fingerprint.
-   - **iOS Client**: Add Bundle ID (`com.tasksphere.app`).
-   - **macOS Client**: Add Bundle ID (`com.tasksphere.app`).
+   - **Android Client**: Add your package name (`com.tasksphere.app.task_sphere`) and the SHA-1 fingerprint of the keystore that signs the app — find it with `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android` (the debug keystore signs the current builds).
+   - **iOS Client**: Add Bundle ID (`com.tasksphere.app.taskSphere`). Then open `ios/Runner/Info.plist` and set the `CFBundleURLTypes` URL scheme to `com.googleusercontent.apps.<YOUR_IOS_CLIENT_ID>` (replace the placeholder with your iOS client ID — without it the sign-in flow cannot return to the app after the Google dialog). No SHA-1 is needed on iOS; the bundle ID identifies the app.
+   - **macOS Client**: Add Bundle ID (`com.tasksphere.app.taskSphere`).
+5. **Retrieving the IDs later for mobile builds**: back on **APIs & Services → Credentials**, click any client row to view its **Client ID** (a string ending in `.apps.googleusercontent.com`). The Android client's ID feeds `GOOGLE_CLIENT_ID` and the Web client's ID feeds `GOOGLE_SERVER_CLIENT_ID` when building the mobile app — see Running the App.
 
 ---
 
@@ -161,9 +162,29 @@ flutter run -d chrome --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.c
 # macOS Desktop
 flutter run -d macos --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
 
-# Android / iOS
-flutter run --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
+# Android / iOS (mobile sign-in also needs the Google client IDs from the
+# OAuth clients created in the Google OAuth Sign-In Setup section below)
+flutter run --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY \
+  --dart-define=GOOGLE_CLIENT_ID=YOUR_ANDROID_OR_IOS_CLIENT_ID \
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=YOUR_WEB_CLIENT_ID
 ```
+
+> **Google client IDs for mobile builds**: `GOOGLE_CLIENT_ID` is the platform
+> OAuth client ID (the Android or iOS client you created) and
+> `GOOGLE_SERVER_CLIENT_ID` is the **Web** OAuth client ID. Without them,
+> tapping "Sign in with Google" on a phone fails (the app shows an error
+> instead of signing in). Building an APK:
+> `flutter build apk --release --dart-define=...` with the same four defines.
+>
+> **Where to find the IDs**: open
+> [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
+> with your project selected, then in the **OAuth 2.0 Client IDs** list click
+> the **Android** row for `GOOGLE_CLIENT_ID` and the **Web** row for
+> `GOOGLE_SERVER_CLIENT_ID`, and copy each **Client ID** — a long string
+> ending in `.apps.googleusercontent.com` (not the package name or the SHA-1
+> fingerprint). No Android row yet? Create one via **Create Credentials →
+> OAuth client ID → Android** with package `com.tasksphere.app.task_sphere`
+> and your keystore's SHA-1 (see the Google OAuth Sign-In Setup section).
 
 > **Demo / Local Offline Mode**: If no Supabase credentials are input, Task Sphere automatically falls back to local in-memory/mock storage so you can immediately evaluate the app offline! (Attachments are disabled in offline mode.)
 
@@ -175,6 +196,17 @@ The web build is a fully static Flutter bundle - no server required. A coordinat
 
 ### One-time setup
 
+> **IMPORTANT — pick a different Pages project name.** Pages project names
+> are globally unique on `pages.dev`, and `task-sphere` is **already taken**
+> by this repo's original deployer — deploying with that name will fail. Use
+> your own unique name instead (e.g. `task-sphere-<yourname>`) and replace
+> every `task-sphere` occurrence in `.github/workflows/production.yml` (the
+> `pages project create task-sphere` and `pages deploy ... --project-name
+> task-sphere` commands) plus the manual deploy command below. Your site will
+> live at `https://<your-name>.pages.dev` — use that URL everywhere this
+> README says `https://task-sphere.pages.dev` (Supabase Site URL and Redirect
+> URLs in the sign-in section below).
+
 1. **Create a Cloudflare account** at [dash.cloudflare.com](https://dash.cloudflare.com) (free plan is fine) and verify your email.
 2. **Create an API token**: Dashboard → avatar → **My Profile** → **API Tokens** → **Create Token** → **Create Custom Token**. Name it `task-sphere-pages` and add the permission **Account → Cloudflare Pages → Edit**. Finish and **copy the token immediately** — it is only shown once.
 3. **Find your Account ID**: Cloudflare Dashboard home page → **right sidebar** → **Account ID** (a 32-character hex string).
@@ -183,19 +215,19 @@ The web build is a fully static Flutter bundle - no server required. A coordinat
    - `SUPABASE_ANON_KEY` - your Supabase **anon** public key (never the `service_role` key) from the same page
    - `CLOUDFLARE_API_TOKEN` - the API token from step 2
    - `CLOUDFLARE_ACCOUNT_ID` - the Account ID from step 3
-5. **Push to `main`** (or run the **Deploy Web** workflow manually from the Actions tab) - the workflow runs tests, builds the bundle, creates the Pages project named `task-sphere` if it does not exist, and deploys to it.
-6. Your app is live at **`https://task-sphere.pages.dev`** (attach a custom domain under Cloudflare Pages → Custom domains if you own one).
+5. **Push to `main`** (or run the **Deploy Web** workflow manually from the Actions tab) - the workflow runs tests, builds the bundle, creates the Pages project under **your** unique name (see the IMPORTANT note above) if it does not exist, and deploys to it.
+6. Your app is live at **`https://<your-unique-name>.pages.dev`** (attach a custom domain under Cloudflare Pages → Custom domains if you own one).
 
 ### Required cloud configuration for web sign-in
 
-- **Supabase Auth**: set the **Site URL** to your deployed URL (`https://task-sphere.pages.dev`) under Supabase → Authentication → URL Configuration, so the Google OAuth redirect flow returns to your app. Also add `https://task-sphere.pages.dev/**` to **Redirect URLs**.
+- **Supabase Auth**: set the **Site URL** to your deployed URL (`https://<your-unique-name>.pages.dev`) under Supabase → Authentication → URL Configuration, so the Google OAuth redirect flow returns to your app. Also add `https://<your-unique-name>.pages.dev/**` to **Redirect URLs**.
 - **Google Cloud console**: the Supabase OAuth callback URL must be registered as an **Authorized redirect URI** on the Web OAuth client (see the Google OAuth Sign-In Setup section above) or web sign-in fails with `Error 400: redirect_uri_mismatch`.
 
 ### Manual deploy (optional)
 
 ```bash
 flutter build web --release --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
-npx wrangler pages deploy build/web --project-name task-sphere
+npx wrangler pages deploy build/web --project-name <your-unique-name>
 ```
 
 > **Note**: local due-date notifications are not available in browsers; the app degrades gracefully on web.

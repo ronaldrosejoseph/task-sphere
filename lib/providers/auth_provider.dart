@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_profile.dart';
 import '../core/repositories/workspace_repository.dart';
@@ -97,7 +98,9 @@ class AuthNotifier extends Notifier<UserProfile?> {
     await signOut();
   }
 
-  Future<void> signInWithGoogle() async {
+  /// Returns a user-facing error message on failure, or null on success (a
+  /// dismissed account picker is not a failure).
+  Future<String?> signInWithGoogle() async {
     final supabaseClient = SupabaseService.instance.client;
 
     if (kIsWeb && supabaseClient != null) {
@@ -109,19 +112,32 @@ class AuthNotifier extends Notifier<UserProfile?> {
       } catch (e) {
         debugPrint('Supabase web sign-in error: $e');
       }
-      return;
+      return null;
     }
 
-    final googleUser = await GoogleAuthService.instance.signIn();
-    if (googleUser == null) return;
+    final GoogleSignInAccount? googleUser;
+    try {
+      googleUser = await GoogleAuthService.instance.signIn();
+    } on GoogleSignInException catch (e) {
+      // The most common cause: the app was built without the Google client
+      // IDs or the Android OAuth client/SHA-1 isn't registered yet.
+      if (e.code == GoogleSignInExceptionCode.clientConfigurationError ||
+          e.code == GoogleSignInExceptionCode.providerConfigurationError) {
+        return 'Google sign-in isn\'t configured on this device. Rebuild the '
+            'app with --dart-define=GOOGLE_CLIENT_ID and '
+            '--dart-define=GOOGLE_SERVER_CLIENT_ID (see the README).';
+      }
+      return 'Google sign-in failed: $e';
+    } catch (e) {
+      return 'Google sign-in failed: $e';
+    }
+    if (googleUser == null) return null;
 
     if (supabaseClient != null) {
       try {
         final googleAuth = googleUser.authentication;
         final idToken = googleAuth.idToken;
         if (idToken == null) {
-          // google_sign_in does not expose an idToken on web; keep the
-          // offline profile below as a fallback.
           debugPrint('Google idToken unavailable, using offline profile.');
         } else {
           await supabaseClient.auth.signInWithIdToken(
@@ -137,21 +153,23 @@ class AuthNotifier extends Notifier<UserProfile?> {
               displayName: googleUser.displayName ?? googleUser.email,
               avatarUrl: googleUser.photoUrl,
             );
-            return;
+            return null;
           }
         }
       } catch (e) {
         debugPrint('Supabase sign-in error: $e');
+        return 'Could not complete sign-in with the server. Please try again.';
       }
     }
 
-    // Offline mode, or Supabase sign-in failed: use the Google profile alone.
+    // Offline mode: use the Google profile alone.
     state = UserProfile(
       id: googleUser.id,
       email: googleUser.email,
       displayName: googleUser.displayName ?? googleUser.email,
       avatarUrl: googleUser.photoUrl,
     );
+    return null;
   }
 
   Future<void> signOut() async {

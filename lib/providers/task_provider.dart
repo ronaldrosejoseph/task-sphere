@@ -130,7 +130,9 @@ class ActivityLogNotifier extends Notifier<List<ActivityLog>> {
     });
 
     if (_repository.isPersistent) {
-      if (_workspaceId!.isNotEmpty) {
+      // The active workspace starts as a 'loading' placeholder; fetching or
+      // subscribing against it sends an invalid-uuid query that 400s.
+      if (_workspaceId!.isNotEmpty && _workspaceId != 'loading') {
         unawaited(_load());
         _logSub = _repository.watchLogs(_workspaceId!).listen((_) {
           _reloadDebounce?.cancel();
@@ -205,7 +207,9 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     });
 
     if (_repository.isPersistent) {
-      if (_workspaceId!.isNotEmpty) {
+      // The active workspace starts as a 'loading' placeholder; fetching or
+      // subscribing against it sends an invalid-uuid query that 400s.
+      if (_workspaceId!.isNotEmpty && _workspaceId != 'loading') {
         unawaited(_load());
         _taskSub = _repository.watchTasks(_workspaceId!).listen((_) {
           _reloadDebounce?.cancel();

@@ -31,6 +31,30 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a failed Google sign-in shows an error instead of doing nothing', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    // Offline mode seeds the demo user; sign out so the login screen shows.
+    await container.read(authProvider.notifier).signOut();
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: AuthScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sign in with Google'));
+    await tester.pumpAndSettle();
+
+    // The google_sign_in plugin has no platform implementation in tests, so
+    // the flow fails; the failure must be visible, not silent.
+    expect(find.textContaining('Google sign-in failed'), findsOneWidget);
+    expect(container.read(authProvider), isNull);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('shows the access-blocked banner when sign-in is rejected',
       (tester) async {
     const message = 'You are not part of any workspace. '
