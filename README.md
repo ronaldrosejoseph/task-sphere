@@ -185,6 +185,17 @@ The web build is a fully static Flutter bundle - no server required. A coordinat
 
 ### One-time setup
 
+> **IMPORTANT — pick a different Pages project name.** Pages project names
+> are globally unique on `pages.dev`, and `task-sphere` is **already taken**
+> by this repo's original deployer — deploying with that name will fail. Use
+> your own unique name instead (e.g. `task-sphere-<yourname>`) and replace
+> every `task-sphere` occurrence in `.github/workflows/production.yml` (the
+> `pages project create task-sphere` and `pages deploy ... --project-name
+> task-sphere` commands) plus the manual deploy command below. Your site will
+> live at `https://<your-name>.pages.dev` — use that URL everywhere this
+> README says `https://task-sphere.pages.dev` (Supabase Site URL and Redirect
+> URLs in the sign-in section below).
+
 1. **Create a Cloudflare account** at [dash.cloudflare.com](https://dash.cloudflare.com) (free plan is fine) and verify your email.
 2. **Create an API token**: Dashboard → avatar → **My Profile** → **API Tokens** → **Create Token** → **Create Custom Token**. Name it `task-sphere-pages` and add the permission **Account → Cloudflare Pages → Edit**. Finish and **copy the token immediately** — it is only shown once.
 3. **Find your Account ID**: Cloudflare Dashboard home page → **right sidebar** → **Account ID** (a 32-character hex string).
@@ -193,19 +204,19 @@ The web build is a fully static Flutter bundle - no server required. A coordinat
    - `SUPABASE_ANON_KEY` - your Supabase **anon** public key (never the `service_role` key) from the same page
    - `CLOUDFLARE_API_TOKEN` - the API token from step 2
    - `CLOUDFLARE_ACCOUNT_ID` - the Account ID from step 3
-5. **Push to `main`** (or run the **Deploy Web** workflow manually from the Actions tab) - the workflow runs tests, builds the bundle, creates the Pages project named `task-sphere` if it does not exist, and deploys to it.
-6. Your app is live at **`https://task-sphere.pages.dev`** (attach a custom domain under Cloudflare Pages → Custom domains if you own one).
+5. **Push to `main`** (or run the **Deploy Web** workflow manually from the Actions tab) - the workflow runs tests, builds the bundle, creates the Pages project under **your** unique name (see the IMPORTANT note above) if it does not exist, and deploys to it.
+6. Your app is live at **`https://<your-unique-name>.pages.dev`** (attach a custom domain under Cloudflare Pages → Custom domains if you own one).
 
 ### Required cloud configuration for web sign-in
 
-- **Supabase Auth**: set the **Site URL** to your deployed URL (`https://task-sphere.pages.dev`) under Supabase → Authentication → URL Configuration, so the Google OAuth redirect flow returns to your app. Also add `https://task-sphere.pages.dev/**` to **Redirect URLs**.
+- **Supabase Auth**: set the **Site URL** to your deployed URL (`https://<your-unique-name>.pages.dev`) under Supabase → Authentication → URL Configuration, so the Google OAuth redirect flow returns to your app. Also add `https://<your-unique-name>.pages.dev/**` to **Redirect URLs**.
 - **Google Cloud console**: the Supabase OAuth callback URL must be registered as an **Authorized redirect URI** on the Web OAuth client (see the Google OAuth Sign-In Setup section above) or web sign-in fails with `Error 400: redirect_uri_mismatch`.
 
 ### Manual deploy (optional)
 
 ```bash
 flutter build web --release --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
-npx wrangler pages deploy build/web --project-name task-sphere
+npx wrangler pages deploy build/web --project-name <your-unique-name>
 ```
 
 > **Note**: local due-date notifications are not available in browsers; the app degrades gracefully on web.
