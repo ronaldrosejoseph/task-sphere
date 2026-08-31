@@ -26,7 +26,10 @@ class _FixedAuthNotifier extends AuthNotifier {
   UserProfile? build() => user;
 }
 
-ProviderContainer makeContainer({WorkspaceState? workspaceState}) {
+ProviderContainer makeContainer({
+  WorkspaceState? workspaceState,
+  List<dynamic> overrides = const [],
+}) {
   final container = ProviderContainer(
     overrides: [
       // The demo workspace's admin, with the demo sandbox guards disabled,
@@ -41,6 +44,7 @@ ProviderContainer makeContainer({WorkspaceState? workspaceState}) {
         activeWorkspaceProvider.overrideWith(
           () => _CustomWorkspaceNotifier(workspaceState),
         ),
+      ...overrides,
     ],
   );
   addTearDown(container.dispose);
@@ -306,6 +310,67 @@ void main() {
       expect(container.read(taskFilterSearchProvider), 'design');
       expect(container.read(taskFilterPriorityProvider), TaskPriority.urgent);
       expect(container.read(taskFilterAssigneeProvider), 'alex@example.com');
+    });
+  });
+
+  group('RunningTimersNotifier', () {
+    test('a running session commits its elapsed time only on pause', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final container = makeContainer(overrides: [
+        runningTimersProvider.overrideWith(
+          () => RunningTimersNotifier(clock: () => now),
+        ),
+      ]);
+      final timers = container.read(runningTimersProvider.notifier);
+      final before = container
+          .read(tasksProvider)
+          .firstWhere((t) => t.id == 'task-102')
+          .loggedSeconds;
+
+      timers.start('task-102');
+      expect(timers.isRunning('task-102'), isTrue);
+
+      now = now.add(const Duration(minutes: 2));
+      expect(timers.elapsedSeconds('task-102'), 120);
+      // While running, nothing is committed to the task yet.
+      final during = container
+          .read(tasksProvider)
+          .firstWhere((t) => t.id == 'task-102')
+          .loggedSeconds;
+      expect(during, before);
+
+      timers.pause('task-102');
+      expect(timers.isRunning('task-102'), isFalse);
+      expect(timers.elapsedSeconds('task-102'), 0);
+      final after = container
+          .read(tasksProvider)
+          .firstWhere((t) => t.id == 'task-102')
+          .loggedSeconds;
+      expect(after, before + 120);
+    });
+
+    test('pausing with no elapsed time just stops the session', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final container = makeContainer(overrides: [
+        runningTimersProvider.overrideWith(
+          () => RunningTimersNotifier(clock: () => now),
+        ),
+      ]);
+      final timers = container.read(runningTimersProvider.notifier);
+      final before = container
+          .read(tasksProvider)
+          .firstWhere((t) => t.id == 'task-102')
+          .loggedSeconds;
+
+      timers.start('task-102');
+      timers.pause('task-102');
+
+      expect(timers.isRunning('task-102'), isFalse);
+      final after = container
+          .read(tasksProvider)
+          .firstWhere((t) => t.id == 'task-102')
+          .loggedSeconds;
+      expect(after, before);
     });
   });
 }
