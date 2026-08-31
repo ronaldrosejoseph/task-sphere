@@ -262,10 +262,10 @@ void main() {
   group('description readability', () {
     final longDescription = 'A' * 500;
 
-    testWidgets('read-only long description collapses with a Read more toggle', (tester) async {
+    testWidgets('read-only long description grows to show all of the content', (tester) async {
       final container = memberContainer();
       addTearDown(container.dispose);
-      // Tall viewport so the expanded field and its toggle stay on screen.
+      // Tall viewport so the full grown field stays on screen.
       await pumpModal(
         tester,
         task: adminTicket.copyWith(description: longDescription),
@@ -278,28 +278,20 @@ void main() {
       final descField = find.byWidgetPredicate(
         (w) => w is TextField && w.controller?.text == longDescription,
       );
-      expect(tester.widget<TextField>(descField).maxLines, 3);
-      expect(find.text('Read more'), findsOneWidget);
-
-      await tester.tap(find.text('Read more'));
-      await tester.pumpAndSettle();
-
       expect(tester.widget<TextField>(descField).maxLines, isNull);
-      expect(find.text('Show less'), findsOneWidget);
-
-      await tester.tap(find.text('Show less'));
-      await tester.pumpAndSettle();
-
-      expect(tester.widget<TextField>(descField).maxLines, 3);
-      expect(find.text('Read more'), findsOneWidget);
+      expect(tester.widget<TextField>(descField).minLines, 3);
+      expect(find.text('Read more'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('read-only short description has no toggle', (tester) async {
+    testWidgets('read-only short description also grows with the content', (tester) async {
       final container = memberContainer();
       addTearDown(container.dispose);
       await pumpModal(tester, task: adminTicket, container: container);
 
+      final descField = find.byType(TextField).at(1);
+      expect(tester.widget<TextField>(descField).maxLines, isNull);
+      expect(tester.widget<TextField>(descField).minLines, 3);
       expect(find.text('Read more'), findsNothing);
       expect(tester.takeException(), isNull);
     });
