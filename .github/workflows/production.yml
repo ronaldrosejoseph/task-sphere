@@ -98,7 +98,7 @@ jobs:
           echo "Apply response: $APPLIED"
 
           # Verify via a fresh GET (response format may differ from POST)
-          sleep 2
+          sleep 10
           VERIFY="$(curl --fail-with-body -sS -A "task-sphere-ci" \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             "$BASE/network-restrictions")"
