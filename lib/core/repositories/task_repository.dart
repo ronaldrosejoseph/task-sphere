@@ -7,6 +7,7 @@ import '../../models/subtask.dart';
 import '../../models/task.dart';
 import '../../models/task_comment.dart';
 import '../../providers/auth_provider.dart';
+import '../services/storage_service.dart';
 import '../services/supabase_service.dart';
 
 /// Persistence boundary for tasks and subtasks.
@@ -135,9 +136,31 @@ class SupabaseTaskRepository implements TaskRepository {
   @override
   Future<void> deleteTask(String taskId) async {
     try {
+      await _deleteAttachments(taskId);
+      // Comments and subtasks cascade with the row delete.
       await _client.from('tasks').delete().eq('id', taskId);
     } catch (e) {
       debugPrint('Task delete error: $e');
+    }
+  }
+
+  /// Storage objects are not FK-bound to tasks, so the attached files must be
+  /// removed explicitly. Best-effort: a cleanup failure must not block the
+  /// row delete below.
+  Future<void> _deleteAttachments(String taskId) async {
+    try {
+      final rows = await _client
+          .from('tasks')
+          .select('attachment_paths')
+          .eq('id', taskId);
+      if (rows.isEmpty) return;
+      final paths = rows.first['attachment_paths'];
+      if (paths is! List) return;
+      await Future.wait(
+        paths.whereType<String>().map(SupabaseStorageService.instance.deleteAttachment),
+      );
+    } catch (e) {
+      debugPrint('Attachment cleanup error: $e');
     }
   }
 

@@ -314,6 +314,135 @@ void main() {
     });
   });
 
+  group('upload file type verification', () {
+    test('allows common image extensions regardless of case', () {
+      for (final name in [
+        'photo.jpg',
+        'PHOTO.JPEG',
+        'a.png',
+        'b.gif',
+        'c.webp',
+        'd.heic',
+        'e.heif',
+        'f.bmp',
+        'Screenshot 2026-08-31 at 12.01.26 AM.png',
+      ]) {
+        expect(TaskDetailModal.isAllowedImageFileName(name), isTrue, reason: name);
+      }
+    });
+
+    test('rejects non-image files and extensionless names', () {
+      for (final name in [
+        'doc.pdf',
+        'notes.txt',
+        'clip.mp4',
+        'archive.zip',
+        'script.js',
+        'image.png.exe',
+        'noext',
+      ]) {
+        expect(TaskDetailModal.isAllowedImageFileName(name), isFalse, reason: name);
+      }
+    });
+  });
+
+  group('task deletion', () {
+    // Pushed on a real dialog route so the confirm flow can pop the modal.
+    Future<void> pumpDeletableModal(WidgetTester tester, ProviderContainer container) async {
+      tester.view.physicalSize = const Size(900, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDialog(
+                      context: ctx,
+                      builder: (_) => TaskDetailModal(task: adminTicket),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      // The modal never watches tasksProvider (it only uses its notifier), so
+      // the repo fetch only starts once the provider is first read.
+      container.read(tasksProvider);
+      await tester.pumpAndSettle();
+    }
+
+    ProviderContainer deleteContainer(FakeTaskRepository repo) {
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith(
+            () => _FixedAuthNotifier(
+              UserProfile(id: 'demo-user-123', email: 'alex.admin@tasksphere.app', displayName: 'Alex'),
+            ),
+          ),
+          isDemoUserProvider.overrideWith((ref) => false),
+          taskRepositoryProvider.overrideWith((ref) => repo),
+        ],
+      );
+      addTearDown(container.dispose);
+      return container;
+    }
+
+    testWidgets('tapping delete asks for confirmation and Cancel keeps the task', (tester) async {
+      final repo = FakeTaskRepository()..stored.add(adminTicket);
+      final container = deleteContainer(repo);
+      await pumpDeletableModal(tester, container);
+
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete this task?'), findsOneWidget);
+      expect(
+        find.textContaining('deletes the task along with its comments'),
+        findsOneWidget,
+      );
+
+      // Scoped to the dialog: the modal's own bottom row also has a Cancel.
+      await tester.tap(find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Cancel'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete this task?'), findsNothing);
+      expect(container.read(tasksProvider).any((t) => t.id == 't-admin'), isTrue);
+      expect(repo.deleted, isEmpty);
+      expect(find.byType(TaskDetailModal), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('confirming the dialog deletes the task and closes the modal', (tester) async {
+      final repo = FakeTaskRepository()..stored.add(adminTicket);
+      final container = deleteContainer(repo);
+      await pumpDeletableModal(tester, container);
+
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(container.read(tasksProvider).any((t) => t.id == 't-admin'), isFalse);
+      expect(repo.deleted, ['t-admin']);
+      expect(find.byType(TaskDetailModal), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('attachment upload feedback', () {
     testWidgets('shows a snackbar instead of failing silently when storage is unavailable', (tester) async {
       await pumpModal(tester);

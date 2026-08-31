@@ -22,6 +22,16 @@ class TaskDetailModal extends ConsumerStatefulWidget {
 
   const TaskDetailModal({super.key, this.task, this.initialLaneId});
 
+  /// Uploads are restricted to raster image formats. The picker is filtered
+  /// to images and this guard catches pickers that can bypass the filter.
+  static bool isAllowedImageFileName(String name) {
+    final dot = name.lastIndexOf('.');
+    if (dot == -1) return false;
+    final ext = name.substring(dot + 1).toLowerCase();
+    return const {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'bmp'}
+        .contains(ext);
+  }
+
   @override
   ConsumerState<TaskDetailModal> createState() => _TaskDetailModalState();
 }
@@ -168,10 +178,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                       IconButton(
                         icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                         tooltip: 'Delete Task',
-                        onPressed: () {
-                          ref.read(tasksProvider.notifier).deleteTask(widget.task!.id);
-                          Navigator.pop(context);
-                        },
+                        onPressed: _confirmDeleteTask,
                       ),
                     IconButton(
                       icon: const Icon(Icons.close),
@@ -689,6 +696,37 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     );
   }
 
+  Future<void> _confirmDeleteTask() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete this task?'),
+        content: const Text(
+          'This permanently deletes the task along with its comments, '
+          'subtasks, and attached files. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      ref.read(tasksProvider.notifier).deleteTask(widget.task!.id);
+      Navigator.pop(context);
+    }
+  }
+
   Future<void> _pickDueDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -709,7 +747,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
 
     final List<PlatformFile> files;
     try {
-      files = await FilePicker.pickFiles();
+      files = await FilePicker.pickFiles(type: FileType.image);
     } catch (e) {
       _showUploadError('Could not open the file picker: $e');
       return;
@@ -720,7 +758,11 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     final file = files.first;
     // iOS Safari photo picks can come through with an empty name; storage
     // keys must end in a usable filename.
-    final fileName = file.name.trim().isEmpty ? 'attachment' : file.name;
+    final fileName = file.name.trim().isEmpty ? 'attachment.jpg' : file.name;
+    if (!TaskDetailModal.isAllowedImageFileName(fileName)) {
+      _showUploadError('Only image files can be uploaded (JPG, PNG, GIF, WEBP, HEIC, BMP).');
+      return;
+    }
 
     final Uint8List bytes;
     try {
