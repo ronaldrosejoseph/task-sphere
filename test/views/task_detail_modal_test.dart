@@ -314,7 +314,38 @@ void main() {
     });
   });
 
-<<<<<<< HEAD
+  group('upload file type verification', () {
+    test('allows common image extensions regardless of case', () {
+      for (final name in [
+        'photo.jpg',
+        'PHOTO.JPEG',
+        'a.png',
+        'b.gif',
+        'c.webp',
+        'd.heic',
+        'e.heif',
+        'f.bmp',
+        'Screenshot 2026-08-31 at 12.01.26 AM.png',
+      ]) {
+        expect(TaskDetailModal.isAllowedImageFileName(name), isTrue, reason: name);
+      }
+    });
+
+    test('rejects non-image files and extensionless names', () {
+      for (final name in [
+        'doc.pdf',
+        'notes.txt',
+        'clip.mp4',
+        'archive.zip',
+        'script.js',
+        'image.png.exe',
+        'noext',
+      ]) {
+        expect(TaskDetailModal.isAllowedImageFileName(name), isFalse, reason: name);
+      }
+    });
+  });
+
   group('task deletion', () {
     // Pushed on a real dialog route so the confirm flow can pop the modal.
     Future<void> pumpDeletableModal(WidgetTester tester, ProviderContainer container) async {
