@@ -46,8 +46,6 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   int _sessionSeconds = 0;
   Timer? _timer;
 
-  // Long read-only descriptions collapse to 3 lines until expanded.
-  bool _descExpanded = false;
 
   @override
   void initState() {
@@ -116,8 +114,6 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     final comments = widget.task == null
         ? null
         : ref.watch(taskCommentsProvider(widget.task!.id));
-    final descText = _descController.text.trim();
-    final descTooLong = descText.length > 160 || descText.split('\n').length > 3;
 
     // On phones the default 40px dialog insets squeeze the modal to ~280px
     // wide; shrink the insets so it fills the screen instead.
@@ -341,30 +337,16 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: _descController,
-                    // Editable fields grow with the content so long
-                    // descriptions are never clipped; read-only views
-                    // collapse to 3 lines until expanded via Read more.
-                    minLines: canEditTitleDescription ? 3 : null,
-                    maxLines: canEditTitleDescription || _descExpanded ? null : 3,
+                    // Always grow with the content so the full description is
+                    // readable without expansion controls; the modal scrolls.
+                    minLines: 3,
+                    maxLines: null,
                     readOnly: !canEditTitleDescription,
                     decoration: InputDecoration(
                       hintText: 'Add details, context, or requirements...',
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
-                  if (!canEditTitleDescription && descTooLong)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () =>
-                            setState(() => _descExpanded = !_descExpanded),
-                        icon: Icon(
-                          _descExpanded ? Icons.expand_less : Icons.expand_more,
-                          size: 18,
-                        ),
-                        label: Text(_descExpanded ? 'Show less' : 'Read more'),
-                      ),
-                    ),
                   const SizedBox(height: 20),
 
                   // Stopwatch & Time Tracker
