@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
@@ -720,30 +721,58 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
 
   Future<void> _pickAndUploadAttachment() async {
     if (!SupabaseStorageService.instance.isAvailable) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Attachments require a connected Supabase project.'),
-        ),
-      );
+      _showUploadError('Attachments require a connected Supabase project.');
       return;
     }
 
-    final files = await FilePicker.pickFiles();
+    final List<PlatformFile> files;
+    try {
+      files = await FilePicker.pickFiles();
+    } catch (e) {
+      _showUploadError('Could not open the file picker: $e');
+      return;
+    }
+    // The user cancelled the picker.
     if (files.isEmpty) return;
 
     final file = files.first;
-    final bytes = await file.readAsBytes();
+    // iOS Safari photo picks can come through with an empty name; storage
+    // keys must end in a usable filename.
+    final fileName = file.name.trim().isEmpty ? 'attachment' : file.name;
+
+    final Uint8List bytes;
+    try {
+      bytes = await file.readAsBytes();
+    } catch (e) {
+      _showUploadError('Could not read the selected file: $e');
+      return;
+    }
+    if (bytes.isEmpty) {
+      _showUploadError('The selected file is empty.');
+      return;
+    }
+
     final workspaceId = ref.read(activeWorkspaceProvider).activeWorkspace.id;
     final path = await SupabaseStorageService.instance.uploadAttachment(
       workspaceId: workspaceId,
       taskId: _newTaskId,
-      fileName: file.name,
+      fileName: fileName,
       fileBytes: bytes,
       mimeType: 'application/octet-stream',
     );
-    if (path != null && mounted) {
+    if (path == null) {
+      // uploadAttachment already debugPrints the underlying error.
+      _showUploadError('Upload failed. Check your connection and try again.');
+      return;
+    }
+    if (mounted) {
       setState(() => _attachmentPaths.add(path));
     }
+  }
+
+  void _showUploadError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _openAttachment(String path) async {
