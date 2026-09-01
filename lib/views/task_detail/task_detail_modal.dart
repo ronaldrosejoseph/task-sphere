@@ -408,13 +408,18 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                             children: [
                               const Icon(Icons.timer_outlined, color: Colors.blueAccent),
                               const SizedBox(width: 10),
-                              Flexible(
+                              // Fixed width: the seconds string grows every
+                              // tick, which used to widen this row and push
+                              // the Pause button around until it wrapped.
+                              SizedBox(
+                                width: 170,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     const Text('Time Tracker', style: TextStyle(fontWeight: FontWeight.bold)),
                                     Text(
                                       'Total Logged: ${_formatSeconds(totalLogged)}',
+                                      maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                                     ),
