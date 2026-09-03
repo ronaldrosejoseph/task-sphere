@@ -535,9 +535,12 @@ class _TaskCardWidget extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Priority Pill & Attachment Badge
+                    // Priority Pill (left) and, on the right, the created
+                    // chip plus the attachment badge. The right side is a
+                    // Wrap so chips can never push each other off the card.
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -556,24 +559,55 @@ class _TaskCardWidget extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (task.attachmentPaths.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.attach_file, size: 12, color: Color(0xFF3B82F6)),
-                                const SizedBox(width: 3),
-                                Text(
-                                  '${task.attachmentPaths.length}',
-                                  style: const TextStyle(fontSize: 11, color: Color(0xFF3B82F6)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Wrap(
+                            alignment: WrapAlignment.end,
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              // Attachment count badge
+                              if (task.attachmentPaths.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.attach_file, size: 12, color: Color(0xFF3B82F6)),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '${task.attachmentPaths.length}',
+                                        style: const TextStyle(fontSize: 11, color: Color(0xFF3B82F6)),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ],
-                            ),
+                              // Created Date Chip (text-only so it can shrink
+                              // with an ellipsis when the row is tight)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  'Created ${DateFormat('MMM dd').format(task.createdAt)}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF10B981),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 9),
@@ -621,7 +655,7 @@ class _TaskCardWidget extends StatelessWidget {
                       const SizedBox(height: 10),
                     ],
 
-                    // Footer row 1: Assignee & Due Date
+                    // Footer: Assignee & Due Date
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -674,35 +708,6 @@ class _TaskCardWidget extends StatelessWidget {
                             ),
                           ),
                       ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Footer row 2: Created Date Chip (on its own line so the
-                    // label never squeezes the assignee or clips at any width)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.calendar_today, size: 11, color: Color(0xFF10B981)),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Created ${DateFormat('MMM dd').format(task.createdAt)}',
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF10B981),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
                   ],
                 ),

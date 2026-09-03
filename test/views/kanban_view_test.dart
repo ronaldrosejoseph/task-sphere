@@ -98,7 +98,6 @@ void main() {
       // One labeled Created chip per visible card (the archived task is
       // hidden); the seeded dates are relative to now, so the date itself is
       // not asserted.
-      expect(find.byIcon(Icons.calendar_today), findsNWidgets(4));
       expect(find.textContaining('Created '), findsNWidgets(4));
       expect(tester.takeException(), isNull);
     });
