@@ -92,12 +92,14 @@ void main() {
       expect(find.text('Setup Flutter Multi-Platform Target Configuration'), findsOneWidget);
     });
 
-    testWidgets('task cards show a created-date chip', (tester) async {
+    testWidgets('task cards label and color their date chips', (tester) async {
       await pumpBoard(tester);
 
-      // One calendar icon per visible card (the archived task is hidden).
-      // The seeded dates are relative to now, so only the icon is asserted.
+      // One labeled Created chip per visible card (the archived task is
+      // hidden); the seeded dates are relative to now, so the date itself is
+      // not asserted.
       expect(find.byIcon(Icons.calendar_today), findsNWidgets(4));
+      expect(find.textContaining('Created '), findsNWidgets(4));
       expect(tester.takeException(), isNull);
     });
 
