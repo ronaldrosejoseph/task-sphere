@@ -300,10 +300,6 @@ void main() {
 
       final state = container.read(activeWorkspaceProvider);
       expect(state.activeWorkspace.autoExpiryLaneIds, isEmpty);
-      expect(
-        state.activeWorkspace.resolvedAutoExpiryLaneIds(state.lanes),
-        isEmpty,
-      );
     });
 
     test('non-admins cannot change the auto-expiry lanes', () {
@@ -322,9 +318,10 @@ void main() {
 
       notifier.updateAutoExpiryLanes(['lane-4']);
 
+      // The demo workspace's pre-selected Done / Wont Do lanes are untouched.
       expect(
         container.read(activeWorkspaceProvider).activeWorkspace.autoExpiryLaneIds,
-        isNull,
+        ['lane-4', 'lane-5'],
       );
     });
   });

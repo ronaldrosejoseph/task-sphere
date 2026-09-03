@@ -56,9 +56,8 @@ abstract class WorkspaceRepository {
 
   Future<void> updateShowArchivedTasks(String workspaceId, bool show);
 
-  /// Saves the admin-chosen auto-expiry lanes. A null/absent list means the
-  /// selection was never configured (legacy title-based fallback applies);
-  /// an empty list disables auto-expiry.
+  /// Saves the admin-chosen auto-expiry lanes. An empty list disables
+  /// auto-expiry. New workspaces are seeded with their Done / Wont Do lanes.
   Future<void> updateAutoExpiryLaneIds(String workspaceId, List<String> laneIds);
 
   Future<void> addLane(KanbanLane lane);

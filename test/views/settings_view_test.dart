@@ -97,10 +97,8 @@ void main() {
     }
 
     final state = container.read(activeWorkspaceProvider);
-    // Unconfigured workspace: the chips reflect the legacy title fallback.
-    expect(state.activeWorkspace.autoExpiryLaneIds, isNull);
-    expect(state.activeWorkspace.resolvedAutoExpiryLaneIds(state.lanes),
-        ['lane-4', 'lane-5']);
+    // The demo workspace ships with Done / Wont Do pre-selected.
+    expect(state.activeWorkspace.autoExpiryLaneIds, ['lane-4', 'lane-5']);
     expect(tester.takeException(), isNull);
   });
 
@@ -113,7 +111,6 @@ void main() {
 
     final state = container.read(activeWorkspaceProvider);
     expect(state.activeWorkspace.autoExpiryLaneIds, ['lane-5']);
-    expect(state.activeWorkspace.resolvedAutoExpiryLaneIds(state.lanes), ['lane-5']);
 
     // Tap again to re-add it.
     await tester.tap(find.widgetWithText(FilterChip, 'Done'));

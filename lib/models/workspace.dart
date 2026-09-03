@@ -1,5 +1,3 @@
-import 'lane.dart';
-
 enum UserRole { admin, member }
 
 class WorkspaceMember {
@@ -47,11 +45,10 @@ class Workspace {
   final DateTime createdAt;
   final List<WorkspaceMember> members;
 
-  /// The lanes whose tasks auto-hide after [autoArchiveDays]. Null means the
-  /// admin has not configured this yet; [resolvedAutoExpiryLaneIds] then falls
-  /// back to the lanes titled Done / Wont Do. An explicit empty list means
-  /// auto-expiry is disabled.
-  final List<String>? autoExpiryLaneIds;
+  /// The lanes whose tasks auto-hide after [autoArchiveDays]. New workspaces
+  /// are seeded with their Done / Wont Do lanes; an empty list means
+  /// auto-expiry is disabled until an admin picks lanes in Settings.
+  final List<String> autoExpiryLaneIds;
 
   Workspace({
     required this.id,
@@ -59,7 +56,7 @@ class Workspace {
     required this.adminId,
     this.autoArchiveDays = 14,
     this.showArchivedTasks = false,
-    this.autoExpiryLaneIds,
+    this.autoExpiryLaneIds = const [],
     DateTime? createdAt,
     this.members = const [],
   }) : createdAt = createdAt ?? DateTime.now();
@@ -83,7 +80,8 @@ class Workspace {
       adminId: json['admin_id'] as String? ?? '',
       autoArchiveDays: json['auto_archive_days'] as int? ?? 14,
       showArchivedTasks: json['show_archived_tasks'] as bool? ?? false,
-      autoExpiryLaneIds: (json['auto_expiry_lane_ids'] as List?)?.cast<String>(),
+      autoExpiryLaneIds:
+          List<String>.from(json['auto_expiry_lane_ids'] as List? ?? const []),
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
@@ -108,20 +106,5 @@ class Workspace {
       createdAt: createdAt,
       members: members ?? this.members,
     );
-  }
-
-  /// The lanes eligible for auto-expiry: the stored selection when the admin
-  /// saved one, otherwise the lanes titled Done / Wont Do (legacy behavior,
-  /// so pre-existing workspaces keep working after a lane rename until the
-  /// selection is configured in Settings).
-  List<String> resolvedAutoExpiryLaneIds(List<KanbanLane> lanes) {
-    final stored = autoExpiryLaneIds;
-    if (stored != null) return stored;
-    return [
-      for (final lane in lanes)
-        if (lane.title.toLowerCase() == 'done' ||
-            lane.title.toLowerCase() == 'wont do')
-          lane.id,
-    ];
   }
 }

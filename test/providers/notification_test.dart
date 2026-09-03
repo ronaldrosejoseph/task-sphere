@@ -132,7 +132,12 @@ void main() {
 
   test('persistent task load schedules reminders for due tasks', () async {
     final fake = FakeNotificationService();
-    final workspace = Workspace(id: 'ws-1', name: 'W', adminId: 'a');
+    final workspace = Workspace(
+      id: 'ws-1',
+      name: 'W',
+      adminId: 'a',
+      autoExpiryLaneIds: ['lane-done'],
+    );
     final lanes = [
       KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do'),
       KanbanLane(id: 'lane-done', workspaceId: 'ws-1', title: 'Done'),

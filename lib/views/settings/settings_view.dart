@@ -20,8 +20,7 @@ class SettingsView extends ConsumerWidget {
     final activeWorkspace = workspaceState.activeWorkspace;
     final autoArchiveDays = activeWorkspace.autoArchiveDays;
     final showArchived = activeWorkspace.showArchivedTasks;
-    final effectiveLaneIds =
-        activeWorkspace.resolvedAutoExpiryLaneIds(workspaceState.lanes);
+    final effectiveLaneIds = activeWorkspace.autoExpiryLaneIds;
 
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -88,9 +87,8 @@ class SettingsView extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 // Lanes whose tasks auto-hide after the threshold above.
-                // Saving any selection makes it explicit (an empty selection
-                // disables auto-expiry); workspaces that never saved one keep
-                // the legacy Done / Wont Do fallback.
+                // New workspaces come pre-selected with Done / Wont Do;
+                // deselecting every lane disables auto-expiry.
                 Wrap(
                   spacing: 8,
                   runSpacing: 4,

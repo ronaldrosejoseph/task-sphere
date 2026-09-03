@@ -246,9 +246,8 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     // The workspace auto-expiry lane selection defines which lanes count as
     // completed; read it fresh so renames/settings changes apply without a
     // notifier rebuild (which would re-seed demo tasks).
-    final wsState = ref.read(activeWorkspaceProvider);
     final completedLaneIds =
-        wsState.activeWorkspace.resolvedAutoExpiryLaneIds(wsState.lanes);
+        ref.read(activeWorkspaceProvider).activeWorkspace.autoExpiryLaneIds;
     final now = DateTime.now();
     for (final task in tasks) {
       final due = task.dueDate;

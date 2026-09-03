@@ -295,7 +295,7 @@ void main() {
           name: 'Custom',
           adminId: 'u-1',
           autoArchiveDays: 14,
-          autoExpiryLaneIds: autoExpiryLaneIds,
+          autoExpiryLaneIds: autoExpiryLaneIds ?? const [],
         );
 
     TaskItem oldTask(String laneId, {String? title}) => TaskItem(
@@ -335,8 +335,8 @@ void main() {
         workspace: ws(autoExpiryLaneIds: ['lane-f']),
         lanes: [
           KanbanLane(id: 'lane-o', workspaceId: 'ws-custom', title: 'Open'),
-          // Renamed away from 'Done': the old title-based logic would never
-          // auto-hide this lane again.
+          // Renamed away from 'Done': the selection is by lane id, so the
+          // rename does not disable auto-expiry for this lane.
           KanbanLane(id: 'lane-f', workspaceId: 'ws-custom', title: 'Finished'),
         ],
         tasks: [oldTask('lane-f', title: 'Renamed done task')],
@@ -346,7 +346,8 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('an explicit empty selection disables auto-expiry', (tester) async {
+    testWidgets('an empty selection disables auto-expiry even for Done/Wont Do lanes',
+        (tester) async {
       await pumpCustomBoard(
         tester,
         workspace: ws(autoExpiryLaneIds: []),
@@ -361,8 +362,10 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('unconfigured workspace falls back to Done/Wont Do titles',
+    testWidgets('a workspace without a selection keeps old tasks visible',
         (tester) async {
+      // Auto-expiry is off until an admin picks lanes in Settings; there is
+      // no implicit Done/Wont Do default for unconfigured workspaces.
       await pumpCustomBoard(
         tester,
         workspace: ws(),
@@ -370,28 +373,10 @@ void main() {
           KanbanLane(id: 'lane-d', workspaceId: 'ws-custom', title: 'Done'),
           KanbanLane(id: 'lane-w', workspaceId: 'ws-custom', title: 'Wont Do'),
         ],
-        tasks: [oldTask('lane-d')],
+        tasks: [oldTask('lane-d', title: 'Old done task')],
       );
 
-      expect(find.text('Old completed task'), findsNothing);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('unconfigured workspace with renamed lanes keeps old tasks visible',
-        (tester) async {
-      // Legacy behavior: without a saved selection, the title fallback finds
-      // nothing after a rename — the exact case the setting fixes.
-      await pumpCustomBoard(
-        tester,
-        workspace: ws(),
-        lanes: [
-          KanbanLane(id: 'lane-f', workspaceId: 'ws-custom', title: 'Finished'),
-          KanbanLane(id: 'lane-c', workspaceId: 'ws-custom', title: 'Closed'),
-        ],
-        tasks: [oldTask('lane-f', title: 'Old finished task')],
-      );
-
-      expect(find.text('Old finished task'), findsOneWidget);
+      expect(find.text('Old done task'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
