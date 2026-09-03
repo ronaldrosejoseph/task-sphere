@@ -411,6 +411,33 @@ void main() {
       }
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('tablet widths also stack the fields instead of one cramped row', (tester) async {
+      await pumpModal(tester, size: const Size(800, 1400));
+
+      final dropdowns = find.byWidgetPredicate((w) => w is FormField);
+      expect(dropdowns, findsNWidgets(3));
+      for (final element in dropdowns.evaluate()) {
+        // Regression: at tablet widths the 200/160/220px dropdowns used to
+        // share a row with the dates container; each field now spans the
+        // full ~650px modal content.
+        expect(tester.getSize(find.byWidget(element.widget)).width, greaterThan(300));
+      }
+      // The dates container sits on its own full-width row below the fields.
+      final datesBox = find.ancestor(
+        of: find.text('Due Date'),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              w.padding != null &&
+              w.decoration is BoxDecoration &&
+              (w.decoration as BoxDecoration).border is Border,
+        ),
+      );
+      expect(datesBox, findsOneWidget);
+      expect(tester.getSize(datesBox).width, greaterThan(300));
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('description readability', () {

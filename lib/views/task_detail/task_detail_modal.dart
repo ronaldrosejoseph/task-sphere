@@ -324,6 +324,9 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     // wide; shrink the insets so it fills the screen instead.
     final screenSize = MediaQuery.sizeOf(context);
     final isNarrow = screenSize.width < 600;
+    // Phones and tablets stack the metadata fields full-width; the compact
+    // grid only fits on wide desktops where the dialog has room to breathe.
+    final stackMetadata = screenSize.width < 1100;
 
     return Dialog(
       insetPadding: EdgeInsets.symmetric(
@@ -411,9 +414,10 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
 
                   // Metadata Grid (Lane, Priority, Assignee, Dates)
                   //
-                  // On phones the three dropdowns and the dates container
-                  // stack full-width; on wide screens they sit side by side.
-                  if (isNarrow)
+                  // Phones and tablets stack the three dropdowns and the
+                  // dates container full-width; wide desktops keep the
+                  // compact side-by-side grid.
+                  if (stackMetadata)
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
