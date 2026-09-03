@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../core/repositories/workspace_repository.dart';
 import '../models/workspace.dart';
@@ -103,6 +104,21 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     return repo;
   }
 
+  /// Local persistence key for the active workspace, scoped to the signed-in
+  /// user so different accounts on one device remember their own board.
+  String? get _activeWorkspaceKey {
+    final userId = _userId;
+    if (userId == null || userId.isEmpty) return null;
+    return 'active_workspace_id_$userId';
+  }
+
+  Future<void> _persistActiveWorkspace(String workspaceId) async {
+    final key = _activeWorkspaceKey;
+    if (key == null || !_repository.isPersistent) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(key, workspaceId);
+  }
+
   @override
   WorkspaceState build() {
     _repo = ref.watch(workspaceRepositoryProvider);
@@ -187,7 +203,20 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
       return;
     }
 
-    final active = snapshot.workspaces.first;
+    // Reopen the board the user was last on; a stale stored id (deleted or
+    // left workspace) falls back to the first workspace.
+    String? storedId;
+    final key = _activeWorkspaceKey;
+    if (key != null) {
+      final prefs = await SharedPreferences.getInstance();
+      storedId = prefs.getString(key);
+    }
+    if (!ref.mounted) return;
+
+    final active = snapshot.workspaces.firstWhere(
+      (w) => w.id == storedId,
+      orElse: () => snapshot.workspaces.first,
+    );
     final lanes = await _ensureLanes(active.id);
     if (!ref.mounted) return;
     final sortedLanes = List<KanbanLane>.from(lanes)
@@ -261,6 +290,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
         isLoading: false,
       );
       _subscribeToWorkspace(created.workspace.id);
+      unawaited(_persistActiveWorkspace(created.workspace.id));
       return;
     }
 
@@ -350,6 +380,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
         isLoading: false,
       );
       _subscribeToWorkspace(next.id);
+      unawaited(_persistActiveWorkspace(next.id));
     } else {
       state = state.copyWith(
         activeWorkspace: next,
@@ -381,6 +412,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     if (!ref.mounted || state.activeWorkspace.id != ws.id) return;
     state = state.copyWith(lanes: lanes, isLoading: false);
     _subscribeToWorkspace(ws.id);
+    unawaited(_persistActiveWorkspace(ws.id));
   }
 
   // --- Admin Lane Customization ---

@@ -597,7 +597,7 @@ class _TaskCardWidget extends StatelessWidget {
                       const SizedBox(height: 10),
                     ],
 
-                    // Footer: Assignee & Due Date
+                    // Footer: Assignee, Created & Due Date
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -625,34 +625,63 @@ class _TaskCardWidget extends StatelessWidget {
                           ),
                         ),
 
-                        // Due Date Chip
-                        if (task.dueDate != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: (isOverdue ? Colors.redAccent : Colors.grey)
-                                  .withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.schedule,
-                                  size: 11,
-                                  color: isOverdue ? Colors.redAccent : Colors.grey,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  DateFormat('MMM dd').format(task.dueDate!),
-                                  style: TextStyle(
-                                    fontSize: 10.5,
-                                    fontWeight: isOverdue ? FontWeight.bold : FontWeight.w600,
-                                    color: isOverdue ? Colors.redAccent : Colors.grey,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Created Date Chip
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.calendar_today, size: 11, color: Colors.grey),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    DateFormat('MMM dd').format(task.createdAt),
+                                    style: const TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
+                            // Due Date Chip
+                            if (task.dueDate != null) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: (isOverdue ? Colors.redAccent : Colors.grey)
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.schedule,
+                                      size: 11,
+                                      color: isOverdue ? Colors.redAccent : Colors.grey,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      DateFormat('MMM dd').format(task.dueDate!),
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: isOverdue ? FontWeight.bold : FontWeight.w600,
+                                        color: isOverdue ? Colors.redAccent : Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
                   ],

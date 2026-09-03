@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/repositories/activity_log_repository.dart';
 import 'package:task_sphere/core/repositories/task_repository.dart';
 import 'package:task_sphere/core/repositories/workspace_repository.dart';
@@ -306,6 +307,12 @@ Future<void> _settle() async {
 }
 
 void main() {
+  setUp(() {
+    // The real notifier's build() fires loadInitialData(), which reads the
+    // stored active workspace from SharedPreferences.
+    SharedPreferences.setMockInitialValues({});
+  });
+
   group('TaskNotifier with a persistent repository', () {
     test('loads tasks from the repository on init', () async {
       final repo = FakeTaskRepository()
@@ -869,6 +876,120 @@ void main() {
 
       expect(repo.deleteCalls, isEmpty);
       expect(notifier.state.activeWorkspace.id, 'ws-1');
+    });
+  });
+
+  group('active workspace persistence', () {
+    Workspace memberWorkspace(String id, String name) {
+      return Workspace(
+        id: id,
+        name: name,
+        adminId: 'a',
+        members: [
+          WorkspaceMember(
+            id: 'm-$id',
+            workspaceId: id,
+            userId: 'a',
+            email: 'a@x.com',
+            role: UserRole.admin,
+          ),
+        ],
+      );
+    }
+
+    FakeWorkspaceRepository repoWith(List<Workspace> workspaces) {
+      return FakeWorkspaceRepository()..workspaces = workspaces;
+    }
+
+    test('loadInitialData restores the last active workspace', () async {
+      SharedPreferences.setMockInitialValues({
+        'active_workspace_id_a': 'ws-2',
+      });
+      final repo =
+          repoWith([memberWorkspace('ws-1', 'Team'), memberWorkspace('ws-2', 'Other')]);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+
+      expect(notifier.state.activeWorkspace.id, 'ws-2');
+      expect(notifier.state.allWorkspaces, hasLength(2));
+    });
+
+    test('loadInitialData falls back to the first workspace for an unknown stored id',
+        () async {
+      SharedPreferences.setMockInitialValues({
+        'active_workspace_id_a': 'ws-gone',
+      });
+      final repo =
+          repoWith([memberWorkspace('ws-1', 'Team'), memberWorkspace('ws-2', 'Other')]);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
+    });
+
+    test('switchWorkspace persists the new active workspace', () async {
+      SharedPreferences.setMockInitialValues({
+        'active_workspace_id_a': 'ws-1',
+      });
+      final repo =
+          repoWith([memberWorkspace('ws-1', 'Team'), memberWorkspace('ws-2', 'Other')]);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      // build() fires the same load unawaited; settle so its final state
+      // write can't run mid-switch and revert the selection.
+      await notifier.loadInitialData();
+      await _settle();
+
+      await notifier.switchWorkspace(repo.workspaces[1]);
+      await _settle();
+
+      expect(notifier.state.activeWorkspace.id, 'ws-2');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('active_workspace_id_a'), 'ws-2');
+    });
+
+    test('createWorkspace persists the new workspace', () async {
+      SharedPreferences.setMockInitialValues({
+        'active_workspace_id_a': 'ws-1',
+      });
+      final repo = repoWith([memberWorkspace('ws-1', 'Team')]);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      await notifier.createWorkspace('Remote Team', 'a', 'a@x.com');
+      await _settle();
+
+      expect(notifier.state.activeWorkspace.id, 'ws-remote');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('active_workspace_id_a'), 'ws-remote');
+    });
+
+    test('deleting the active workspace persists the next one', () async {
+      SharedPreferences.setMockInitialValues({
+        'active_workspace_id_a': 'ws-1',
+      });
+      final repo =
+          repoWith([memberWorkspace('ws-1', 'Team'), memberWorkspace('ws-2', 'Other')]);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      await notifier.deleteWorkspace('ws-1');
+      await _settle();
+
+      expect(notifier.state.activeWorkspace.id, 'ws-2');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('active_workspace_id_a'), 'ws-2');
     });
   });
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/repositories/workspace_repository.dart';
 import 'package:task_sphere/models/lane.dart';
 import 'package:task_sphere/models/user_profile.dart';
@@ -65,6 +66,12 @@ Future<void> _pumpModal(WidgetTester tester, ProviderContainer container) async 
 }
 
 void main() {
+  setUp(() {
+    // The delete flow drives the real WorkspaceNotifier, whose build()
+    // reads the stored active workspace from SharedPreferences.
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('real users see the create and invite sections', (tester) async {
     final container = ProviderContainer(
       overrides: [

@@ -362,6 +362,37 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                           ),
                         ],
                       ),
+
+                      // Created Date (read-only, existing tasks only)
+                      if (widget.task != null)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Created',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.withValues(alpha: 0.5)),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.calendar_today, size: 16, color: Color(0xFF6366F1)),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    DateFormat('MMM dd, yyyy').format(widget.task!.createdAt),
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                   const SizedBox(height: 20),
