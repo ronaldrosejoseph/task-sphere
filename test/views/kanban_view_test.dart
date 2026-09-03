@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -332,8 +333,11 @@ void main() {
       await pumpBoard(tester, container: container);
 
       final card = find.text('Design Dark Mode Glassmorphic UI System');
-      final gesture = await tester.startGesture(tester.getCenter(card));
-      // The drag starts as soon as the pointer moves, before any long-press
+      final gesture = await tester.startGesture(
+        tester.getCenter(card),
+        kind: PointerDeviceKind.mouse,
+      );
+      // The drag starts as soon as the mouse moves, before any long-press
       // timeout could fire.
       for (var i = 0; i < 10; i++) {
         await gesture.moveBy(const Offset(-40, 0));
@@ -350,6 +354,42 @@ void main() {
       // The binding asserts foundation debug variables are reset before the
       // test body ends, so the override must be cleared here, not in a
       // teardown.
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('a touch pointer switches the board to long-press drag on desktop', (tester) async {
+      // Regression: Chrome mobile emulation sends touch pointers while the
+      // browser still reports a desktop OS, so platform checks alone were
+      // not enough to stop accidental moves.
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await pumpBoard(tester, container: container);
+
+      final card = find.text('Design Dark Mode Glassmorphic UI System');
+
+      // A first touch pointer (as mobile emulation sends) flips the board
+      // into long-press mode.
+      final tap = await tester.startGesture(tester.getCenter(card));
+      await tester.pump();
+      await tap.up();
+      await tester.pumpAndSettle();
+
+      // A quick scroll below the long-press duration must not move the card.
+      final gesture = await tester.startGesture(tester.getCenter(card));
+      for (var i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(-40, 0));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      final unchanged = container
+          .read(tasksProvider)
+          .firstWhere((t) => t.id == 'task-101');
+      expect(unchanged.laneId, 'lane-2');
+      expect(tester.takeException(), isNull);
+
       debugDefaultTargetPlatformOverride = null;
     });
   });
