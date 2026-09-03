@@ -227,7 +227,7 @@ class _MemberWorkloadChart extends StatelessWidget {
       for (final member in members)
         (
           member.email,
-          member.email.split('@').first,
+          member.displayLabel,
           counts[member.email] ?? 0,
         ),
       if (unassigned > 0) ('unassigned', 'Unassigned', unassigned),

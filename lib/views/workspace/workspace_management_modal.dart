@@ -196,13 +196,37 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
                       contentPadding: EdgeInsets.zero,
                       leading: CircleAvatar(
                         backgroundColor: member.role == UserRole.admin ? const Color(0xFF6366F1) : Colors.grey,
-                        child: Text(member.email[0].toUpperCase(), style: const TextStyle(color: Colors.white)),
+                        child: Text(member.displayLabel[0].toUpperCase(), style: const TextStyle(color: Colors.white)),
                       ),
-                      title: Text(member.email, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text('Role: ${member.role.name.toUpperCase()}'),
-                      trailing: member.role == UserRole.admin
-                          ? const Chip(label: Text('Admin', style: TextStyle(fontSize: 10)))
-                          : const Chip(label: Text('Member', style: TextStyle(fontSize: 10))),
+                      title: Text(
+                        member.displayLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        member.displayName == null
+                            ? 'Role: ${member.role.name.toUpperCase()}'
+                            : member.email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!isDemoUser && isAdmin)
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, size: 18),
+                              tooltip: 'Edit display name',
+                              onPressed: () => _editDisplayName(member),
+                            ),
+                          if (member.role == UserRole.admin)
+                            const Chip(label: Text('Admin', style: TextStyle(fontSize: 10)))
+                          else
+                            const Chip(label: Text('Member', style: TextStyle(fontSize: 10))),
+                        ],
+                      ),
                     ),
                   ],
 
@@ -303,5 +327,52 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
     if (confirmed != true || !mounted) return;
     await ref.read(activeWorkspaceProvider.notifier).deleteWorkspace(ws.id);
     if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _editDisplayName(WorkspaceMember member) async {
+    final controller = TextEditingController(text: member.displayName ?? '');
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Display name for ${member.email}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Shown on cards and filters instead of the email. '
+              'Leave empty to keep the email name.',
+              style: TextStyle(fontSize: 12.5),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              maxLength: 32,
+              decoration: const InputDecoration(
+                hintText: 'e.g. Alex Morgan',
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (saved != true || !mounted) return;
+    ref.read(activeWorkspaceProvider.notifier).updateMemberDisplayName(
+          member.id,
+          controller.text,
+        );
   }
 }

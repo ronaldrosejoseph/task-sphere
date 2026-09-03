@@ -51,6 +51,81 @@ void main() {
       expect(restored.email, member.email);
       expect(restored.role, member.role);
     });
+
+    test('roundtrips the display name through JSON', () {
+      final member = WorkspaceMember(
+        id: 'm1',
+        workspaceId: 'ws1',
+        email: 'alex@example.com',
+        role: UserRole.admin,
+        displayName: 'Alex Morgan',
+      );
+
+      final restored = WorkspaceMember.fromJson(member.toJson());
+      expect(restored.displayName, 'Alex Morgan');
+    });
+
+    test('missing display name key parses as null', () {
+      final member = WorkspaceMember.fromJson({
+        'id': 'm1',
+        'workspace_id': 'ws1',
+        'email': 'alex@example.com',
+        'role': 'admin',
+      });
+      expect(member.displayName, isNull);
+    });
+  });
+
+  group('displayLabel', () {
+    WorkspaceMember member({String? displayName}) => WorkspaceMember(
+          id: 'm1',
+          workspaceId: 'ws1',
+          email: 'sarah.designer@example.com',
+          role: UserRole.member,
+          displayName: displayName,
+        );
+
+    test('uses the display name when set', () {
+      expect(member(displayName: 'Sarah Designer').displayLabel, 'Sarah Designer');
+    });
+
+    test('trims the display name', () {
+      expect(member(displayName: '  Sarah  ').displayLabel, 'Sarah');
+    });
+
+    test('falls back to the email prefix when unset or empty', () {
+      expect(member().displayLabel, 'sarah.designer');
+      expect(member(displayName: '   ').displayLabel, 'sarah.designer');
+    });
+  });
+
+  group('memberDisplayLabel', () {
+    final members = [
+      WorkspaceMember(
+        id: 'm1',
+        workspaceId: 'ws1',
+        email: 'alex.admin@example.com',
+        role: UserRole.admin,
+        displayName: 'Alex Morgan',
+      ),
+      WorkspaceMember(
+        id: 'm2',
+        workspaceId: 'ws1',
+        email: 'sarah.designer@example.com',
+        role: UserRole.member,
+      ),
+    ];
+
+    test('resolves the label for a matching member case-insensitively', () {
+      expect(memberDisplayLabel(members, 'ALEX.ADMIN@example.com'), 'Alex Morgan');
+      expect(memberDisplayLabel(members, 'sarah.designer@example.com'),
+          'sarah.designer');
+    });
+
+    test('returns null when no member matches or email is missing', () {
+      expect(memberDisplayLabel(members, 'ghost@example.com'), isNull);
+      expect(memberDisplayLabel(members, null), isNull);
+    });
   });
 
   group('Workspace', () {

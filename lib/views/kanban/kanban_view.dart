@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import '../../models/task.dart';
 import '../../models/lane.dart';
+import '../../models/workspace.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -147,7 +148,8 @@ class KanbanView extends ConsumerWidget {
                           return DropdownMenuItem(
                             value: m.email,
                             child: Text(
-                              m.email.split('@').first,
+                              m.displayLabel,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           );
@@ -311,6 +313,8 @@ class _KanbanColumnWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDemoUser = ref.watch(isDemoUserProvider);
+    // Members carry the admin-set display names shown on the cards.
+    final members = ref.watch(activeWorkspaceProvider).activeWorkspace.members;
     return Container(
       width: 320,
       margin: const EdgeInsets.only(right: 16),
@@ -426,6 +430,11 @@ class _KanbanColumnWidget extends ConsumerWidget {
                           itemCount: tasks.length,
                           itemBuilder: (context, index) {
                             final task = tasks[index];
+                            final assigneeLabel = memberDisplayLabel(
+                                  members,
+                                  task.assigneeEmail,
+                                ) ??
+                                task.assigneeName;
                             return Draggable<TaskItem>(
                               data: task,
                               feedback: SizedBox(
@@ -433,14 +442,18 @@ class _KanbanColumnWidget extends ConsumerWidget {
                                 child: Material(
                                   elevation: 8,
                                   borderRadius: BorderRadius.circular(16),
-                                  child: _TaskCardWidget(task: task, isDragging: true),
+                                  child: _TaskCardWidget(
+                                    task: task,
+                                    assigneeLabel: assigneeLabel,
+                                    isDragging: true,
+                                  ),
                                 ),
                               ),
                               childWhenDragging: Opacity(
                                 opacity: 0.3,
-                                child: _TaskCardWidget(task: task),
+                                child: _TaskCardWidget(task: task, assigneeLabel: assigneeLabel),
                               ),
-                              child: _TaskCardWidget(task: task),
+                              child: _TaskCardWidget(task: task, assigneeLabel: assigneeLabel),
                             ).animate().fadeIn(duration: 200.ms, delay: (index * 50).ms);
                           },
                         ),
@@ -458,7 +471,15 @@ class _TaskCardWidget extends StatelessWidget {
   final TaskItem task;
   final bool isDragging;
 
-  const _TaskCardWidget({required this.task, this.isDragging = false});
+  /// Resolved member display label (or the task's snapshot name); when both
+  /// are missing the card falls back to 'Unassigned'.
+  final String? assigneeLabel;
+
+  const _TaskCardWidget({
+    required this.task,
+    this.isDragging = false,
+    this.assigneeLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -466,6 +487,7 @@ class _TaskCardWidget extends StatelessWidget {
     final isOverdue = task.dueDate != null && task.dueDate!.isBefore(DateTime.now());
     // Amber for upcoming due dates so red can keep meaning "overdue".
     final dueColor = isOverdue ? Colors.redAccent : const Color(0xFFF59E0B);
+    final assigneeName = assigneeLabel ?? task.assigneeName ?? 'Unassigned';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -610,14 +632,15 @@ class _TaskCardWidget extends StatelessWidget {
                                 radius: 10,
                                 backgroundColor: AppTheme.primaryIndigo,
                                 child: Text(
-                                  (task.assigneeName ?? 'U')[0].toUpperCase(),
+                                  assigneeName[0].toUpperCase(),
                                   style: const TextStyle(fontSize: 9.5, color: Colors.white),
                                 ),
                               ),
                               const SizedBox(width: 6),
                               Flexible(
                                 child: Text(
-                                  task.assigneeName ?? 'Unassigned',
+                                  assigneeName,
+                                  maxLines: 1,
                                   style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                                   overflow: TextOverflow.ellipsis,
                                 ),

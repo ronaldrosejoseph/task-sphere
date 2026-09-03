@@ -70,6 +70,10 @@ abstract class WorkspaceRepository {
 
   Future<void> inviteMember(WorkspaceMember member);
 
+  /// Saves the admin-configured display name for a member (null clears it
+  /// back to the email fallback). Admin-only (RLS).
+  Future<void> updateMemberDisplayName(WorkspaceMember member);
+
   /// Adds an email to the signup allowlist so the invited user can sign
   /// in. Gated by the same admin-only RLS policy as the allowlist table.
   Future<void> allowlistEmail(String email);
@@ -137,6 +141,9 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Future<void> inviteMember(WorkspaceMember member) async {}
+
+  @override
+  Future<void> updateMemberDisplayName(WorkspaceMember member) async {}
 
   @override
   Future<void> allowlistEmail(String email) async {}
@@ -412,6 +419,17 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
       await _client.from('workspace_members').insert(member.toJson());
     } catch (e) {
       debugPrint('Member invite error: $e');
+    }
+  }
+
+  @override
+  Future<void> updateMemberDisplayName(WorkspaceMember member) async {
+    try {
+      await _client
+          .from('workspace_members')
+          .update({'display_name': member.displayName}).eq('id', member.id);
+    } catch (e) {
+      debugPrint('Member update error: $e');
     }
   }
 

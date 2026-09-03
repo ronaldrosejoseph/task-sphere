@@ -7,13 +7,25 @@ class WorkspaceMember {
   final String email;
   final UserRole role;
 
+  /// Optional friendly name configured by the workspace admin; null falls
+  /// back to the email prefix ([displayLabel]).
+  final String? displayName;
+
   WorkspaceMember({
     required this.id,
     required this.workspaceId,
     this.userId,
     required this.email,
     required this.role,
+    this.displayName,
   });
+
+  /// What the app shows for this member: the admin-configured display name
+  /// when set, otherwise the email prefix.
+  String get displayLabel {
+    final name = displayName?.trim();
+    return (name == null || name.isEmpty) ? email.split('@').first : name;
+  }
 
   Map<String, dynamic> toJson() {
     return {
@@ -22,6 +34,7 @@ class WorkspaceMember {
       'user_id': userId,
       'email': email,
       'role': role.name,
+      'display_name': displayName,
     };
   }
 
@@ -32,8 +45,21 @@ class WorkspaceMember {
       userId: json['user_id'] as String?,
       email: json['email'] as String? ?? 'member@example.com',
       role: json['role'].toString().toLowerCase() == 'admin' ? UserRole.admin : UserRole.member,
+      displayName: json['display_name'] as String?,
     );
   }
+}
+
+/// The display label of the member whose email matches [email]
+/// (case-insensitive), or null when no member matches.
+String? memberDisplayLabel(List<WorkspaceMember> members, String? email) {
+  if (email == null || email.isEmpty) return null;
+  for (final member in members) {
+    if (member.email.toLowerCase() == email.toLowerCase()) {
+      return member.displayLabel;
+    }
+  }
+  return null;
 }
 
 class Workspace {

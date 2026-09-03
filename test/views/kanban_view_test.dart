@@ -171,7 +171,7 @@ void main() {
 
       await tester.tap(find.text('All Assignees'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('alex.admin').last);
+      await tester.tap(find.text('Alex Morgan').last);
       await tester.pumpAndSettle();
 
       expect(find.text('Implement Supabase Realtime WebSockets'), findsOneWidget);

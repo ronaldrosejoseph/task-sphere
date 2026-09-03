@@ -154,6 +154,9 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
           userId: 'demo-user-123',
           email: 'alex.admin@tasksphere.app',
           role: UserRole.admin,
+          // Match the demo tasks' assigneeName values so cards keep their
+          // names when members start carrying display names.
+          displayName: 'Alex Morgan',
         ),
         WorkspaceMember(
           id: 'mem-2',
@@ -161,6 +164,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
           userId: 'user-456',
           email: 'sarah.designer@tasksphere.app',
           role: UserRole.member,
+          displayName: 'Sarah Designer',
         ),
         WorkspaceMember(
           id: 'mem-3',
@@ -168,6 +172,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
           userId: 'user-789',
           email: 'dev.team@tasksphere.app',
           role: UserRole.member,
+          displayName: 'Dev Team',
         ),
       ],
     );
@@ -574,6 +579,44 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
       unawaited(_repository.inviteMember(newMember));
       // Let the invited user sign in without a manual SQL insert.
       unawaited(_repository.allowlistEmail(email));
+    }
+  }
+
+  /// Admins can give members a friendly display name shown instead of the
+  /// email prefix; an empty value reverts to the email fallback.
+  void updateMemberDisplayName(String memberId, String? displayName) {
+    if (ref.read(isDemoUserProvider)) return;
+    if (!isAdmin(ref.read(authProvider))) return;
+    final trimmed = displayName?.trim();
+    final effective = (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+    final updatedMembers = [
+      for (final m in state.activeWorkspace.members)
+        if (m.id == memberId)
+          WorkspaceMember(
+            id: m.id,
+            workspaceId: m.workspaceId,
+            userId: m.userId,
+            email: m.email,
+            role: m.role,
+            displayName: effective,
+          )
+        else
+          m,
+    ];
+    final updatedWs = state.activeWorkspace.copyWith(members: updatedMembers);
+    state = state.copyWith(
+      activeWorkspace: updatedWs,
+      allWorkspaces: [
+        for (final w in state.allWorkspaces)
+          w.id == updatedWs.id ? updatedWs : w,
+      ],
+    );
+    WorkspaceMember? updated;
+    for (final m in updatedMembers) {
+      if (m.id == memberId) updated = m;
+    }
+    if (_repository.isPersistent && updated != null) {
+      unawaited(_repository.updateMemberDisplayName(updated));
     }
   }
 

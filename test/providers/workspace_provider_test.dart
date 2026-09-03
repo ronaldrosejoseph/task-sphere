@@ -325,4 +325,47 @@ void main() {
       );
     });
   });
+
+  group('member display names', () {
+    test('updateMemberDisplayName changes the label shown for the member', () {
+      final container = makeContainer();
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      notifier.updateMemberDisplayName('mem-2', 'Sarah the Designer');
+
+      final members =
+          container.read(activeWorkspaceProvider).activeWorkspace.members;
+      expect(members.firstWhere((m) => m.id == 'mem-2').displayName,
+          'Sarah the Designer');
+      expect(members.firstWhere((m) => m.id == 'mem-2').displayLabel,
+          'Sarah the Designer');
+      // Other members keep their seeded names.
+      expect(members.firstWhere((m) => m.id == 'mem-1').displayLabel,
+          'Alex Morgan');
+    });
+
+    test('non-admins cannot change display names', () {
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith(
+            () => _FixedAuthNotifier(
+              UserProfile(id: 'user-456', email: 'sarah.designer@tasksphere.app', displayName: 'Sarah'),
+            ),
+          ),
+          isDemoUserProvider.overrideWith((ref) => false),
+        ],
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      notifier.updateMemberDisplayName('mem-1', 'Hacked Name');
+
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.members
+            .firstWhere((m) => m.id == 'mem-1')
+            .displayName,
+        'Alex Morgan',
+      );
+    });
+  });
 }
