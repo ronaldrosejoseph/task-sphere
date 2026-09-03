@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -275,7 +276,7 @@ void main() {
       expect(find.text('Save Task'), findsOneWidget);
     });
 
-    testWidgets('dragging a card onto another lane moves the task', (tester) async {
+    testWidgets('on touch devices a long press drags a card onto another lane', (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
       await pumpBoard(tester, container: container);
@@ -283,8 +284,11 @@ void main() {
       final card = find.text('Design Dark Mode Glassmorphic UI System');
       expect(card, findsOneWidget);
 
-      // To Do is the leftmost column, one lane width to the left of In Progress.
+      // To Do is the leftmost column, one lane width to the left of In
+      // Progress. Touch platforms only start a drag after a long press, so
+      // scrolling the board never moves a card by accident.
       final gesture = await tester.startGesture(tester.getCenter(card));
+      await tester.pump(const Duration(milliseconds: 600));
       for (var i = 0; i < 10; i++) {
         await gesture.moveBy(const Offset(-40, 0));
         await tester.pump(const Duration(milliseconds: 20));
@@ -296,6 +300,57 @@ void main() {
           .read(tasksProvider)
           .firstWhere((t) => t.id == 'task-101');
       expect(moved.laneId, 'lane-1');
+    });
+
+    testWidgets('scrolling the board on touch devices does not move a card', (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await pumpBoard(tester, container: container);
+
+      final card = find.text('Design Dark Mode Glassmorphic UI System');
+      final gesture = await tester.startGesture(tester.getCenter(card));
+      // A quick scroll gesture below the long-press duration.
+      for (var i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(-40, 0));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // The task stayed in its lane; only the long press starts a drag.
+      final unchanged = container
+          .read(tasksProvider)
+          .firstWhere((t) => t.id == 'task-101');
+      expect(unchanged.laneId, 'lane-2');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('desktop mice drag a card immediately without a long press', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await pumpBoard(tester, container: container);
+
+      final card = find.text('Design Dark Mode Glassmorphic UI System');
+      final gesture = await tester.startGesture(tester.getCenter(card));
+      // The drag starts as soon as the pointer moves, before any long-press
+      // timeout could fire.
+      for (var i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(-40, 0));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      final moved = container
+          .read(tasksProvider)
+          .firstWhere((t) => t.id == 'task-101');
+      expect(moved.laneId, 'lane-1');
+
+      // The binding asserts foundation debug variables are reset before the
+      // test body ends, so the override must be cleared here, not in a
+      // teardown.
+      debugDefaultTargetPlatformOverride = null;
     });
   });
 

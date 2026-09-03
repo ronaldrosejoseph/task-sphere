@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -315,6 +316,10 @@ class _KanbanColumnWidget extends ConsumerWidget {
     final isDemoUser = ref.watch(isDemoUserProvider);
     // Members carry the admin-set display names shown on the cards.
     final members = ref.watch(activeWorkspaceProvider).activeWorkspace.members;
+    // Phones and tablets (incl. mobile browsers) long-press to drag; desktop
+    // and web-with-mouse keep the immediate drag.
+    final isTouchPlatform = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
     return Container(
       width: 320,
       margin: const EdgeInsets.only(right: 16),
@@ -435,26 +440,40 @@ class _KanbanColumnWidget extends ConsumerWidget {
                                   task.assigneeEmail,
                                 ) ??
                                 task.assigneeName;
-                            return Draggable<TaskItem>(
-                              data: task,
-                              feedback: SizedBox(
-                                width: 300,
-                                child: Material(
-                                  elevation: 8,
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: _TaskCardWidget(
-                                    task: task,
-                                    assigneeLabel: assigneeLabel,
-                                    isDragging: true,
-                                  ),
+                            final feedback = SizedBox(
+                              width: 300,
+                              child: Material(
+                                elevation: 8,
+                                borderRadius: BorderRadius.circular(16),
+                                child: _TaskCardWidget(
+                                  task: task,
+                                  assigneeLabel: assigneeLabel,
+                                  isDragging: true,
                                 ),
                               ),
-                              childWhenDragging: Opacity(
-                                opacity: 0.3,
-                                child: _TaskCardWidget(task: task, assigneeLabel: assigneeLabel),
-                              ),
+                            );
+                            final placeholder = Opacity(
+                              opacity: 0.3,
                               child: _TaskCardWidget(task: task, assigneeLabel: assigneeLabel),
-                            ).animate().fadeIn(duration: 200.ms, delay: (index * 50).ms);
+                            );
+                            final card = _TaskCardWidget(task: task, assigneeLabel: assigneeLabel);
+                            // Touch devices long-press a card before it
+                            // drags, so scrolling the board never moves a
+                            // ticket by accident; mice drag immediately.
+                            final handle = isTouchPlatform
+                                ? LongPressDraggable<TaskItem>(
+                                    data: task,
+                                    feedback: feedback,
+                                    childWhenDragging: placeholder,
+                                    child: card,
+                                  )
+                                : Draggable<TaskItem>(
+                                    data: task,
+                                    feedback: feedback,
+                                    childWhenDragging: placeholder,
+                                    child: card,
+                                  );
+                            return handle.animate().fadeIn(duration: 200.ms, delay: (index * 50).ms);
                           },
                         ),
                 ),
