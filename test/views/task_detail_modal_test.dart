@@ -373,6 +373,44 @@ void main() {
       expect(find.text('Created'), findsNothing);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('created and due dates share one container', (tester) async {
+      await pumpModal(tester, task: datedTicket, size: const Size(900, 1400));
+
+      final datesBox = find
+          .ancestor(
+            of: find.text('Created'),
+            matching: find.byWidgetPredicate(
+              (w) =>
+                  w is Container &&
+                  w.padding != null &&
+                  w.decoration is BoxDecoration &&
+                  (w.decoration as BoxDecoration).border is Border,
+            ),
+          )
+          .first;
+      expect(datesBox, findsOneWidget);
+      expect(
+        find.descendant(of: datesBox, matching: find.text('Due Date')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('metadata field layout', () {
+    testWidgets('on a phone the metadata fields stretch full width', (tester) async {
+      await pumpModal(tester, size: const Size(360, 1400));
+
+      final dropdowns = find.byWidgetPredicate((w) => w is FormField);
+      expect(dropdowns, findsNWidgets(3));
+      for (final element in dropdowns.evaluate()) {
+        // The modal content is ~280px wide on a 360px phone; fixed 160-220px
+        // fields used to leave ragged gaps.
+        expect(tester.getSize(find.byWidget(element.widget)).width, greaterThan(250));
+      }
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('description readability', () {

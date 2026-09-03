@@ -100,6 +100,183 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     });
   }
 
+  Widget _buildLaneField(WorkspaceState workspaceState) {
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedLaneId.isNotEmpty ? _selectedLaneId : null,
+      isExpanded: true,
+      decoration: const InputDecoration(labelText: 'Kanban Lane', isDense: true),
+      items: ([...workspaceState.lanes]
+            ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex)))
+          .map((lane) {
+        return DropdownMenuItem(
+          value: lane.id,
+          child: Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(color: lane.color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  lane.title,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+      onChanged: (val) {
+        if (val != null) setState(() => _selectedLaneId = val);
+      },
+    );
+  }
+
+  Widget _buildPriorityField() {
+    return DropdownButtonFormField<TaskPriority>(
+      initialValue: _selectedPriority,
+      isExpanded: true,
+      decoration: const InputDecoration(labelText: 'Priority', isDense: true),
+      items: TaskPriority.values.map((p) {
+        return DropdownMenuItem(
+          value: p,
+          child: Row(
+            children: [
+              Icon(Icons.circle, size: 10, color: p.color),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  p.label,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+      onChanged: (val) {
+        if (val != null) setState(() => _selectedPriority = val);
+      },
+    );
+  }
+
+  Widget _buildAssigneeField(WorkspaceState workspaceState) {
+    return DropdownButtonFormField<String>(
+      initialValue: _assigneeEmail,
+      isExpanded: true,
+      decoration: const InputDecoration(labelText: 'Assignee', isDense: true),
+      items: [
+        const DropdownMenuItem(value: null, child: Text('Unassigned')),
+        ...workspaceState.activeWorkspace.members.map((m) {
+          return DropdownMenuItem(
+            value: m.email,
+            child: Text(
+              m.displayLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
+        }),
+      ],
+      onChanged: (val) {
+        setState(() {
+          _assigneeEmail = val;
+          // Snapshot the display label on the task so the card keeps a name
+          // even if the member leaves.
+          _assigneeName = val == null
+              ? null
+              : memberDisplayLabel(
+                      workspaceState.activeWorkspace.members,
+                      val,
+                    ) ??
+                  val.split('@').first;
+        });
+      },
+    );
+  }
+
+  /// The created (read-only) and due dates share one bordered container,
+  /// divided so each half reads as its own field.
+  Widget _buildDatesContainer() {
+    final hasCreated = widget.task != null;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          if (hasCreated) ...[
+            Expanded(
+              child: _dateCell(
+                icon: Icons.calendar_today,
+                label: 'Created',
+                value: DateFormat('MMM dd, yyyy').format(widget.task!.createdAt),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Container(width: 1, height: 34, color: Colors.grey.withValues(alpha: 0.3)),
+            const SizedBox(width: 16),
+          ],
+          Expanded(
+            child: _dateCell(
+              icon: Icons.schedule,
+              label: 'Due Date',
+              value: _dueDate == null
+                  ? 'Set Due Date'
+                  : DateFormat('MMM dd, yyyy').format(_dueDate!),
+              onTap: _pickDueDate,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dateCell({
+    required IconData icon,
+    required String label,
+    required String value,
+    VoidCallback? onTap,
+  }) {
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 14, color: const Color(0xFF6366F1)),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: onTap != null ? const Color(0xFF6366F1) : null,
+          ),
+        ),
+      ],
+    );
+    if (onTap == null) return content;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: content,
+    );
+  }
+
   void _toggleTimer() {
     final notifier = ref.read(runningTimersProvider.notifier);
     if (notifier.isRunning(_timerTaskId)) {
@@ -232,179 +409,35 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                     ),
                   const SizedBox(height: 24),
 
-                  // Metadata Grid (Lane, Priority, Assignee, Due Date)
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 16,
-                    children: [
-                      // Lane Dropdown
-                      SizedBox(
-                        width: 200,
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _selectedLaneId.isNotEmpty ? _selectedLaneId : null,
-                          isExpanded: true,
-                          decoration: const InputDecoration(labelText: 'Kanban Lane', isDense: true),
-                          items: ([...workspaceState.lanes]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex))).map((lane) {
-                            return DropdownMenuItem(
-                              value: lane.id,
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 10,
-                                    height: 10,
-                                    decoration: BoxDecoration(color: lane.color, shape: BoxShape.circle),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      lane.title,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) setState(() => _selectedLaneId = val);
-                          },
-                        ),
-                      ),
-
-                      // Priority Dropdown
-                      SizedBox(
-                        width: 160,
-                        child: DropdownButtonFormField<TaskPriority>(
-                          initialValue: _selectedPriority,
-                          isExpanded: true,
-                          decoration: const InputDecoration(labelText: 'Priority', isDense: true),
-                          items: TaskPriority.values.map((p) {
-                            return DropdownMenuItem(
-                              value: p,
-                              child: Row(
-                                children: [
-                                  Icon(Icons.circle, size: 10, color: p.color),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      p.label,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) setState(() => _selectedPriority = val);
-                          },
-                        ),
-                      ),
-
-                      // Assignee Dropdown
-                      SizedBox(
-                        width: 220,
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _assigneeEmail,
-                          isExpanded: true,
-                          decoration: const InputDecoration(labelText: 'Assignee', isDense: true),
-                          items: [
-                            const DropdownMenuItem(value: null, child: Text('Unassigned')),
-                            ...workspaceState.activeWorkspace.members.map((m) {
-                              return DropdownMenuItem(
-                                value: m.email,
-                                child: Text(
-                                  m.displayLabel,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }),
-                          ],
-                          onChanged: (val) {
-                            setState(() {
-                              _assigneeEmail = val;
-                              // Snapshot the display label on the task so the
-                              // card keeps a name even if the member leaves.
-                              _assigneeName = val == null
-                                  ? null
-                                  : memberDisplayLabel(
-                                          workspaceState.activeWorkspace.members,
-                                          val,
-                                        ) ??
-                                      val.split('@').first;
-                            });
-                          },
-                        ),
-                      ),
-
-                      // Due Date Picker
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Due Date',
-                            style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
-                          ),
-                          const SizedBox(height: 4),
-                          InkWell(
-                            onTap: _pickDueDate,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.withValues(alpha: 0.5)),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.calendar_today, size: 16, color: Color(0xFF6366F1)),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    _dueDate == null
-                                        ? 'Set Due Date'
-                                        : DateFormat('MMM dd, yyyy').format(_dueDate!),
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      // Created Date (read-only, existing tasks only)
-                      if (widget.task != null)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Created',
-                              style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.withValues(alpha: 0.5)),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.calendar_today, size: 16, color: Color(0xFF6366F1)),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    DateFormat('MMM dd, yyyy').format(widget.task!.createdAt),
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
+                  // Metadata Grid (Lane, Priority, Assignee, Dates)
+                  //
+                  // On phones the three dropdowns and the dates container
+                  // stack full-width; on wide screens they sit side by side.
+                  if (isNarrow)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildLaneField(workspaceState),
+                        const SizedBox(height: 14),
+                        _buildPriorityField(),
+                        const SizedBox(height: 14),
+                        _buildAssigneeField(workspaceState),
+                        const SizedBox(height: 14),
+                        _buildDatesContainer(),
+                      ],
+                    )
+                  else
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 16,
+                      crossAxisAlignment: WrapCrossAlignment.start,
+                      children: [
+                        SizedBox(width: 200, child: _buildLaneField(workspaceState)),
+                        SizedBox(width: 160, child: _buildPriorityField()),
+                        SizedBox(width: 220, child: _buildAssigneeField(workspaceState)),
+                        SizedBox(width: 300, child: _buildDatesContainer()),
+                      ],
+                    ),
                   const SizedBox(height: 20),
 
                   // Description Input
