@@ -130,6 +130,13 @@ void main() {
     );
 
     expect(find.text('Task Details'), findsOneWidget);
+    // The tracker sits below the metadata section; scroll it into view on
+    // the phone-sized viewport, then assert it renders without overflow.
+    await tester.dragUntilVisible(
+      find.text('Time Tracker'),
+      find.byType(Scrollable).first,
+      const Offset(0, -200),
+    );
     expect(find.textContaining('Total Logged:'), findsOneWidget);
     expect(find.text('Start Timer'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -256,6 +263,31 @@ void main() {
         dialog.insetPadding,
         const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       );
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('created date display', () {
+    final datedTicket = TaskItem(
+      id: 't-dated',
+      workspaceId: 'ws-demo-001',
+      laneId: 'lane-1',
+      title: 'Dated ticket',
+      createdAt: DateTime(2025, 3, 14),
+    );
+
+    testWidgets('edit mode shows the created date', (tester) async {
+      await pumpModal(tester, task: datedTicket, size: const Size(900, 1400));
+
+      expect(find.text('Created'), findsOneWidget);
+      expect(find.text('Mar 14, 2025'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('create mode hides the created field', (tester) async {
+      await pumpModal(tester, size: const Size(900, 1400));
+
+      expect(find.text('Created'), findsNothing);
       expect(tester.takeException(), isNull);
     });
   });

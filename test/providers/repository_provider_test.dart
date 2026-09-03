@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/repositories/activity_log_repository.dart';
 import 'package:task_sphere/core/repositories/task_repository.dart';
 import 'package:task_sphere/core/repositories/workspace_repository.dart';
@@ -189,6 +190,24 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
     members.add(member);
   }
 
+  final List<(String, String?)> memberDisplayNameUpdates = [];
+
+  @override
+  Future<void> updateMemberDisplayName(WorkspaceMember member) async {
+    memberDisplayNameUpdates.add((member.id, member.displayName));
+    final index = members.indexWhere((m) => m.id == member.id);
+    if (index != -1) {
+      members[index] = WorkspaceMember(
+        id: member.id,
+        workspaceId: member.workspaceId,
+        userId: member.userId,
+        email: member.email,
+        role: member.role,
+        displayName: member.displayName,
+      );
+    }
+  }
+
   @override
   Future<void> allowlistEmail(String email) async {
     allowlisted.add(email.toLowerCase());
@@ -306,6 +325,12 @@ Future<void> _settle() async {
 }
 
 void main() {
+  setUp(() {
+    // The real notifier's build() fires loadInitialData(), which reads the
+    // stored active workspace from SharedPreferences.
+    SharedPreferences.setMockInitialValues({});
+  });
+
   group('TaskNotifier with a persistent repository', () {
     test('loads tasks from the repository on init', () async {
       final repo = FakeTaskRepository()
@@ -869,6 +894,259 @@ void main() {
 
       expect(repo.deleteCalls, isEmpty);
       expect(notifier.state.activeWorkspace.id, 'ws-1');
+    });
+  });
+
+  group('active workspace persistence', () {
+    Workspace memberWorkspace(String id, String name) {
+      return Workspace(
+        id: id,
+        name: name,
+        adminId: 'a',
+        members: [
+          WorkspaceMember(
+            id: 'm-$id',
+            workspaceId: id,
+            userId: 'a',
+            email: 'a@x.com',
+            role: UserRole.admin,
+          ),
+        ],
+      );
+    }
+
+    FakeWorkspaceRepository repoWith(List<Workspace> workspaces) {
+      return FakeWorkspaceRepository()..workspaces = workspaces;
+    }
+
+    test('loadInitialData restores the last active workspace', () async {
+      SharedPreferences.setMockInitialValues({
+        'active_workspace_id_a': 'ws-2',
+      });
+      final repo =
+          repoWith([memberWorkspace('ws-1', 'Team'), memberWorkspace('ws-2', 'Other')]);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+
+      expect(notifier.state.activeWorkspace.id, 'ws-2');
+      expect(notifier.state.allWorkspaces, hasLength(2));
+    });
+
+    test('loadInitialData falls back to the first workspace for an unknown stored id',
+        () async {
+      SharedPreferences.setMockInitialValues({
+        'active_workspace_id_a': 'ws-gone',
+      });
+      final repo =
+          repoWith([memberWorkspace('ws-1', 'Team'), memberWorkspace('ws-2', 'Other')]);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
+    });
+
+    test('switchWorkspace persists the new active workspace', () async {
+      SharedPreferences.setMockInitialValues({
+        'active_workspace_id_a': 'ws-1',
+      });
+      final repo =
+          repoWith([memberWorkspace('ws-1', 'Team'), memberWorkspace('ws-2', 'Other')]);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      // build() fires the same load unawaited; settle so its final state
+      // write can't run mid-switch and revert the selection.
+      await notifier.loadInitialData();
+      await _settle();
+
+      await notifier.switchWorkspace(repo.workspaces[1]);
+      await _settle();
+
+      expect(notifier.state.activeWorkspace.id, 'ws-2');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('active_workspace_id_a'), 'ws-2');
+    });
+
+    test('createWorkspace persists the new workspace', () async {
+      SharedPreferences.setMockInitialValues({
+        'active_workspace_id_a': 'ws-1',
+      });
+      final repo = repoWith([memberWorkspace('ws-1', 'Team')]);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      await notifier.createWorkspace('Remote Team', 'a', 'a@x.com');
+      await _settle();
+
+      expect(notifier.state.activeWorkspace.id, 'ws-remote');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('active_workspace_id_a'), 'ws-remote');
+    });
+
+    test('deleting the active workspace persists the next one', () async {
+      SharedPreferences.setMockInitialValues({
+        'active_workspace_id_a': 'ws-1',
+      });
+      final repo =
+          repoWith([memberWorkspace('ws-1', 'Team'), memberWorkspace('ws-2', 'Other')]);
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      await notifier.deleteWorkspace('ws-1');
+      await _settle();
+
+      expect(notifier.state.activeWorkspace.id, 'ws-2');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('active_workspace_id_a'), 'ws-2');
+    });
+  });
+
+  group('member display names', () {
+    // Current user ('a') is the workspace admin; m-2 already has a name.
+    Workspace adminWorkspaceWithMembers() {
+      return Workspace(
+        id: 'ws-1',
+        name: 'Team',
+        adminId: 'a',
+        members: [
+          WorkspaceMember(
+            id: 'm-1',
+            workspaceId: 'ws-1',
+            userId: 'a',
+            email: 'a@x.com',
+            role: UserRole.admin,
+          ),
+          WorkspaceMember(
+            id: 'm-2',
+            workspaceId: 'ws-1',
+            email: 'sarah@x.com',
+            role: UserRole.member,
+            displayName: 'Sarah Designer',
+          ),
+        ],
+      );
+    }
+
+    Workspace nonAdminWorkspace() {
+      return Workspace(
+        id: 'ws-1',
+        name: 'Team',
+        adminId: 'someone-else',
+        members: [
+          WorkspaceMember(
+            id: 'm-1',
+            workspaceId: 'ws-1',
+            userId: 'a',
+            email: 'a@x.com',
+            role: UserRole.member,
+          ),
+        ],
+      );
+    }
+
+    test('admin updates a member display name in both lists and persists', () async {
+      final repo = FakeWorkspaceRepository()..workspaces = [adminWorkspaceWithMembers()];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      notifier.updateMemberDisplayName('m-2', 'Sarah the Designer');
+
+      final state = container.read(activeWorkspaceProvider);
+      expect(
+        state.activeWorkspace.members.firstWhere((m) => m.id == 'm-2').displayName,
+        'Sarah the Designer',
+      );
+      // The canonical copy in allWorkspaces is updated too.
+      expect(
+        state.allWorkspaces.first.members.firstWhere((m) => m.id == 'm-2').displayName,
+        'Sarah the Designer',
+      );
+      await _settle();
+      expect(repo.memberDisplayNameUpdates, [('m-2', 'Sarah the Designer')]);
+    });
+
+    test('clearing the display name persists null', () async {
+      final repo = FakeWorkspaceRepository()..workspaces = [adminWorkspaceWithMembers()];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      notifier.updateMemberDisplayName('m-2', '   ');
+
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.members
+            .firstWhere((m) => m.id == 'm-2')
+            .displayName,
+        isNull,
+      );
+      await _settle();
+      expect(repo.memberDisplayNameUpdates, [('m-2', null)]);
+    });
+
+    test('non-admins cannot change display names', () async {
+      final repo = FakeWorkspaceRepository()..workspaces = [nonAdminWorkspace()];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      notifier.updateMemberDisplayName('m-1', 'Hacked Name');
+
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.members.single.displayName,
+        isNull,
+      );
+      await _settle();
+      expect(repo.memberDisplayNameUpdates, isEmpty);
+    });
+
+    test('demo user cannot change display names even as the workspace admin', () async {
+      final demoWs = Workspace(
+        id: 'ws-1',
+        name: 'Team',
+        adminId: 'demo-user-123',
+        members: [
+          WorkspaceMember(
+            id: 'm-1',
+            workspaceId: 'ws-1',
+            userId: 'demo-user-123',
+            email: 'alex.admin@tasksphere.app',
+            role: UserRole.admin,
+          ),
+        ],
+      );
+      final repo = FakeWorkspaceRepository()..workspaces = [demoWs];
+      final container = ProviderContainer(
+        overrides: [
+          workspaceRepositoryProvider.overrideWith((ref) => repo),
+          authProvider.overrideWith(() => _FixedAuthNotifier(UserProfile.demo())),
+        ],
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await _settle();
+
+      notifier.updateMemberDisplayName('m-1', 'Hacked Name');
+
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.members.single.displayName,
+        isNull,
+      );
+      await _settle();
+      expect(repo.memberDisplayNameUpdates, isEmpty);
     });
   });
 }

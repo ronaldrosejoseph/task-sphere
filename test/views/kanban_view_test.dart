@@ -92,6 +92,16 @@ void main() {
       expect(find.text('Setup Flutter Multi-Platform Target Configuration'), findsOneWidget);
     });
 
+    testWidgets('task cards label and color their date chips', (tester) async {
+      await pumpBoard(tester);
+
+      // One labeled Created chip per visible card (the archived task is
+      // hidden); the seeded dates are relative to now, so the date itself is
+      // not asserted.
+      expect(find.textContaining('Created '), findsNWidgets(4));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('hides archived tasks by default', (tester) async {
       await pumpBoard(tester);
 
@@ -160,7 +170,7 @@ void main() {
 
       await tester.tap(find.text('All Assignees'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('alex.admin').last);
+      await tester.tap(find.text('Alex Morgan').last);
       await tester.pumpAndSettle();
 
       expect(find.text('Implement Supabase Realtime WebSockets'), findsOneWidget);

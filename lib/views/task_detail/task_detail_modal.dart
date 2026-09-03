@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/task.dart';
 import '../../models/subtask.dart';
 import '../../models/task_comment.dart';
+import '../../models/workspace.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -313,7 +314,8 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                               return DropdownMenuItem(
                                 value: m.email,
                                 child: Text(
-                                  '${m.email.split("@").first} (${m.role.name})',
+                                  m.displayLabel,
+                                  maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               );
@@ -322,7 +324,15 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                           onChanged: (val) {
                             setState(() {
                               _assigneeEmail = val;
-                              _assigneeName = val?.split('@').first;
+                              // Snapshot the display label on the task so the
+                              // card keeps a name even if the member leaves.
+                              _assigneeName = val == null
+                                  ? null
+                                  : memberDisplayLabel(
+                                          workspaceState.activeWorkspace.members,
+                                          val,
+                                        ) ??
+                                      val.split('@').first;
                             });
                           },
                         ),
@@ -362,6 +372,37 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                           ),
                         ],
                       ),
+
+                      // Created Date (read-only, existing tasks only)
+                      if (widget.task != null)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Created',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.withValues(alpha: 0.5)),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.calendar_today, size: 16, color: Color(0xFF6366F1)),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    DateFormat('MMM dd, yyyy').format(widget.task!.createdAt),
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                   const SizedBox(height: 20),

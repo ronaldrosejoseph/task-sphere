@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/repositories/workspace_repository.dart';
 import 'package:task_sphere/models/lane.dart';
 import 'package:task_sphere/models/user_profile.dart';
@@ -65,6 +66,12 @@ Future<void> _pumpModal(WidgetTester tester, ProviderContainer container) async 
 }
 
 void main() {
+  setUp(() {
+    // The delete flow drives the real WorkspaceNotifier, whose build()
+    // reads the stored active workspace from SharedPreferences.
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('real users see the create and invite sections', (tester) async {
     final container = ProviderContainer(
       overrides: [
@@ -163,6 +170,54 @@ void main() {
     expect(find.text('Current Members'), findsOneWidget);
     expect(find.text('New workspace name...'), findsNothing);
     expect(find.text('Invite Member to Workspace'), findsNothing);
+    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('admin edits a member display name from the member list', (tester) async {
+    tester.view.physicalSize = const Size(900, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // The real notifier (no activeWorkspaceProvider override) serves the demo
+    // workspace in memory; the auth override makes this user its admin while
+    // bypassing the demo sandbox guards.
+    final container = ProviderContainer(
+      overrides: [
+        authProvider.overrideWith(
+          () => _FixedAuthNotifier(
+            UserProfile(id: 'demo-user-123', email: 'alex.admin@tasksphere.app', displayName: 'Alex'),
+          ),
+        ),
+        isDemoUserProvider.overrideWith((ref) => false),
+      ],
+    );
+    addTearDown(container.dispose);
+    await _pumpModal(tester, container);
+
+    final editButtons = find.byIcon(Icons.edit_outlined);
+    expect(editButtons, findsNWidgets(3));
+
+    await tester.tap(editButtons.first);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Display name for alex.admin@tasksphere.app'),
+      findsOneWidget,
+    );
+
+    // The display-name field is the dialog's only text entry.
+    await tester.enterText(find.byType(TextField).last, 'Alex the Admin');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    final member = container
+        .read(activeWorkspaceProvider)
+        .activeWorkspace
+        .members
+        .firstWhere((m) => m.email == 'alex.admin@tasksphere.app');
+    expect(member.displayName, 'Alex the Admin');
+    expect(find.text('Alex the Admin'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

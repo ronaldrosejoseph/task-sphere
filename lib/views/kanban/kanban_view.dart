@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import '../../models/task.dart';
 import '../../models/lane.dart';
+import '../../models/workspace.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -147,7 +148,8 @@ class KanbanView extends ConsumerWidget {
                           return DropdownMenuItem(
                             value: m.email,
                             child: Text(
-                              m.email.split('@').first,
+                              m.displayLabel,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           );
@@ -311,6 +313,8 @@ class _KanbanColumnWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDemoUser = ref.watch(isDemoUserProvider);
+    // Members carry the admin-set display names shown on the cards.
+    final members = ref.watch(activeWorkspaceProvider).activeWorkspace.members;
     return Container(
       width: 320,
       margin: const EdgeInsets.only(right: 16),
@@ -426,6 +430,11 @@ class _KanbanColumnWidget extends ConsumerWidget {
                           itemCount: tasks.length,
                           itemBuilder: (context, index) {
                             final task = tasks[index];
+                            final assigneeLabel = memberDisplayLabel(
+                                  members,
+                                  task.assigneeEmail,
+                                ) ??
+                                task.assigneeName;
                             return Draggable<TaskItem>(
                               data: task,
                               feedback: SizedBox(
@@ -433,14 +442,18 @@ class _KanbanColumnWidget extends ConsumerWidget {
                                 child: Material(
                                   elevation: 8,
                                   borderRadius: BorderRadius.circular(16),
-                                  child: _TaskCardWidget(task: task, isDragging: true),
+                                  child: _TaskCardWidget(
+                                    task: task,
+                                    assigneeLabel: assigneeLabel,
+                                    isDragging: true,
+                                  ),
                                 ),
                               ),
                               childWhenDragging: Opacity(
                                 opacity: 0.3,
-                                child: _TaskCardWidget(task: task),
+                                child: _TaskCardWidget(task: task, assigneeLabel: assigneeLabel),
                               ),
-                              child: _TaskCardWidget(task: task),
+                              child: _TaskCardWidget(task: task, assigneeLabel: assigneeLabel),
                             ).animate().fadeIn(duration: 200.ms, delay: (index * 50).ms);
                           },
                         ),
@@ -458,12 +471,23 @@ class _TaskCardWidget extends StatelessWidget {
   final TaskItem task;
   final bool isDragging;
 
-  const _TaskCardWidget({required this.task, this.isDragging = false});
+  /// Resolved member display label (or the task's snapshot name); when both
+  /// are missing the card falls back to 'Unassigned'.
+  final String? assigneeLabel;
+
+  const _TaskCardWidget({
+    required this.task,
+    this.isDragging = false,
+    this.assigneeLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isOverdue = task.dueDate != null && task.dueDate!.isBefore(DateTime.now());
+    // Amber for upcoming due dates so red can keep meaning "overdue".
+    final dueColor = isOverdue ? Colors.redAccent : const Color(0xFFF59E0B);
+    final assigneeName = assigneeLabel ?? task.assigneeName ?? 'Unassigned';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -511,9 +535,12 @@ class _TaskCardWidget extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Priority Pill & Attachment Badge
+                    // Priority Pill (left) and, on the right, the created
+                    // chip plus the attachment badge. The right side is a
+                    // Wrap so chips can never push each other off the card.
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -532,24 +559,55 @@ class _TaskCardWidget extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (task.attachmentPaths.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.attach_file, size: 12, color: Color(0xFF3B82F6)),
-                                const SizedBox(width: 3),
-                                Text(
-                                  '${task.attachmentPaths.length}',
-                                  style: const TextStyle(fontSize: 11, color: Color(0xFF3B82F6)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Wrap(
+                            alignment: WrapAlignment.end,
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              // Attachment count badge
+                              if (task.attachmentPaths.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.attach_file, size: 12, color: Color(0xFF3B82F6)),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '${task.attachmentPaths.length}',
+                                        style: const TextStyle(fontSize: 11, color: Color(0xFF3B82F6)),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ],
-                            ),
+                              // Created Date Chip (text-only so it can shrink
+                              // with an ellipsis when the row is tight)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  'Created ${DateFormat('MMM dd').format(task.createdAt)}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF10B981),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 9),
@@ -601,7 +659,6 @@ class _TaskCardWidget extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Assignee
                         Expanded(
                           child: Row(
                             children: [
@@ -609,14 +666,15 @@ class _TaskCardWidget extends StatelessWidget {
                                 radius: 10,
                                 backgroundColor: AppTheme.primaryIndigo,
                                 child: Text(
-                                  (task.assigneeName ?? 'U')[0].toUpperCase(),
+                                  assigneeName[0].toUpperCase(),
                                   style: const TextStyle(fontSize: 9.5, color: Colors.white),
                                 ),
                               ),
                               const SizedBox(width: 6),
                               Flexible(
                                 child: Text(
-                                  task.assigneeName ?? 'Unassigned',
+                                  assigneeName,
+                                  maxLines: 1,
                                   style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -630,24 +688,20 @@ class _TaskCardWidget extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: (isOverdue ? Colors.redAccent : Colors.grey)
-                                  .withValues(alpha: 0.12),
+                              color: dueColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  Icons.schedule,
-                                  size: 11,
-                                  color: isOverdue ? Colors.redAccent : Colors.grey,
-                                ),
+                                Icon(Icons.schedule, size: 11, color: dueColor),
                                 const SizedBox(width: 4),
                                 Text(
-                                  DateFormat('MMM dd').format(task.dueDate!),
+                                  'Due ${DateFormat('MMM dd').format(task.dueDate!)}',
                                   style: TextStyle(
                                     fontSize: 10.5,
                                     fontWeight: isOverdue ? FontWeight.bold : FontWeight.w600,
-                                    color: isOverdue ? Colors.redAccent : Colors.grey,
+                                    color: dueColor,
                                   ),
                                 ),
                               ],

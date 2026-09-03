@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../models/task.dart';
+import '../../models/workspace.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../task_detail/task_detail_modal.dart';
@@ -61,7 +62,8 @@ class _TaskListView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tasks = ref.watch(tasksProvider).where((t) => !t.isArchived).toList();
-    final lanes = [...ref.watch(activeWorkspaceProvider).lanes]
+    final workspaceState = ref.watch(activeWorkspaceProvider);
+    final lanes = [...workspaceState.lanes]
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
     return ListView.builder(
@@ -84,10 +86,20 @@ class _TaskListView extends ConsumerWidget {
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           children: laneTasks.map((task) {
+            final assignee = memberDisplayLabel(
+                  workspaceState.activeWorkspace.members,
+                  task.assigneeEmail,
+                ) ??
+                task.assigneeName ??
+                'Unassigned';
             return ListTile(
               leading: Icon(Icons.circle, size: 10, color: task.priority.color),
               title: Text(task.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text('Assigned: ${task.assigneeName ?? "Unassigned"} • Priority: ${task.priority.label}'),
+              subtitle: Text(
+                'Assigned: $assignee • Priority: ${task.priority.label}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               trailing: task.dueDate != null
                   ? Text(DateFormat('MMM dd').format(task.dueDate!))
                   : null,

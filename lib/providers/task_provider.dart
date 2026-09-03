@@ -10,6 +10,7 @@ import '../models/task.dart';
 import '../models/subtask.dart';
 import '../models/task_comment.dart';
 import '../models/activity_log.dart';
+import '../models/workspace.dart';
 import 'workspace_provider.dart';
 import 'auth_provider.dart';
 
@@ -246,8 +247,9 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     // The workspace auto-expiry lane selection defines which lanes count as
     // completed; read it fresh so renames/settings changes apply without a
     // notifier rebuild (which would re-seed demo tasks).
-    final completedLaneIds =
-        ref.read(activeWorkspaceProvider).activeWorkspace.autoExpiryLaneIds;
+    final wsState = ref.read(activeWorkspaceProvider);
+    final completedLaneIds = wsState.activeWorkspace.autoExpiryLaneIds;
+    final members = wsState.activeWorkspace.members;
     final now = DateTime.now();
     for (final task in tasks) {
       final due = task.dueDate;
@@ -257,7 +259,8 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
       unawaited(notifications.scheduleTaskReminder(
         id: task.id.hashCode,
         title: 'Task Due: ${task.title}',
-        body: 'Assigned to ${task.assigneeName ?? "Team"}. Priority: ${task.priority.label}',
+        body:
+            'Assigned to ${memberDisplayLabel(members, task.assigneeEmail) ?? task.assigneeName ?? "Team"}. Priority: ${task.priority.label}',
         scheduledDate: due.subtract(const Duration(hours: 1)),
       ));
     }
@@ -399,10 +402,12 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
 
     // Trigger local notification if task has due date
     if (task.dueDate != null && _notifications != null) {
+      final members = ref.read(activeWorkspaceProvider).activeWorkspace.members;
       unawaited(_notifications!.scheduleTaskReminder(
         id: task.id.hashCode,
         title: 'Task Due: ${task.title}',
-        body: 'Assigned to ${task.assigneeName ?? "Team"}. Priority: ${task.priority.label}',
+        body:
+            'Assigned to ${memberDisplayLabel(members, task.assigneeEmail) ?? task.assigneeName ?? "Team"}. Priority: ${task.priority.label}',
         scheduledDate: task.dueDate!.subtract(const Duration(hours: 1)),
       ));
     }
