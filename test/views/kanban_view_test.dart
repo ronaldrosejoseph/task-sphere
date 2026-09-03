@@ -4,8 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/theme/app_theme.dart';
+import 'package:task_sphere/models/lane.dart';
 import 'package:task_sphere/models/task.dart';
 import 'package:task_sphere/models/user_profile.dart';
+import 'package:task_sphere/models/workspace.dart';
 import 'package:task_sphere/providers/auth_provider.dart';
 import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/providers/workspace_provider.dart';
@@ -14,6 +16,24 @@ import 'package:task_sphere/views/kanban/kanban_view.dart';
 class _EmptyWorkspaceNotifier extends WorkspaceNotifier {
   @override
   WorkspaceState build() => WorkspaceState.empty();
+}
+
+class _FixedWorkspaceNotifier extends WorkspaceNotifier {
+  _FixedWorkspaceNotifier(this.initialState);
+
+  final WorkspaceState initialState;
+
+  @override
+  WorkspaceState build() => initialState;
+}
+
+class _FixedTaskNotifier extends TaskNotifier {
+  _FixedTaskNotifier(this.tasks);
+
+  final List<TaskItem> tasks;
+
+  @override
+  List<TaskItem> build() => tasks;
 }
 
 class _FixedAuthNotifier extends AuthNotifier {
@@ -266,6 +286,113 @@ void main() {
           .read(tasksProvider)
           .firstWhere((t) => t.id == 'task-101');
       expect(moved.laneId, 'lane-1');
+    });
+  });
+
+  group('Kanban auto-expiry lane selection', () {
+    Workspace ws({List<String>? autoExpiryLaneIds}) => Workspace(
+          id: 'ws-custom',
+          name: 'Custom',
+          adminId: 'u-1',
+          autoArchiveDays: 14,
+          autoExpiryLaneIds: autoExpiryLaneIds,
+        );
+
+    TaskItem oldTask(String laneId, {String? title}) => TaskItem(
+          id: 't-$laneId',
+          workspaceId: 'ws-custom',
+          laneId: laneId,
+          title: title ?? 'Old completed task',
+          createdAt: DateTime.now().subtract(const Duration(days: 30)),
+        );
+
+    Future<void> pumpCustomBoard(
+      WidgetTester tester, {
+      required Workspace workspace,
+      required List<KanbanLane> lanes,
+      required List<TaskItem> tasks,
+    }) async {
+      final container = ProviderContainer(
+        overrides: [
+          activeWorkspaceProvider.overrideWith(
+            () => _FixedWorkspaceNotifier(WorkspaceState(
+              activeWorkspace: workspace,
+              allWorkspaces: [workspace],
+              lanes: lanes,
+            )),
+          ),
+          tasksProvider.overrideWith(() => _FixedTaskNotifier(tasks)),
+        ],
+      );
+      addTearDown(container.dispose);
+      await pumpBoard(tester, container: container);
+    }
+
+    testWidgets('stored lane ids auto-hide tasks even after a lane rename',
+        (tester) async {
+      await pumpCustomBoard(
+        tester,
+        workspace: ws(autoExpiryLaneIds: ['lane-f']),
+        lanes: [
+          KanbanLane(id: 'lane-o', workspaceId: 'ws-custom', title: 'Open'),
+          // Renamed away from 'Done': the old title-based logic would never
+          // auto-hide this lane again.
+          KanbanLane(id: 'lane-f', workspaceId: 'ws-custom', title: 'Finished'),
+        ],
+        tasks: [oldTask('lane-f', title: 'Renamed done task')],
+      );
+
+      expect(find.text('Renamed done task'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('an explicit empty selection disables auto-expiry', (tester) async {
+      await pumpCustomBoard(
+        tester,
+        workspace: ws(autoExpiryLaneIds: []),
+        lanes: [
+          KanbanLane(id: 'lane-d', workspaceId: 'ws-custom', title: 'Done'),
+          KanbanLane(id: 'lane-w', workspaceId: 'ws-custom', title: 'Wont Do'),
+        ],
+        tasks: [oldTask('lane-d')],
+      );
+
+      expect(find.text('Old completed task'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('unconfigured workspace falls back to Done/Wont Do titles',
+        (tester) async {
+      await pumpCustomBoard(
+        tester,
+        workspace: ws(),
+        lanes: [
+          KanbanLane(id: 'lane-d', workspaceId: 'ws-custom', title: 'Done'),
+          KanbanLane(id: 'lane-w', workspaceId: 'ws-custom', title: 'Wont Do'),
+        ],
+        tasks: [oldTask('lane-d')],
+      );
+
+      expect(find.text('Old completed task'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('unconfigured workspace with renamed lanes keeps old tasks visible',
+        (tester) async {
+      // Legacy behavior: without a saved selection, the title fallback finds
+      // nothing after a rename — the exact case the setting fixes.
+      await pumpCustomBoard(
+        tester,
+        workspace: ws(),
+        lanes: [
+          KanbanLane(id: 'lane-f', workspaceId: 'ws-custom', title: 'Finished'),
+          KanbanLane(id: 'lane-c', workspaceId: 'ws-custom', title: 'Closed'),
+        ],
+        tasks: [oldTask('lane-f', title: 'Old finished task')],
+      );
+
+      expect(find.text('Old finished task'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

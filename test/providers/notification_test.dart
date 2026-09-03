@@ -176,4 +176,58 @@ void main() {
     expect(fake.scheduled, contains('due-task'.hashCode));
     expect(fake.scheduled, isNot(contains('done-task'.hashCode)));
   });
+
+  test('reminder exclusion follows the configured auto-expiry lanes', () async {
+    final fake = FakeNotificationService();
+    final workspace = Workspace(
+      id: 'ws-2',
+      name: 'W',
+      adminId: 'a',
+      autoExpiryLaneIds: ['lane-finished'],
+    );
+    final lanes = [
+      KanbanLane(id: 'lane-o', workspaceId: 'ws-2', title: 'Open'),
+      // Renamed away from 'Done' — the title fallback would not match, but
+      // the stored selection still excludes this lane from reminders.
+      KanbanLane(id: 'lane-finished', workspaceId: 'ws-2', title: 'Finished'),
+    ];
+    final repo = _PersistentTaskRepository([
+      TaskItem(
+        id: 'open-task',
+        workspaceId: 'ws-2',
+        laneId: 'lane-o',
+        title: 'Still open',
+        dueDate: DateTime.now().add(const Duration(days: 2)),
+      ),
+      TaskItem(
+        id: 'finished-task',
+        workspaceId: 'ws-2',
+        laneId: 'lane-finished',
+        title: 'Done work',
+        dueDate: DateTime.now().add(const Duration(days: 2)),
+      ),
+    ]);
+
+    final container = ProviderContainer(
+      overrides: [
+        taskRepositoryProvider.overrideWith((ref) => repo),
+        notificationServiceProvider.overrideWith((ref) => fake),
+        activeWorkspaceProvider.overrideWith(
+          () => _FakeWorkspaceNotifier(WorkspaceState(
+            activeWorkspace: workspace,
+            allWorkspaces: [workspace],
+            lanes: lanes,
+          )),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(tasksProvider);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(fake.scheduled, contains('open-task'.hashCode));
+    expect(fake.scheduled, isNot(contains('finished-task'.hashCode)));
+  });
 }

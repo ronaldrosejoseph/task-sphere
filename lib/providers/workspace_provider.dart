@@ -504,6 +504,21 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     }
   }
 
+  void updateAutoExpiryLanes(List<String> laneIds) {
+    if (!isAdmin(ref.read(authProvider))) return;
+    final updatedWs = state.activeWorkspace.copyWith(autoExpiryLaneIds: laneIds);
+    state = state.copyWith(
+      activeWorkspace: updatedWs,
+      allWorkspaces: [
+        for (final w in state.allWorkspaces)
+          w.id == updatedWs.id ? updatedWs : w,
+      ],
+    );
+    if (_repository.isPersistent) {
+      unawaited(_repository.updateAutoExpiryLaneIds(updatedWs.id, laneIds));
+    }
+  }
+
   void inviteMember(String email, UserRole role) {
     // The demo sandbox cannot invite members; the UI hides the entry point.
     if (ref.read(isDemoUserProvider)) return;
