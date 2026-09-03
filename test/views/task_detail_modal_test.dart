@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:task_sphere/core/repositories/activity_log_repository.dart';
 import 'package:task_sphere/core/repositories/task_repository.dart';
 import 'package:task_sphere/core/services/supabase_service.dart';
 import 'package:task_sphere/models/task.dart';
@@ -11,7 +14,22 @@ import 'package:task_sphere/models/user_profile.dart';
 import 'package:task_sphere/providers/auth_provider.dart';
 import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/views/task_detail/task_detail_modal.dart';
-import '../providers/repository_provider_test.dart' show FakeTaskRepository;
+import '../providers/repository_provider_test.dart'
+    show FakeActivityLogRepository, FakeTaskRepository;
+
+/// Delays the task INSERT until the test releases it, simulating a slow
+/// database round trip.
+class _GatedTaskRepository extends FakeTaskRepository {
+  _GatedTaskRepository(this.gate);
+
+  final Completer<void> gate;
+
+  @override
+  Future<void> insertTask(TaskItem task) async {
+    await gate.future;
+    await super.insertTask(task);
+  }
+}
 
 class _FixedAuthNotifier extends AuthNotifier {
   _FixedAuthNotifier(this.user);
@@ -193,6 +211,71 @@ void main() {
     // sent, failing the insert on the real database.
     expect(tasks.first.createdBy, 'user-abc');
     expect(find.byType(TaskDetailModal), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the activity log waits for the task insert before saving', (tester) async {
+    tester.view.physicalSize = const Size(900, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final gate = Completer<void>();
+    final taskRepo = _GatedTaskRepository(gate);
+    final logRepo = FakeActivityLogRepository();
+    final container = ProviderContainer(
+      overrides: [
+        authProvider.overrideWith(
+          () => _FixedAuthNotifier(
+            UserProfile(id: 'user-abc', email: 'alex@x.com', displayName: 'Alex'),
+          ),
+        ),
+        isDemoUserProvider.overrideWith((ref) => false),
+        taskRepositoryProvider.overrideWith((ref) => taskRepo),
+        activityLogRepositoryProvider.overrideWith((ref) => logRepo),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => Center(
+                child: ElevatedButton(
+                  onPressed: () => showDialog(
+                    context: ctx,
+                    builder: (_) => const TaskDetailModal(),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, 'Sequenced ticket');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Task'));
+    await tester.pump();
+
+    // The task INSERT is still in flight: the modal must stay open and no
+    // activity log (whose task_id references the tasks row) may be written.
+    expect(find.byType(TaskDetailModal), findsOneWidget);
+    expect(logRepo.inserted, isEmpty);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TaskDetailModal), findsNothing);
+    expect(taskRepo.inserted.single.title, 'Sequenced ticket');
+    final log = logRepo.inserted.single;
+    expect(log.action, 'Created task "Sequenced ticket"');
+    expect(log.taskId, taskRepo.inserted.single.id);
     expect(tester.takeException(), isNull);
   });
 

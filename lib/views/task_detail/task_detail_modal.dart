@@ -893,7 +893,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     await SupabaseStorageService.instance.deleteAttachment(path);
   }
 
-  void _saveTask() {
+  Future<void> _saveTask() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
 
@@ -938,7 +938,9 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         // string would fail the INSERT.
         createdBy: currentUser?.id,
       );
-      ref.read(tasksProvider.notifier).addTask(newTask);
+      // Await the task insert so the activity log (whose task_id references
+      // the tasks row) can never reach the database first and fail the FK.
+      await ref.read(tasksProvider.notifier).addTask(newTask);
       ref.read(activityLogsProvider.notifier).addLog(
             wsId,
             currentUser?.displayName ?? 'Admin',
@@ -968,6 +970,8 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
           );
     }
 
-    Navigator.pop(context);
+    // The create path above awaits the task insert, so the modal may have
+    // been dismissed mid-flight.
+    if (mounted) Navigator.pop(context);
   }
 }

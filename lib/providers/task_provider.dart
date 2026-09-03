@@ -391,13 +391,16 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     }
   }
 
-  void addTask(TaskItem task) {
+  /// Optimistically adds [task], then persists it. The returned future
+  /// completes once the row is stored, so callers can sequence dependent
+  /// writes (e.g. an activity log referencing the task id) after it.
+  Future<void> addTask(TaskItem task) async {
     // The demo sandbox cannot create tickets; the UI hides the entry points.
     if (ref.read(isDemoUserProvider)) return;
     _mutationCount += 1;
     state = [task, ...state];
     if (_repository.isPersistent) {
-      unawaited(_repository.insertTask(task));
+      await _repository.insertTask(task);
     }
 
     // Trigger local notification if task has due date
