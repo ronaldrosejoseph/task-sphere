@@ -45,12 +45,18 @@ class Workspace {
   final DateTime createdAt;
   final List<WorkspaceMember> members;
 
+  /// The lanes whose tasks auto-hide after [autoArchiveDays]. New workspaces
+  /// are seeded with their Done / Wont Do lanes; an empty list means
+  /// auto-expiry is disabled until an admin picks lanes in Settings.
+  final List<String> autoExpiryLaneIds;
+
   Workspace({
     required this.id,
     required this.name,
     required this.adminId,
     this.autoArchiveDays = 14,
     this.showArchivedTasks = false,
+    this.autoExpiryLaneIds = const [],
     DateTime? createdAt,
     this.members = const [],
   }) : createdAt = createdAt ?? DateTime.now();
@@ -62,6 +68,7 @@ class Workspace {
       'admin_id': adminId,
       'auto_archive_days': autoArchiveDays,
       'show_archived_tasks': showArchivedTasks,
+      'auto_expiry_lane_ids': autoExpiryLaneIds,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -73,6 +80,8 @@ class Workspace {
       adminId: json['admin_id'] as String? ?? '',
       autoArchiveDays: json['auto_archive_days'] as int? ?? 14,
       showArchivedTasks: json['show_archived_tasks'] as bool? ?? false,
+      autoExpiryLaneIds:
+          List<String>.from(json['auto_expiry_lane_ids'] as List? ?? const []),
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
@@ -84,6 +93,7 @@ class Workspace {
     String? name,
     int? autoArchiveDays,
     bool? showArchivedTasks,
+    List<String>? autoExpiryLaneIds,
     List<WorkspaceMember>? members,
   }) {
     return Workspace(
@@ -92,6 +102,7 @@ class Workspace {
       adminId: adminId,
       autoArchiveDays: autoArchiveDays ?? this.autoArchiveDays,
       showArchivedTasks: showArchivedTasks ?? this.showArchivedTasks,
+      autoExpiryLaneIds: autoExpiryLaneIds ?? this.autoExpiryLaneIds,
       createdAt: createdAt,
       members: members ?? this.members,
     );

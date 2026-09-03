@@ -88,4 +88,38 @@ void main() {
       isFalse,
     );
   });
+
+  testWidgets('auto-expiry lane chips render with Done/Wont Do pre-selected', (tester) async {
+    final container = await pumpSettings(tester);
+
+    for (final label in ['To Do', 'In Progress', 'Partially Done', 'Done', 'Wont Do']) {
+      expect(find.widgetWithText(FilterChip, label), findsOneWidget);
+    }
+
+    final state = container.read(activeWorkspaceProvider);
+    // The demo workspace ships with Done / Wont Do pre-selected.
+    expect(state.activeWorkspace.autoExpiryLaneIds, ['lane-4', 'lane-5']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tapping an auto-expiry lane chip persists the selection', (tester) async {
+    final container = await pumpSettings(tester);
+
+    // Deselect 'Done' (lane-4): the stored selection becomes explicit.
+    await tester.tap(find.widgetWithText(FilterChip, 'Done'));
+    await tester.pumpAndSettle();
+
+    final state = container.read(activeWorkspaceProvider);
+    expect(state.activeWorkspace.autoExpiryLaneIds, ['lane-5']);
+
+    // Tap again to re-add it.
+    await tester.tap(find.widgetWithText(FilterChip, 'Done'));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(activeWorkspaceProvider).activeWorkspace.autoExpiryLaneIds,
+      unorderedEquals(['lane-4', 'lane-5']),
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

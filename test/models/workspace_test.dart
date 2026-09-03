@@ -105,4 +105,41 @@ void main() {
       expect(updated.createdAt, workspace.createdAt);
     });
   });
+
+  group('Workspace auto-expiry lanes', () {
+    Workspace ws({List<String>? autoExpiryLaneIds}) => Workspace(
+          id: 'ws1',
+          name: 'Engineering',
+          adminId: 'admin-1',
+          autoExpiryLaneIds: autoExpiryLaneIds ?? const [],
+        );
+
+    test('JSON roundtrip preserves the configured lane ids', () {
+      final workspace = ws(autoExpiryLaneIds: ['lane-4', 'lane-5']);
+      final restored = Workspace.fromJson(workspace.toJson());
+      expect(restored.autoExpiryLaneIds, ['lane-4', 'lane-5']);
+    });
+
+    test('JSON roundtrip preserves an explicit empty selection', () {
+      final restored = Workspace.fromJson(ws(autoExpiryLaneIds: []).toJson());
+      expect(restored.autoExpiryLaneIds, isEmpty);
+    });
+
+    test('missing json key parses as an empty selection', () {
+      final workspace = Workspace.fromJson({'id': 'ws1'});
+      expect(workspace.autoExpiryLaneIds, isEmpty);
+    });
+
+    test('unconfigured workspace has auto-expiry disabled (no title fallback)', () {
+      final workspace = ws();
+      expect(workspace.autoExpiryLaneIds, isEmpty);
+    });
+
+    test('copyWith carries the selection through and overrides it', () {
+      final original = ws();
+      expect(original.copyWith(autoExpiryLaneIds: ['lane-4']).autoExpiryLaneIds,
+          ['lane-4']);
+      expect(original.autoExpiryLaneIds, isEmpty);
+    });
+  });
 }

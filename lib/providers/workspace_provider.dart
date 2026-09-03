@@ -130,6 +130,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
       name: 'Engineering & Design Team',
       adminId: 'demo-user-123',
       autoArchiveDays: 14,
+      autoExpiryLaneIds: const ['lane-4', 'lane-5'],
       members: [
         WorkspaceMember(
           id: 'mem-1',
@@ -264,10 +265,23 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     }
 
     final wsId = _uuid.v4();
+    // The workspace references the lane ids for its default auto-expiry
+    // selection, so the lanes are created first.
+    final newLanes = [
+      KanbanLane(id: _uuid.v4(), workspaceId: wsId, title: 'To Do', colorHex: '#3B82F6', orderIndex: 0, isDefault: true),
+      KanbanLane(id: _uuid.v4(), workspaceId: wsId, title: 'In Progress', colorHex: '#F59E0B', orderIndex: 1, isDefault: true),
+      KanbanLane(id: _uuid.v4(), workspaceId: wsId, title: 'Partially Done', colorHex: '#8B5CF6', orderIndex: 2, isDefault: true),
+      KanbanLane(id: _uuid.v4(), workspaceId: wsId, title: 'Done', colorHex: '#10B981', orderIndex: 3, isDefault: true),
+      KanbanLane(id: _uuid.v4(), workspaceId: wsId, title: 'Wont Do', colorHex: '#EF4444', orderIndex: 4, isDefault: true),
+    ];
     final newWs = Workspace(
       id: wsId,
       name: name,
       adminId: adminId,
+      autoExpiryLaneIds: [
+        for (final lane in newLanes)
+          if (lane.title == 'Done' || lane.title == 'Wont Do') lane.id,
+      ],
       members: [
         WorkspaceMember(
           id: _uuid.v4(),
@@ -278,14 +292,6 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
         )
       ],
     );
-
-    final newLanes = [
-      KanbanLane(id: _uuid.v4(), workspaceId: newWs.id, title: 'To Do', colorHex: '#3B82F6', orderIndex: 0, isDefault: true),
-      KanbanLane(id: _uuid.v4(), workspaceId: newWs.id, title: 'In Progress', colorHex: '#F59E0B', orderIndex: 1, isDefault: true),
-      KanbanLane(id: _uuid.v4(), workspaceId: newWs.id, title: 'Partially Done', colorHex: '#8B5CF6', orderIndex: 2, isDefault: true),
-      KanbanLane(id: _uuid.v4(), workspaceId: newWs.id, title: 'Done', colorHex: '#10B981', orderIndex: 3, isDefault: true),
-      KanbanLane(id: _uuid.v4(), workspaceId: newWs.id, title: 'Wont Do', colorHex: '#EF4444', orderIndex: 4, isDefault: true),
-    ];
 
     state = state.copyWith(
       activeWorkspace: newWs,
@@ -501,6 +507,21 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     );
     if (_repository.isPersistent) {
       unawaited(_repository.updateShowArchivedTasks(updatedWs.id, show));
+    }
+  }
+
+  void updateAutoExpiryLanes(List<String> laneIds) {
+    if (!isAdmin(ref.read(authProvider))) return;
+    final updatedWs = state.activeWorkspace.copyWith(autoExpiryLaneIds: laneIds);
+    state = state.copyWith(
+      activeWorkspace: updatedWs,
+      allWorkspaces: [
+        for (final w in state.allWorkspaces)
+          w.id == updatedWs.id ? updatedWs : w,
+      ],
+    );
+    if (_repository.isPersistent) {
+      unawaited(_repository.updateAutoExpiryLaneIds(updatedWs.id, laneIds));
     }
   }
 

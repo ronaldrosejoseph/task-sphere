@@ -176,7 +176,6 @@ class ActivityLogNotifier extends Notifier<List<ActivityLog>> {
 class TaskNotifier extends Notifier<List<TaskItem>> {
   TaskRepository? _repo;
   String? _workspaceId;
-  List<String> _excludedLaneIds = const [];
   NotificationService? _notifications;
 
   StreamSubscription<void>? _taskSub;
@@ -192,13 +191,6 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     _workspaceId =
         ref.watch(activeWorkspaceProvider.select((s) => s.activeWorkspace.id));
     final lanes = ref.read(activeWorkspaceProvider).lanes;
-    _excludedLaneIds = lanes
-        .where((l) {
-          final title = l.title.toLowerCase();
-          return title == 'done' || title == 'wont do';
-        })
-        .map((l) => l.id)
-        .toList();
 
     _taskSub?.cancel();
     ref.onDispose(() {
@@ -251,12 +243,17 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
   void _rescheduleReminders(List<TaskItem> tasks) {
     final notifications = _notifications;
     if (notifications == null) return;
+    // The workspace auto-expiry lane selection defines which lanes count as
+    // completed; read it fresh so renames/settings changes apply without a
+    // notifier rebuild (which would re-seed demo tasks).
+    final completedLaneIds =
+        ref.read(activeWorkspaceProvider).activeWorkspace.autoExpiryLaneIds;
     final now = DateTime.now();
     for (final task in tasks) {
       final due = task.dueDate;
       if (due == null || !due.isAfter(now)) continue;
       if (task.isArchived) continue;
-      if (_excludedLaneIds.contains(task.laneId)) continue;
+      if (completedLaneIds.contains(task.laneId)) continue;
       unawaited(notifications.scheduleTaskReminder(
         id: task.id.hashCode,
         title: 'Task Due: ${task.title}',

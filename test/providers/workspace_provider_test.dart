@@ -275,5 +275,54 @@ void main() {
       await notifier.switchWorkspace(demo);
       expect(container.read(activeWorkspaceProvider).activeWorkspace.autoArchiveDays, 90);
     });
+
+    test('updateAutoExpiryLanes updates the workspace in both lists', () {
+      final container = makeContainer();
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      notifier.updateAutoExpiryLanes(['lane-4']);
+
+      final state = container.read(activeWorkspaceProvider);
+      expect(state.activeWorkspace.autoExpiryLaneIds, ['lane-4']);
+      expect(
+        state.allWorkspaces
+            .firstWhere((ws) => ws.id == state.activeWorkspace.id)
+            .autoExpiryLaneIds,
+        ['lane-4'],
+      );
+    });
+
+    test('an empty lane selection disables auto-expiry', () {
+      final container = makeContainer();
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      notifier.updateAutoExpiryLanes([]);
+
+      final state = container.read(activeWorkspaceProvider);
+      expect(state.activeWorkspace.autoExpiryLaneIds, isEmpty);
+    });
+
+    test('non-admins cannot change the auto-expiry lanes', () {
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith(
+            () => _FixedAuthNotifier(
+              UserProfile(id: 'someone-else', email: 'other@x.com', displayName: 'Other'),
+            ),
+          ),
+          isDemoUserProvider.overrideWith((ref) => false),
+        ],
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      notifier.updateAutoExpiryLanes(['lane-4']);
+
+      // The demo workspace's pre-selected Done / Wont Do lanes are untouched.
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.autoExpiryLaneIds,
+        ['lane-4', 'lane-5'],
+      );
+    });
   });
 }

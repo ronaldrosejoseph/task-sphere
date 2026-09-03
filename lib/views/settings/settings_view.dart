@@ -17,8 +17,10 @@ class SettingsView extends ConsumerWidget {
     final isAdmin = ref
         .read(activeWorkspaceProvider.notifier)
         .isAdmin(ref.watch(authProvider));
-    final autoArchiveDays = workspaceState.activeWorkspace.autoArchiveDays;
-    final showArchived = workspaceState.activeWorkspace.showArchivedTasks;
+    final activeWorkspace = workspaceState.activeWorkspace;
+    final autoArchiveDays = activeWorkspace.autoArchiveDays;
+    final showArchived = activeWorkspace.showArchivedTasks;
+    final effectiveLaneIds = activeWorkspace.autoExpiryLaneIds;
 
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -63,7 +65,7 @@ class SettingsView extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Automatically hide completed (Done / Wont Do) tasks from the active Kanban view after a set period. Old tasks remain searchable in the Archive tab.',
+                  'Choose which lanes auto-hide completed tasks from the active Kanban view after a set period. Old tasks remain searchable in the Archive tab.',
                   style: TextStyle(fontSize: 13, color: Colors.grey[400]),
                 ),
                 const SizedBox(height: 16),
@@ -79,6 +81,31 @@ class SettingsView extends ConsumerWidget {
                         if (selected) {
                           ref.read(activeWorkspaceProvider.notifier).updateAutoArchiveThreshold(days);
                         }
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+                // Lanes whose tasks auto-hide after the threshold above.
+                // New workspaces come pre-selected with Done / Wont Do;
+                // deselecting every lane disables auto-expiry.
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: workspaceState.lanes.map((lane) {
+                    return FilterChip(
+                      avatar: CircleAvatar(
+                        backgroundColor: lane.color,
+                        radius: 6,
+                      ),
+                      label: Text(lane.title),
+                      selected: effectiveLaneIds.contains(lane.id),
+                      onSelected: (_) {
+                        final next = {...effectiveLaneIds};
+                        if (!next.remove(lane.id)) next.add(lane.id);
+                        ref
+                            .read(activeWorkspaceProvider.notifier)
+                            .updateAutoExpiryLanes(next.toList());
                       },
                     );
                   }).toList(),

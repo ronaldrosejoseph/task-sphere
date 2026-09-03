@@ -29,6 +29,8 @@ class KanbanView extends ConsumerWidget {
     final autoArchiveDays = workspaceState.activeWorkspace.autoArchiveDays;
 
     final now = DateTime.now();
+    // The admin-chosen auto-expiry lanes (empty = auto-expiry disabled).
+    final effectiveLaneIds = workspaceState.activeWorkspace.autoExpiryLaneIds;
 
     // Filter tasks based on auto-expiry threshold & filter bar
     final filteredTasks = allTasks.where((task) {
@@ -51,11 +53,7 @@ class KanbanView extends ConsumerWidget {
       }
 
       // 4. Auto-Expiry & Archiving Filter
-      final isDoneOrWontDo = lanes.any((l) =>
-          l.id == task.laneId &&
-          (l.title.toLowerCase() == 'done' || l.title.toLowerCase() == 'wont do'));
-
-      final isExpired = isDoneOrWontDo &&
+      final isExpired = effectiveLaneIds.contains(task.laneId) &&
           now.difference(task.createdAt).inDays >= autoArchiveDays;
 
       if ((task.isArchived || isExpired) && !showArchived) {
