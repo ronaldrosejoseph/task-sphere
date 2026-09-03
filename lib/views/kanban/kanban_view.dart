@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -192,26 +194,84 @@ class KanbanView extends ConsumerWidget {
 
           // Dynamic Kanban Columns Body
           Expanded(
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.all(20),
-              itemCount: lanes.length,
-              itemBuilder: (context, index) {
-                final lane = lanes[index];
-                final laneTasks = filteredTasks.where((t) => t.laneId == lane.id).toList()
-                  ..sort(compareTasksForBoard);
+            child: _AdaptiveDragHost(
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.all(20),
+                itemCount: lanes.length,
+                itemBuilder: (context, index) {
+                  final lane = lanes[index];
+                  final laneTasks = filteredTasks.where((t) => t.laneId == lane.id).toList()
+                    ..sort(compareTasksForBoard);
 
-                return _KanbanColumnWidget(
-                  lane: lane,
-                  tasks: laneTasks,
-                );
-              },
+                  return _KanbanColumnWidget(
+                    lane: lane,
+                    tasks: laneTasks,
+                  );
+                },
+              ),
             ),
           ),
         ],
       ),
     );
   }
+}
+
+/// Long-press drag must apply wherever a touch pointer is used — real
+/// phones, mobile browsers, and desktop browsers with mobile emulation all
+/// send touch pointers, while the OS/platform reported by the browser may
+/// still be a desktop one. The host switches to long-press mode the moment
+/// it sees a touch pointer; pure mouse sessions keep the immediate drag.
+class _AdaptiveDragHost extends StatefulWidget {
+  const _AdaptiveDragHost({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_AdaptiveDragHost> createState() => _AdaptiveDragHostState();
+}
+
+class _AdaptiveDragHostState extends State<_AdaptiveDragHost> {
+  // Touch-only platforms start in long-press mode without waiting for the
+  // first pointer; desktop sessions switch the moment a touch is seen.
+  late bool _longPressDrag =
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
+  void _onPointerDown(PointerDownEvent event) {
+    if (event.kind == PointerDeviceKind.touch && !_longPressDrag) {
+      setState(() => _longPressDrag = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _LongPressDragScope(
+      longPressDrag: _longPressDrag,
+      child: Listener(
+        onPointerDown: _onPointerDown,
+        behavior: HitTestBehavior.translucent,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _LongPressDragScope extends InheritedWidget {
+  const _LongPressDragScope({required this.longPressDrag, required super.child});
+
+  final bool longPressDrag;
+
+  static bool of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<_LongPressDragScope>()
+          ?.longPressDrag ??
+      false;
+
+  @override
+  bool updateShouldNotify(_LongPressDragScope oldWidget) =>
+      oldWidget.longPressDrag != longPressDrag;
 }
 
 class _NoWorkspacePrompt extends ConsumerWidget {
@@ -315,6 +375,10 @@ class _KanbanColumnWidget extends ConsumerWidget {
     final isDemoUser = ref.watch(isDemoUserProvider);
     // Members carry the admin-set display names shown on the cards.
     final members = ref.watch(activeWorkspaceProvider).activeWorkspace.members;
+    // Touch input long-presses a card before it drags, so scrolling the
+    // board never moves a ticket by accident; mouse sessions drag
+    // immediately. _AdaptiveDragHost flips this once a touch is seen.
+    final longPressDrag = _LongPressDragScope.of(context);
     return Container(
       width: 320,
       margin: const EdgeInsets.only(right: 16),
@@ -435,26 +499,37 @@ class _KanbanColumnWidget extends ConsumerWidget {
                                   task.assigneeEmail,
                                 ) ??
                                 task.assigneeName;
-                            return Draggable<TaskItem>(
-                              data: task,
-                              feedback: SizedBox(
-                                width: 300,
-                                child: Material(
-                                  elevation: 8,
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: _TaskCardWidget(
-                                    task: task,
-                                    assigneeLabel: assigneeLabel,
-                                    isDragging: true,
-                                  ),
+                            final feedback = SizedBox(
+                              width: 300,
+                              child: Material(
+                                elevation: 8,
+                                borderRadius: BorderRadius.circular(16),
+                                child: _TaskCardWidget(
+                                  task: task,
+                                  assigneeLabel: assigneeLabel,
+                                  isDragging: true,
                                 ),
                               ),
-                              childWhenDragging: Opacity(
-                                opacity: 0.3,
-                                child: _TaskCardWidget(task: task, assigneeLabel: assigneeLabel),
-                              ),
+                            );
+                            final placeholder = Opacity(
+                              opacity: 0.3,
                               child: _TaskCardWidget(task: task, assigneeLabel: assigneeLabel),
-                            ).animate().fadeIn(duration: 200.ms, delay: (index * 50).ms);
+                            );
+                            final card = _TaskCardWidget(task: task, assigneeLabel: assigneeLabel);
+                            final handle = longPressDrag
+                                ? LongPressDraggable<TaskItem>(
+                                    data: task,
+                                    feedback: feedback,
+                                    childWhenDragging: placeholder,
+                                    child: card,
+                                  )
+                                : Draggable<TaskItem>(
+                                    data: task,
+                                    feedback: feedback,
+                                    childWhenDragging: placeholder,
+                                    child: card,
+                                  );
+                            return handle.animate().fadeIn(duration: 200.ms, delay: (index * 50).ms);
                           },
                         ),
                 ),

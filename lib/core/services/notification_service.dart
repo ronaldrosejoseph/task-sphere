@@ -14,7 +14,9 @@ class NotificationService {
       : _notifications = plugin ?? FlutterLocalNotificationsPlugin();
 
   Future<void> init() async {
-    if (_initialized) return;
+    // flutter_local_notifications has no web implementation; scheduled local
+    // notifications cannot exist in the browser.
+    if (_initialized || kIsWeb) return;
     tz_data.initializeTimeZones();
 
     // Without this, tz.local falls back to UTC and reminders fire at the
@@ -53,6 +55,7 @@ class NotificationService {
     required String title,
     required String body,
   }) async {
+    if (kIsWeb) return;
     if (!_initialized) await init();
 
     const androidDetails = AndroidNotificationDetails(
@@ -93,6 +96,7 @@ class NotificationService {
     required String body,
     required DateTime scheduledDate,
   }) async {
+    if (kIsWeb) return;
     if (!_initialized) await init();
     if (scheduledDate.isBefore(DateTime.now())) return;
 
