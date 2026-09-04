@@ -55,6 +55,38 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('on a narrow phone the auto-expiry header wraps without overflow', (tester) async {
+    tester.view.physicalSize = const Size(360, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: const Scaffold(body: SettingsView()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The title must wrap over two lines rather than overflow the card.
+    final header = find.text('Completed Tasks Auto-Expiry');
+    expect(header, findsOneWidget);
+    expect(tester.getSize(header).height, greaterThan(24));
+
+    // The day chips still wrap in order with space between their rows.
+    await tester.dragUntilVisible(
+      find.text('Never'),
+      find.byType(Scrollable).first,
+      const Offset(0, -200),
+    );
+    for (final label in ['7 Days', '14 Days', '30 Days', '90 Days', 'Never']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('manage lanes tile opens the lane manager dialog', (tester) async {
     await pumpSettings(tester);
 
