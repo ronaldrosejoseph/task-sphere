@@ -145,6 +145,10 @@ class ActivityLogNotifier extends Notifier<List<ActivityLog>> {
     _repo = ref.watch(activityLogRepositoryProvider);
     _workspaceId =
         ref.watch(activeWorkspaceProvider.select((s) => s.activeWorkspace.id));
+    // A workspace switch rebuilds this notifier; drop the previous
+    // workspace's channel so it stops reloading stale data.
+    _logSub?.cancel();
+    _reloadDebounce?.cancel();
     ref.onDispose(() {
       _logSub?.cancel();
       _reloadDebounce?.cancel();

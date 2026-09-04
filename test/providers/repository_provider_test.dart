@@ -68,8 +68,11 @@ class FakeTaskRepository implements TaskRepository {
     commentStore.removeWhere((c) => c.id == commentId);
   }
 
+  /// Emitted to simulate task/subtask changes arriving from other devices.
+  final StreamController<void> taskEvents = StreamController<void>.broadcast();
+
   @override
-  Stream<void> watchTasks(String workspaceId) => const Stream.empty();
+  Stream<void> watchTasks(String workspaceId) => taskEvents.stream;
 
   /// Emitted to simulate task_comments changes arriving from other devices.
   final StreamController<void> commentEvents = StreamController<void>.broadcast();
@@ -221,8 +224,11 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
     allowlisted.add(email.toLowerCase());
   }
 
+  /// Emitted to simulate lanes/members/workspace changes from other devices.
+  final StreamController<void> workspaceEvents = StreamController<void>.broadcast();
+
   @override
-  Stream<void> watchWorkspace(String workspaceId) => const Stream.empty();
+  Stream<void> watchWorkspace(String workspaceId) => workspaceEvents.stream;
 }
 
 class FakeActivityLogRepository implements ActivityLogRepository {
@@ -241,8 +247,11 @@ class FakeActivityLogRepository implements ActivityLogRepository {
     stored.add(log);
   }
 
+  /// Emitted to simulate activity log changes from other devices.
+  final StreamController<void> logEvents = StreamController<void>.broadcast();
+
   @override
-  Stream<void> watchLogs(String workspaceId) => const Stream.empty();
+  Stream<void> watchLogs(String workspaceId) => logEvents.stream;
 }
 
 class _FakeWorkspaceNotifier extends WorkspaceNotifier {
@@ -355,6 +364,36 @@ void main() {
       await _settle();
 
       expect(container.read(tasksProvider).map((t) => t.id), ['remote-1']);
+    });
+
+    test('tasks changed on another device reload through the realtime stream', () async {
+      final repo = FakeTaskRepository()
+        ..stored.add(TaskItem(
+          id: 'remote-1',
+          workspaceId: 'ws-1',
+          laneId: 'lane-1',
+          title: 'Remote task',
+        ));
+      final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository(), taskRepo: repo);
+      addTearDown(container.dispose);
+
+      container.read(tasksProvider);
+      await _settle();
+      expect(container.read(tasksProvider).map((t) => t.id), ['remote-1']);
+
+      // Another device inserts a task; the realtime channel event reloads.
+      repo.stored.add(TaskItem(
+        id: 'remote-2',
+        workspaceId: 'ws-1',
+        laneId: 'lane-1',
+        title: 'From elsewhere',
+      ));
+      repo.taskEvents.add(null);
+      // The notifier debounces reloads by 300ms.
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+
+      expect(container.read(tasksProvider).map((t) => t.id), contains('remote-2'));
     });
 
     test('addTask writes to the repository', () async {
@@ -550,6 +589,41 @@ void main() {
       expect(notifier.state.isLoading, isFalse);
     });
 
+    test('lanes and members changed elsewhere reload through the realtime stream', () async {
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          Workspace(
+            id: 'ws-1',
+            name: 'Team',
+            adminId: 'a',
+            members: [
+              WorkspaceMember(
+                id: 'm-1',
+                workspaceId: 'ws-1',
+                email: 'a@x.com',
+                role: UserRole.admin,
+              ),
+            ],
+          ),
+        ]
+        ..lanes = [KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do')];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+      await _settle();
+
+      // Another device adds a lane; the realtime channel event reloads.
+      repo.lanes.add(KanbanLane(id: 'lane-2', workspaceId: 'ws-1', title: 'Done'));
+      repo.workspaceEvents.add(null);
+      // The notifier debounces reloads by 300ms.
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+
+      expect(notifier.state.lanes.map((l) => l.title), contains('Done'));
+    });
+
     test('loadInitialData seeds the five default lanes when the workspace has none', () async {
       final repo = FakeWorkspaceRepository()
         ..workspaces = [Workspace(id: 'ws-1', name: 'Team', adminId: 'a')];
@@ -732,6 +806,35 @@ void main() {
 
       expect(repo.inserted.single.action, 'Created task');
       expect(container.read(activityLogsProvider).first.action, 'Created task');
+    });
+
+    test('logs added on another device reload through the realtime stream', () async {
+      final repo = FakeActivityLogRepository();
+      final container = _makeContainer(
+        workspaceRepo: FakeWorkspaceRepository(),
+        logRepo: repo,
+      );
+      addTearDown(container.dispose);
+
+      container.read(activityLogsProvider);
+      await _settle();
+
+      // Another device records an action; the realtime channel event reloads.
+      repo.stored.add(ActivityLog(
+        id: 'log-2',
+        workspaceId: 'ws-1',
+        userName: 'B',
+        action: 'Moved task',
+      ));
+      repo.logEvents.add(null);
+      // The notifier debounces reloads by 300ms.
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+
+      expect(
+        container.read(activityLogsProvider).map((l) => l.id),
+        contains('log-2'),
+      );
     });
   });
 
