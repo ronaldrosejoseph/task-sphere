@@ -136,6 +136,36 @@ void main() {
       final copied = original.copyWith(title: 'Changed');
       expect(copied.updatedAt.isAfter(original.updatedAt), isTrue);
     });
+
+    test('omitted assignee parameters keep the current values', () {
+      final original = buildTask();
+      final copied = original.copyWith(laneId: 'lane-2');
+
+      expect(copied.assigneeId, 'user-1');
+      expect(copied.assigneeEmail, 'alex@example.com');
+      expect(copied.assigneeName, 'Alex');
+    });
+
+    test('an explicit null assignee clears the assignment', () {
+      final original = buildTask();
+      final copied = original.copyWith(
+        assigneeId: null,
+        assigneeEmail: null,
+        assigneeName: null,
+      );
+
+      expect(copied.assigneeId, isNull);
+      expect(copied.assigneeEmail, isNull);
+      expect(copied.assigneeName, isNull);
+    });
+
+    test('a non-null assignee replaces the current one', () {
+      final original = buildTask();
+      final copied = original.copyWith(assigneeEmail: 'bob@example.com');
+
+      expect(copied.assigneeEmail, 'bob@example.com');
+      expect(copied.assigneeId, original.assigneeId);
+    });
   });
 
   group('TaskPriorityExtension', () {

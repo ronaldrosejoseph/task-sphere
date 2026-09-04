@@ -1067,6 +1067,71 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('choosing Unassigned clears the assignee and logs it', (tester) async {
+      tester.view.physicalSize = const Size(900, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      // task-101 is seeded with Sarah Designer as its assignee.
+      final task =
+          container.read(tasksProvider).firstWhere((t) => t.id == 'task-101');
+      expect(task.assigneeEmail, 'sarah.designer@tasksphere.app');
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDialog(
+                      context: ctx,
+                      builder: (_) => TaskDetailModal(task: task),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.dragUntilVisible(
+        find.text('Sarah Designer'),
+        find.byType(Scrollable).first,
+        const Offset(0, -150),
+      );
+      await tester.tap(find.text('Sarah Designer'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Unassigned').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Task'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TaskDetailModal), findsNothing);
+      final saved =
+          container.read(tasksProvider).firstWhere((t) => t.id == 'task-101');
+      expect(saved.assigneeEmail, isNull);
+      expect(saved.assigneeName, isNull);
+      final actions = container
+          .read(activityLogsProvider)
+          .where((l) => l.taskId == 'task-101')
+          .map((l) => l.action)
+          .toList();
+      expect(
+        actions,
+        contains('Changed assignee from Sarah Designer to Unassigned'),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('description, due date, and subtask edits log granular entries', (tester) async {
       tester.view.physicalSize = const Size(900, 1400);
       tester.view.devicePixelRatio = 1.0;

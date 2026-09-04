@@ -152,13 +152,18 @@ class TaskItem {
     );
   }
 
+  // Sentinel default for the clearable assignee fields: an omitted
+  // parameter keeps the current value, while an explicit null (the
+  // 'Unassigned' choice) clears it. A plain `?? this.x` can never unassign.
+  static const Object _unset = Object();
+
   TaskItem copyWith({
     String? laneId,
     String? title,
     String? description,
-    String? assigneeId,
-    String? assigneeEmail,
-    String? assigneeName,
+    Object? assigneeId = _unset,
+    Object? assigneeEmail = _unset,
+    Object? assigneeName = _unset,
     TaskPriority? priority,
     DateTime? dueDate,
     double? estimatedHours,
@@ -173,9 +178,11 @@ class TaskItem {
       laneId: laneId ?? this.laneId,
       title: title ?? this.title,
       description: description ?? this.description,
-      assigneeId: assigneeId ?? this.assigneeId,
-      assigneeEmail: assigneeEmail ?? this.assigneeEmail,
-      assigneeName: assigneeName ?? this.assigneeName,
+      assigneeId: assigneeId == _unset ? this.assigneeId : assigneeId as String?,
+      assigneeEmail: assigneeEmail == _unset
+          ? this.assigneeEmail
+          : assigneeEmail as String?,
+      assigneeName: assigneeName == _unset ? this.assigneeName : assigneeName as String?,
       priority: priority ?? this.priority,
       dueDate: dueDate ?? this.dueDate,
       estimatedHours: estimatedHours ?? this.estimatedHours,
