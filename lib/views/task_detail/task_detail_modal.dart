@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/task.dart';
 import '../../models/subtask.dart';
 import '../../models/task_comment.dart';
+import '../../models/activity_log.dart';
 import '../../models/workspace.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
@@ -319,6 +320,14 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     final comments = widget.task == null
         ? null
         : ref.watch(taskCommentsProvider(widget.task!.id));
+    // Per-ticket activity entries, newest first (addLog prepends and the
+    // repository returns logs newest-first).
+    final taskLogs = widget.task == null
+        ? null
+        : ref
+            .watch(activityLogsProvider)
+            .where((log) => log.taskId == widget.task!.id)
+            .toList();
 
     // On phones the default 40px dialog insets squeeze the modal to ~280px
     // wide; shrink the insets so it fills the screen instead.
@@ -601,6 +610,44 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   ),
                   const SizedBox(height: 20),
 
+                  // File Attachments (Supabase Storage)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Attachments',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: _pickAndUploadAttachment,
+                        icon: const Icon(Icons.cloud_upload_outlined, size: 18),
+                        label: const Text('Upload File'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  if (_attachmentPaths.isEmpty)
+                    Text('No files attached yet.', style: TextStyle(fontSize: 12, color: Colors.grey[400]))
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _attachmentPaths.map((path) {
+                        return InputChip(
+                          avatar: const Icon(Icons.insert_drive_file, size: 16, color: Color(0xFF3B82F6)),
+                          label: Text(path.split('/').last),
+                          onPressed: () => _openAttachment(path),
+                          onDeleted: () => _removeAttachment(path),
+                          deleteIcon: const Icon(Icons.close, size: 14),
+                        );
+                      }).toList(),
+                    ),
+                  const SizedBox(height: 20),
+
                   // Comments Thread
                   if (widget.task != null && comments != null) ...[
                     Row(
@@ -650,42 +697,29 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                     const SizedBox(height: 20),
                   ],
 
-                  // File Attachments (Supabase Storage)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          'Attachments',
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                  // Activity feed: who moved this ticket, checked off a
+                  // subtask, or attached a file — plus create/update entries.
+                  if (widget.task != null && taskLogs != null) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Activity', style: TextStyle(fontWeight: FontWeight.w600)),
+                        Text(
+                          '${taskLogs.length}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      TextButton.icon(
-                        onPressed: _pickAndUploadAttachment,
-                        icon: const Icon(Icons.cloud_upload_outlined, size: 18),
-                        label: const Text('Upload File'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  if (_attachmentPaths.isEmpty)
-                    Text('No files attached yet.', style: TextStyle(fontSize: 12, color: Colors.grey[400]))
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _attachmentPaths.map((path) {
-                        return InputChip(
-                          avatar: const Icon(Icons.insert_drive_file, size: 16, color: Color(0xFF3B82F6)),
-                          label: Text(path.split('/').last),
-                          onPressed: () => _openAttachment(path),
-                          onDeleted: () => _removeAttachment(path),
-                          deleteIcon: const Icon(Icons.close, size: 14),
-                        );
-                      }).toList(),
+                      ],
                     ),
+                    const SizedBox(height: 8),
+                    if (taskLogs.isEmpty)
+                      Text(
+                        'No activity yet.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                      )
+                    else
+                      for (final log in taskLogs)
+                        _buildActivityTile(log),
+                  ],
                 ],
               ),
             ),
@@ -806,6 +840,63 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   .read(taskCommentsProvider(widget.task!.id).notifier)
                   .removeComment(comment.id),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivityTile(ActivityLog log) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 13,
+            backgroundColor: const Color(0xFF6366F1).withValues(alpha: 0.15),
+            child: Text(
+              log.userName.isNotEmpty ? log.userName[0].toUpperCase() : '?',
+              style: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFF6366F1),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        log.userName,
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        DateFormat('MMM d, HH:mm').format(log.createdAt.toLocal()),
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(log.action, style: const TextStyle(fontSize: 13)),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -951,6 +1042,11 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     final wsId = ws.id;
 
     final currentUser = ref.read(authProvider);
+    // The actor label prefers the admin-set member display name and falls
+    // back to the Google/account name; email prefixes never reach the feed.
+    final actor = memberDisplayName(ws.members, currentUser?.email) ??
+        currentUser?.displayName ??
+        'Admin';
 
     if (widget.task == null) {
       // Create New Task
@@ -980,13 +1076,16 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
       await ref.read(tasksProvider.notifier).addTask(newTask);
       ref.read(activityLogsProvider.notifier).addLog(
             wsId,
-            currentUser?.displayName ?? 'Admin',
+            actor,
             'Created task "$title"',
             taskId: newTask.id,
           );
     } else {
-      // Update Existing Task
-      final updated = widget.task!.copyWith(
+      // Update Existing Task. The save is diffed against the task as it was
+      // when the modal opened: each field change becomes its own feed entry,
+      // and a no-op save persists nothing and logs nothing.
+      final original = widget.task!;
+      final updated = original.copyWith(
         laneId: _selectedLaneId,
         title: title,
         description: _descController.text.trim(),
@@ -998,13 +1097,103 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         subtasks: _subtasks,
         attachmentPaths: _attachmentPaths,
       );
+      final wsState = ref.read(activeWorkspaceProvider);
+      final laneTitles = {for (final l in wsState.lanes) l.id: l.title};
+      final actions = <String>[];
+
+      if (updated.laneId != original.laneId) {
+        actions.add('Moved from ${laneTitles[original.laneId] ?? 'another lane'} '
+            'to ${laneTitles[updated.laneId] ?? 'another lane'}');
+      }
+      if (updated.priority != original.priority) {
+        actions.add('Changed priority from ${original.priority.label} '
+            'to ${updated.priority.label}');
+      }
+      if (updated.assigneeEmail != original.assigneeEmail) {
+        final members = wsState.activeWorkspace.members;
+        final oldAssignee = memberDisplayLabel(members, original.assigneeEmail) ??
+            original.assigneeName ??
+            'Unassigned';
+        final newAssignee = memberDisplayLabel(members, updated.assigneeEmail) ??
+            _assigneeName ??
+            'Unassigned';
+        actions.add('Changed assignee from $oldAssignee to $newAssignee');
+      }
+
+      // Description edits.
+      final originalDesc = original.description;
+      final newDesc = updated.description;
+      if (originalDesc != newDesc) {
+        if (newDesc.isEmpty) {
+          actions.add('Removed description');
+        } else if (originalDesc.isEmpty) {
+          actions.add('Added description');
+        } else {
+          actions.add('Changed description');
+        }
+      }
+      // Due date edits.
+      if (updated.dueDate != original.dueDate) {
+        String fmtDate(DateTime? d) =>
+            d == null ? 'None' : DateFormat('MMM dd, yyyy').format(d);
+        actions.add('Changed due date from ${fmtDate(original.dueDate)} '
+            'to ${fmtDate(updated.dueDate)}');
+      }
+      // Subtask additions and removals since the modal opened.
+      final originalSubtaskIds = {for (final st in original.subtasks) st.id};
+      final currentSubtaskIds = {for (final st in _subtasks) st.id};
+      for (final st in original.subtasks) {
+        if (!currentSubtaskIds.contains(st.id)) {
+          actions.add('Removed subtask "${st.title}"');
+        }
+      }
+      for (final st in _subtasks) {
+        if (!originalSubtaskIds.contains(st.id)) {
+          actions.add('Added subtask "${st.title}"');
+          // A brand-new subtask can be ticked before the save; the flip
+          // diff below only sees subtasks that existed when the modal
+          // opened, so the check is attributed here.
+          if (st.isCompleted) {
+            actions.add('Checked subtask "${st.title}"');
+          }
+        }
+      }
+      // Subtask check/uncheck flips since the modal opened.
+      final beforeBySubtaskId = {for (final st in original.subtasks) st.id: st};
+      for (final after in _subtasks) {
+        final before = beforeBySubtaskId[after.id];
+        if (before != null && before.isCompleted != after.isCompleted) {
+          actions.add(after.isCompleted
+              ? 'Checked subtask "${before.title}"'
+              : 'Unchecked subtask "${before.title}"');
+        }
+      }
+      // Newly attached files since the modal opened.
+      for (final path in _attachmentPaths) {
+        if (!original.attachmentPaths.contains(path)) {
+          actions.add('Added attachment "${path.split('/').last}"');
+        }
+      }
+      // Title edits, estimate changes, and attachment removals share one
+      // generic entry so no change is lost.
+      final otherChanged = updated.title != original.title ||
+          updated.estimatedHours != original.estimatedHours ||
+          !original.attachmentPaths.every(_attachmentPaths.contains);
+      if (otherChanged) {
+        actions.add('Updated task "$title"');
+      }
+
+      if (actions.isEmpty) {
+        // Nothing changed; leave the row and the feed untouched.
+        if (mounted) Navigator.pop(context);
+        return;
+      }
+
       ref.read(tasksProvider.notifier).updateTask(updated);
-      ref.read(activityLogsProvider.notifier).addLog(
-            wsId,
-            currentUser?.displayName ?? 'Admin',
-            'Updated task "$title"',
-            taskId: updated.id,
-          );
+      final logNotifier = ref.read(activityLogsProvider.notifier);
+      for (final action in actions) {
+        logNotifier.addLog(wsId, actor, action, taskId: updated.id);
+      }
     }
 
     // The create path above awaits the task insert, so the modal may have

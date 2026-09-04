@@ -62,6 +62,22 @@ String? memberDisplayLabel(List<WorkspaceMember> members, String? email) {
   return null;
 }
 
+/// The admin-configured display name of the member whose email matches
+/// [email] (case-insensitive), or null when no member matches or none has a
+/// display name set. Unlike [memberDisplayLabel] this never falls back to the
+/// email prefix, so callers can keep account names (Google display name) in
+/// content like comments and activity logs until an admin sets an alias.
+String? memberDisplayName(List<WorkspaceMember> members, String? email) {
+  if (email == null || email.isEmpty) return null;
+  for (final member in members) {
+    if (member.email.toLowerCase() == email.toLowerCase()) {
+      final name = member.displayName?.trim();
+      return (name == null || name.isEmpty) ? null : name;
+    }
+  }
+  return null;
+}
+
 class Workspace {
   final String id;
   final String name;

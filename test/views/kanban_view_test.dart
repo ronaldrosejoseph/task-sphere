@@ -301,6 +301,13 @@ void main() {
           .read(tasksProvider)
           .firstWhere((t) => t.id == 'task-101');
       expect(moved.laneId, 'lane-1');
+
+      // The move lands on the ticket's activity feed with the actor's
+      // display name ('Alex Morgan', the demo member alias, not the email).
+      final logs = container.read(activityLogsProvider);
+      expect(logs.first.taskId, 'task-101');
+      expect(logs.first.action, startsWith('Moved from'));
+      expect(logs.first.userName, 'Alex Morgan');
     });
 
     testWidgets('scrolling the board on touch devices does not move a card', (tester) async {

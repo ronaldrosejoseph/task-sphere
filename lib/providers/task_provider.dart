@@ -82,13 +82,17 @@ class TaskCommentsNotifier extends Notifier<List<TaskComment>> {
     final text = body.trim();
     if (text.isEmpty) return;
     final user = ref.read(authProvider);
-    final wsId = ref.read(activeWorkspaceProvider).activeWorkspace.id;
+    final ws = ref.read(activeWorkspaceProvider).activeWorkspace;
     final comment = TaskComment(
       id: _uuid.v4(),
       taskId: taskId,
-      workspaceId: wsId,
+      workspaceId: ws.id,
       userId: user?.id,
-      userName: user?.displayName ?? 'User',
+      // Snapshot the admin-configured display name when the member has one,
+      // otherwise the account name — never the email prefix.
+      userName: memberDisplayName(ws.members, user?.email) ??
+          user?.displayName ??
+          'User',
       body: text,
     );
     _mutationCount += 1;
