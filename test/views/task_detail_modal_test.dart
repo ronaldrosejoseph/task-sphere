@@ -137,38 +137,6 @@ void main() {
     await pumpModal(tester);
 
     expect(find.text('Create New Task'), findsOneWidget);
-    expect(find.text('Start Timer'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-
-    // Regression: the Start Timer button used to sit next to the tracker
-    // label and overflow; on a phone it wraps to its own line.
-    final buttonTop = tester.getTopLeft(find.widgetWithText(ElevatedButton, 'Start Timer')).dy;
-    final labelBottom = tester.getBottomLeft(find.text('Time Tracker')).dy;
-    expect(buttonTop, greaterThan(labelBottom));
-  });
-
-  testWidgets('edit mode shows the tracker total without overflow', (tester) async {
-    await pumpModal(
-      tester,
-      task: TaskItem(
-        id: 'task-edit',
-        workspaceId: 'ws-demo-001',
-        laneId: 'lane-1',
-        title: 'Edit me',
-        loggedSeconds: 3900,
-      ),
-    );
-
-    expect(find.text('Task Details'), findsOneWidget);
-    // The tracker sits below the metadata section; scroll it into view on
-    // the phone-sized viewport, then assert it renders without overflow.
-    await tester.dragUntilVisible(
-      find.text('Time Tracker'),
-      find.byType(Scrollable).first,
-      const Offset(0, -200),
-    );
-    expect(find.textContaining('Total Logged:'), findsOneWidget);
-    expect(find.text('Start Timer'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -288,15 +256,6 @@ void main() {
     final log = logRepo.inserted.single;
     expect(log.action, 'Created task "Sequenced ticket"');
     expect(log.taskId, taskRepo.inserted.single.id);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('on a wide screen the timer button stays on the tracker row', (tester) async {
-    await pumpModal(tester, size: const Size(900, 1600));
-
-    final buttonCenter = tester.getCenter(find.widgetWithText(ElevatedButton, 'Start Timer')).dy;
-    final labelCenter = tester.getCenter(find.text('Time Tracker')).dy;
-    expect((buttonCenter - labelCenter).abs(), lessThan(20));
     expect(tester.takeException(), isNull);
   });
 
@@ -1317,60 +1276,6 @@ void main() {
       // check (who ticked it) was lost.
       expect(actions, contains('Added subtask "Fresh item"'));
       expect(actions, contains('Checked subtask "Fresh item"'));
-      expect(tester.takeException(), isNull);
-    });
-  });
-
-  group('time tracker', () {
-    testWidgets('a running timer survives closing and reopening the modal', (tester) async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-      final task = TaskItem(
-        id: 'task-timer',
-        workspaceId: 'ws-demo-001',
-        laneId: 'lane-1',
-        title: 'Timed ticket',
-      );
-
-      await pumpModal(
-        tester,
-        task: task,
-        container: container,
-        size: const Size(900, 1400),
-      );
-      expect(find.widgetWithText(ElevatedButton, 'Start Timer'), findsOneWidget);
-
-      await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Start Timer'));
-      await tester.pump();
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Start Timer'));
-      // The running session starts a periodic ticker, so pump fixed frames
-      // rather than pumpAndSettle.
-      await tester.pump();
-      expect(find.widgetWithText(ElevatedButton, 'Pause'), findsOneWidget);
-      // Regression: the button used to duplicate the session time next to
-      // the label while "Total Logged" showed it again below.
-      expect(find.textContaining('Pause ('), findsNothing);
-
-      // Reopen the ticket: the session still runs, so the button shows Pause.
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp(
-            home: Scaffold(
-              body: Center(child: TaskDetailModal(task: task)),
-            ),
-          ),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(find.widgetWithText(ElevatedButton, 'Pause'), findsOneWidget);
-      expect(container.read(runningTimersProvider).containsKey('task-timer'), isTrue);
-
-      // Stop the timer so the periodic ticker is cancelled before teardown.
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Pause'));
-      await tester.pumpAndSettle();
-      expect(find.widgetWithText(ElevatedButton, 'Start Timer'), findsOneWidget);
-      expect(container.read(runningTimersProvider), isEmpty);
       expect(tester.takeException(), isNull);
     });
   });

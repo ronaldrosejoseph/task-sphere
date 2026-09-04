@@ -22,8 +22,6 @@ TaskItem buildTask({
     assigneeName: 'Alex',
     priority: priority,
     dueDate: dueDate,
-    estimatedHours: 4.5,
-    loggedSeconds: 3600,
     attachmentPaths: const ['ws-1/task-1/file.pdf'],
     isArchived: false,
     subtasks: subtasks,
@@ -54,8 +52,6 @@ void main() {
       expect(restored.assigneeName, task.assigneeName);
       expect(restored.priority, task.priority);
       expect(restored.dueDate, task.dueDate);
-      expect(restored.estimatedHours, task.estimatedHours);
-      expect(restored.loggedSeconds, task.loggedSeconds);
       expect(restored.attachmentPaths, task.attachmentPaths);
       expect(restored.isArchived, task.isArchived);
       expect(restored.createdBy, task.createdBy);
@@ -83,8 +79,6 @@ void main() {
       expect(task.description, '');
       expect(task.priority, TaskPriority.medium);
       expect(task.dueDate, isNull);
-      expect(task.estimatedHours, 0.0);
-      expect(task.loggedSeconds, 0);
       expect(task.attachmentPaths, isEmpty);
       expect(task.isArchived, false);
       expect(task.subtasks, isEmpty);
