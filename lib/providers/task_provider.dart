@@ -53,14 +53,30 @@ class TaskCommentsNotifier extends Notifier<List<TaskComment>> {
 
   TaskRepository? _repo;
   int _mutationCount = 0;
+  StreamSubscription<void>? _commentSub;
+  Timer? _reloadDebounce;
 
   TaskRepository get _repository => _repo!;
 
   @override
   List<TaskComment> build() {
     _repo = ref.watch(taskRepositoryProvider);
+    _commentSub?.cancel();
+    ref.onDispose(() {
+      _commentSub?.cancel();
+      _reloadDebounce?.cancel();
+    });
     if (_repository.isPersistent) {
       unawaited(_load());
+      // Comments added or deleted on other devices reload through the
+      // realtime channel; the debounce batches rapid fire (e.g. echoes of
+      // this device's own inserts).
+      _commentSub = _repository.watchComments(taskId).listen((_) {
+        _reloadDebounce?.cancel();
+        _reloadDebounce = Timer(const Duration(milliseconds: 300), () {
+          unawaited(_load());
+        });
+      });
     }
     return const [];
   }
