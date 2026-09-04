@@ -1150,6 +1150,12 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
       for (final st in _subtasks) {
         if (!originalSubtaskIds.contains(st.id)) {
           actions.add('Added subtask "${st.title}"');
+          // A brand-new subtask can be ticked before the save; the flip
+          // diff below only sees subtasks that existed when the modal
+          // opened, so the check is attributed here.
+          if (st.isCompleted) {
+            actions.add('Checked subtask "${st.title}"');
+          }
         }
       }
       // Subtask check/uncheck flips since the modal opened.

@@ -1183,6 +1183,77 @@ void main() {
       expect(actions.any((a) => a.startsWith('Updated task')), isFalse);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('a new subtask checked before saving logs both entries', (tester) async {
+      tester.view.physicalSize = const Size(900, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final task = TaskItem(
+        id: 'task-newchk',
+        workspaceId: 'ws-demo-001',
+        laneId: 'lane-1',
+        title: 'New checked subtask ticket',
+        createdAt: DateTime.now().subtract(const Duration(days: 1)),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDialog(
+                      context: ctx,
+                      builder: (_) => TaskDetailModal(task: task),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      // Add a subtask and tick it before saving.
+      await tester.dragUntilVisible(
+        find.text('Add a subtask item...'),
+        find.byType(Scrollable).first,
+        const Offset(0, -150),
+      );
+      final subtaskField = find.ancestor(
+        of: find.text('Add a subtask item...'),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(subtaskField, 'Fresh item');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.add_circle));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Task'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TaskDetailModal), findsNothing);
+      final actions = container
+          .read(activityLogsProvider)
+          .where((l) => l.taskId == 'task-newchk')
+          .map((l) => l.action)
+          .toList();
+      // Regression: a brand-new checked subtask only logged the add; the
+      // check (who ticked it) was lost.
+      expect(actions, contains('Added subtask "Fresh item"'));
+      expect(actions, contains('Checked subtask "Fresh item"'));
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('time tracker', () {
