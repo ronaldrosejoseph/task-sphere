@@ -322,8 +322,6 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
         assigneeEmail: 'sarah.designer@tasksphere.app',
         priority: TaskPriority.urgent,
         dueDate: now.add(const Duration(days: 2)),
-        estimatedHours: 8.5,
-        loggedSeconds: 14400,
         subtasks: [
           Subtask(id: 'st-1', taskId: 'task-101', title: 'Typography setup (Inter font)', isCompleted: true),
           Subtask(id: 'st-2', taskId: 'task-101', title: 'Glassmorphism card decoration', isCompleted: true),
@@ -341,7 +339,6 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
         assigneeEmail: 'alex.admin@tasksphere.app',
         priority: TaskPriority.high,
         dueDate: now.add(const Duration(days: 4)),
-        estimatedHours: 6.0,
         subtasks: [
           Subtask(id: 'st-4', taskId: 'task-102', title: 'SQL Schema migration', isCompleted: true),
           Subtask(id: 'st-5', taskId: 'task-102', title: 'WebSocket listener in Dart', isCompleted: false),
@@ -358,8 +355,6 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
         assigneeEmail: 'dev.team@tasksphere.app',
         priority: TaskPriority.medium,
         dueDate: now.add(const Duration(days: 5)),
-        estimatedHours: 12.0,
-        loggedSeconds: 18000,
         subtasks: [
           Subtask(id: 'st-6', taskId: 'task-103', title: 'Google OAuth 2.0 flow', isCompleted: true),
           Subtask(id: 'st-7', taskId: 'task-103', title: 'Storage upload via file picker', isCompleted: true),
@@ -377,8 +372,6 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
         assigneeEmail: 'alex.admin@tasksphere.app',
         priority: TaskPriority.low,
         dueDate: now.subtract(const Duration(days: 1)),
-        estimatedHours: 4.0,
-        loggedSeconds: 14400,
         subtasks: [
           Subtask(id: 'st-9', taskId: 'task-104', title: 'Pubspec dependency initialization', isCompleted: true),
         ],
@@ -481,21 +474,6 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     }
   }
 
-  void addLoggedTime(String taskId, int additionalSeconds) {
-    _mutationCount += 1;
-    TaskItem? updatedTask;
-    state = state.map((task) {
-      if (task.id == taskId) {
-        updatedTask = task.copyWith(loggedSeconds: task.loggedSeconds + additionalSeconds);
-        return updatedTask!;
-      }
-      return task;
-    }).toList();
-    if (_repository.isPersistent && updatedTask != null) {
-      unawaited(_repository.updateTask(updatedTask!));
-    }
-  }
-
   void addAttachmentPath(String taskId, String path) {
     _mutationCount += 1;
     TaskItem? updatedTask;
@@ -527,41 +505,3 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     }
   }
 }
-
-/// Running stopwatch sessions keyed by task id. The start wall-clock time is
-/// the source of truth, so a session survives closing the task modal; only an
-/// explicit pause commits the elapsed time to the task.
-class RunningTimersNotifier extends Notifier<Map<String, DateTime>> {
-  RunningTimersNotifier({DateTime Function()? clock})
-      : _clock = clock ?? DateTime.now;
-
-  final DateTime Function() _clock;
-
-  @override
-  Map<String, DateTime> build() => const {};
-
-  bool isRunning(String taskId) => state.containsKey(taskId);
-
-  int elapsedSeconds(String taskId) {
-    final start = state[taskId];
-    if (start == null) return 0;
-    return _clock().difference(start).inSeconds;
-  }
-
-  void start(String taskId) {
-    state = {...state, taskId: _clock()};
-  }
-
-  void pause(String taskId) {
-    final elapsed = elapsedSeconds(taskId);
-    state = {...state}..remove(taskId);
-    if (elapsed > 0) {
-      ref.read(tasksProvider.notifier).addLoggedTime(taskId, elapsed);
-    }
-  }
-}
-
-final runningTimersProvider =
-    NotifierProvider<RunningTimersNotifier, Map<String, DateTime>>(
-  RunningTimersNotifier.new,
-);

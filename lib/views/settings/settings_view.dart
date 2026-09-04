@@ -56,11 +56,19 @@ class SettingsView extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                // Expanded lets the long title wrap on narrow phones instead
+                // of overflowing the card; the icon stays top-aligned.
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.inventory_2_outlined, color: Color(0xFF6366F1)),
-                    SizedBox(width: 10),
-                    Text('Completed Tasks Auto-Expiry', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const Icon(Icons.inventory_2_outlined, color: Color(0xFF6366F1)),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Completed Tasks Auto-Expiry',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -69,8 +77,10 @@ class SettingsView extends ConsumerWidget {
                   style: TextStyle(fontSize: 13, color: Colors.grey[400]),
                 ),
                 const SizedBox(height: 16),
+                // runSpacing separates the wrapped chip rows on phones.
                 Wrap(
                   spacing: 12,
+                  runSpacing: 10,
                   children: [7, 14, 30, 90, 999].map((days) {
                     final label = days == 999 ? 'Never' : '$days Days';
                     final isSelected = autoArchiveDays == days;

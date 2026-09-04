@@ -55,8 +55,6 @@ class TaskItem {
   final String? assigneeName;
   final TaskPriority priority;
   final DateTime? dueDate;
-  final double estimatedHours;
-  final int loggedSeconds;
   final List<String> attachmentPaths;
   final bool isArchived;
   final List<Subtask> subtasks;
@@ -75,8 +73,6 @@ class TaskItem {
     this.assigneeName,
     this.priority = TaskPriority.medium,
     this.dueDate,
-    this.estimatedHours = 0.0,
-    this.loggedSeconds = 0,
     this.attachmentPaths = const [],
     this.isArchived = false,
     this.subtasks = const [],
@@ -104,8 +100,6 @@ class TaskItem {
       'assignee_name': assigneeName,
       'priority': priority.name,
       'due_date': dueDate?.toIso8601String(),
-      'estimated_hours': estimatedHours,
-      'logged_seconds': loggedSeconds,
       'attachment_paths': attachmentPaths,
       'is_archived': isArchived,
       'created_by': createdBy,
@@ -134,8 +128,6 @@ class TaskItem {
       assigneeName: json['assignee_name'] as String?,
       priority: p,
       dueDate: json['due_date'] != null ? DateTime.parse(json['due_date'] as String) : null,
-      estimatedHours: (json['estimated_hours'] as num?)?.toDouble() ?? 0.0,
-      loggedSeconds: json['logged_seconds'] as int? ?? 0,
       attachmentPaths: (json['attachment_paths'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
@@ -166,8 +158,6 @@ class TaskItem {
     Object? assigneeName = _unset,
     TaskPriority? priority,
     DateTime? dueDate,
-    double? estimatedHours,
-    int? loggedSeconds,
     List<String>? attachmentPaths,
     bool? isArchived,
     List<Subtask>? subtasks,
@@ -185,8 +175,6 @@ class TaskItem {
       assigneeName: assigneeName == _unset ? this.assigneeName : assigneeName as String?,
       priority: priority ?? this.priority,
       dueDate: dueDate ?? this.dueDate,
-      estimatedHours: estimatedHours ?? this.estimatedHours,
-      loggedSeconds: loggedSeconds ?? this.loggedSeconds,
       attachmentPaths: attachmentPaths ?? this.attachmentPaths,
       isArchived: isArchived ?? this.isArchived,
       subtasks: subtasks ?? this.subtasks,

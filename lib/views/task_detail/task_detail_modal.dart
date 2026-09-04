@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -58,16 +57,9 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   String? _assigneeEmail;
   String? _assigneeName;
   DateTime? _dueDate;
-  double _estimatedHours = 0.0;
   List<Subtask> _subtasks = [];
   List<String> _attachmentPaths = [];
   late final String _newTaskId;
-
-  // The running session lives in runningTimersProvider so it survives modal
-  // close; this ticker only redraws the elapsed time each second.
-  Timer? _ticker;
-
-  String get _timerTaskId => widget.task?.id ?? _newTaskId;
 
   @override
   void initState() {
@@ -85,7 +77,6 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     _assigneeEmail = widget.task?.assigneeEmail;
     _assigneeName = widget.task?.assigneeName;
     _dueDate = widget.task?.dueDate;
-    _estimatedHours = widget.task?.estimatedHours ?? 0.0;
     _subtasks = List.from(widget.task?.subtasks ?? []);
     _attachmentPaths = List.from(widget.task?.attachmentPaths ?? []);
     _newTaskId = widget.task?.id ?? _uuid.v4();
@@ -95,7 +86,6 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     _subtaskFocusNode
         .addListener(() => _stampDomField(_subtaskFocusNode, 'subtask-title'));
     _commentFocusNode.addListener(() => _stampDomField(_commentFocusNode, 'comment'));
-    _startTickerIfRunning();
   }
 
   void _stampDomField(FocusNode node, String fieldId) {
@@ -106,7 +96,6 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
 
   @override
   void dispose() {
-    _ticker?.cancel();
     _titleController.dispose();
     _descController.dispose();
     _newSubtaskController.dispose();
@@ -116,14 +105,6 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     _subtaskFocusNode.dispose();
     _commentFocusNode.dispose();
     super.dispose();
-  }
-
-  void _startTickerIfRunning() {
-    if (_ticker != null) return;
-    if (!ref.read(runningTimersProvider).containsKey(_timerTaskId)) return;
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      setState(() {});
-    });
   }
 
   Widget _buildLaneField(WorkspaceState workspaceState) {
@@ -303,35 +284,8 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     );
   }
 
-  void _toggleTimer() {
-    final notifier = ref.read(runningTimersProvider.notifier);
-    if (notifier.isRunning(_timerTaskId)) {
-      notifier.pause(_timerTaskId);
-    } else {
-      notifier.start(_timerTaskId);
-    }
-  }
-
-  String _formatSeconds(int sec) {
-    final h = sec ~/ 3600;
-    final m = (sec % 3600) ~/ 60;
-    final s = sec % 60;
-    if (h > 0) return '${h}h ${m}m ${s}s';
-    return '${m}m ${s}s';
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Riverpod 3 requires listen inside build; starts/stops the elapsed-time
-    // ticker when the running session for this task starts or stops.
-    ref.listen(runningTimersProvider, (_, next) {
-      if (next.containsKey(_timerTaskId)) {
-        _startTickerIfRunning();
-      } else {
-        _ticker?.cancel();
-        _ticker = null;
-      }
-    });
     final workspaceState = ref.watch(activeWorkspaceProvider);
     final currentUser = ref.read(authProvider);
     final isAdmin = ref.read(activeWorkspaceProvider.notifier).isAdmin(currentUser);
@@ -495,69 +449,6 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
-                  const SizedBox(height: 20),
-
-                  // Stopwatch & Time Tracker
-                  Builder(builder: (context) {
-                    final running = ref.watch(runningTimersProvider).containsKey(_timerTaskId);
-                    final elapsed =
-                        ref.read(runningTimersProvider.notifier).elapsedSeconds(_timerTaskId);
-                    final totalLogged = (widget.task?.loggedSeconds ?? 0) + elapsed;
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.blueAccent.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
-                      ),
-                      // Wraps so the Start Timer button drops to its own line
-                      // on narrow phone screens instead of overflowing.
-                      child: Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.timer_outlined, color: Colors.blueAccent),
-                              const SizedBox(width: 10),
-                              // Fixed width: the seconds string grows every
-                              // tick, which used to widen this row and push
-                              // the Pause button around until it wrapped.
-                              SizedBox(
-                                width: 170,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('Time Tracker', style: TextStyle(fontWeight: FontWeight.bold)),
-                                    Text(
-                                      'Total Logged: ${_formatSeconds(totalLogged)}',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: _toggleTimer,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: running ? Colors.redAccent : Colors.blueAccent,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                            icon: Icon(running ? Icons.pause : Icons.play_arrow, color: Colors.white),
-                            label: Text(
-                              running ? 'Pause' : 'Start Timer',
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
                   const SizedBox(height: 20),
 
                   // Checklist Subtasks Section
@@ -1106,8 +997,6 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         assigneeName: _assigneeName,
         priority: _selectedPriority,
         dueDate: _dueDate,
-        estimatedHours: _estimatedHours,
-        loggedSeconds: 0,
         subtasks: [
           for (final subtask in _subtasks) subtask.copyWith(taskId: taskId),
         ],
@@ -1138,7 +1027,6 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         assigneeName: _assigneeName,
         priority: _selectedPriority,
         dueDate: _dueDate,
-        estimatedHours: _estimatedHours,
         subtasks: _subtasks,
         attachmentPaths: _attachmentPaths,
       );
@@ -1219,10 +1107,9 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
           actions.add('Added attachment "${path.split('/').last}"');
         }
       }
-      // Title edits, estimate changes, and attachment removals share one
-      // generic entry so no change is lost.
+      // Title edits and attachment removals share one generic entry so no
+      // change is lost.
       final otherChanged = updated.title != original.title ||
-          updated.estimatedHours != original.estimatedHours ||
           !original.attachmentPaths.every(_attachmentPaths.contains);
       if (otherChanged) {
         actions.add('Updated task "$title"');
