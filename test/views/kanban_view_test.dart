@@ -307,7 +307,7 @@ void main() {
       final logs = container.read(activityLogsProvider);
       expect(logs.first.taskId, 'task-101');
       expect(logs.first.action, startsWith('Moved from'));
-      expect(logs.first.userName, 'Alex Morgan');
+      expect(logs.first.displayName, 'Alex Morgan');
     });
 
     testWidgets('scrolling the board on touch devices does not move a card', (tester) async {

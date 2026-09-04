@@ -106,7 +106,7 @@ class TaskCommentsNotifier extends Notifier<List<TaskComment>> {
       userId: user?.id,
       // Snapshot the admin-configured display name when the member has one,
       // otherwise the account name — never the email prefix.
-      userName: memberDisplayName(ws.members, user?.email) ??
+      displayName: memberDisplayName(ws.members, user?.email) ??
           user?.displayName ??
           'User',
       body: text,
@@ -182,13 +182,13 @@ class ActivityLogNotifier extends Notifier<List<ActivityLog>> {
     state = logs;
   }
 
-  void addLog(String workspaceId, String userName, String action, {String? taskId}) {
+  void addLog(String workspaceId, String displayName, String action, {String? taskId}) {
     _mutationCount += 1;
     final newLog = ActivityLog(
       id: _uuid.v4(),
       workspaceId: workspaceId,
       taskId: taskId,
-      userName: userName,
+      displayName: displayName,
       action: action,
     );
     state = [newLog, ...state];

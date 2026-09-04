@@ -486,7 +486,7 @@ void main() {
           taskId: 't-1',
           workspaceId: 'ws-1',
           userId: 'a',
-          userName: 'A',
+          displayName: 'A',
           body: 'Hello',
         ));
       final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository(), taskRepo: repo);
@@ -499,7 +499,7 @@ void main() {
 
       final comments = container.read(taskCommentsProvider('t-1'));
       expect(comments.single.body, 'Hello');
-      expect(comments.single.userName, 'A');
+      expect(comments.single.displayName, 'A');
     });
 
     test('addComment persists and removeComment deletes', () async {
@@ -529,7 +529,7 @@ void main() {
           taskId: 't-1',
           workspaceId: 'ws-1',
           userId: 'a',
-          userName: 'A',
+          displayName: 'A',
           body: 'First',
         ));
       final container = _makeContainer(
@@ -548,7 +548,7 @@ void main() {
         taskId: 't-1',
         workspaceId: 'ws-1',
         userId: 'b',
-        userName: 'B',
+        displayName: 'B',
         body: 'From elsewhere',
       ));
       repo.commentEvents.add(null);
@@ -785,7 +785,7 @@ void main() {
   group('ActivityLogNotifier with a persistent repository', () {
     test('loads logs from the repository on init', () async {
       final repo = FakeActivityLogRepository()
-        ..stored.add(ActivityLog(id: 'log-1', workspaceId: 'ws-1', userName: 'A', action: 'x'));
+        ..stored.add(ActivityLog(id: 'log-1', workspaceId: 'ws-1', displayName: 'A', action: 'x'));
       final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository(), logRepo: repo);
       addTearDown(container.dispose);
       container.read(activityLogsProvider);
@@ -823,7 +823,7 @@ void main() {
       repo.stored.add(ActivityLog(
         id: 'log-2',
         workspaceId: 'ws-1',
-        userName: 'B',
+        displayName: 'B',
         action: 'Moved task',
       ));
       repo.logEvents.add(null);

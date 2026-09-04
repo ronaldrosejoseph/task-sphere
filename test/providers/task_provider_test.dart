@@ -244,7 +244,7 @@ void main() {
       expect(comment.body, 'Check this out');
       expect(comment.taskId, 'task-101');
       expect(comment.userId, 'demo-user-123');
-      expect(comment.userName, 'U');
+      expect(comment.displayName, 'U');
       expect(comment.workspaceId, 'ws-demo-001');
     });
 

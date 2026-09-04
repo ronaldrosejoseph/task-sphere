@@ -795,7 +795,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
             radius: 14,
             backgroundColor: const Color(0xFF6366F1).withValues(alpha: 0.15),
             child: Text(
-              comment.userName.isNotEmpty ? comment.userName[0].toUpperCase() : '?',
+              comment.displayName.isNotEmpty ? comment.displayName[0].toUpperCase() : '?',
               style: const TextStyle(
                 fontSize: 12,
                 color: Color(0xFF6366F1),
@@ -812,7 +812,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   children: [
                     Flexible(
                       child: Text(
-                        comment.userName,
+                        comment.displayName,
                         style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -860,7 +860,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
             radius: 13,
             backgroundColor: const Color(0xFF6366F1).withValues(alpha: 0.15),
             child: Text(
-              log.userName.isNotEmpty ? log.userName[0].toUpperCase() : '?',
+              log.displayName.isNotEmpty ? log.displayName[0].toUpperCase() : '?',
               style: const TextStyle(
                 fontSize: 11,
                 color: Color(0xFF6366F1),
@@ -877,7 +877,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   children: [
                     Flexible(
                       child: Text(
-                        log.userName,
+                        log.displayName,
                         style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
                         overflow: TextOverflow.ellipsis,
                       ),

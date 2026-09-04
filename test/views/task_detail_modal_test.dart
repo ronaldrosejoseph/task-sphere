@@ -730,7 +730,7 @@ void main() {
           taskId: 't-admin',
           workspaceId: 'ws-demo-001',
           userId: 'demo-user-123',
-          userName: 'Alex',
+          displayName: 'Alex',
           body: 'Admin thought this through',
         ));
       final container = ProviderContainer(
@@ -760,7 +760,7 @@ void main() {
           taskId: 't-admin',
           workspaceId: 'ws-demo-001',
           userId: 'user-456',
-          userName: 'Sarah',
+          displayName: 'Sarah',
           body: 'Member note',
         ));
       final container = ProviderContainer(
@@ -802,14 +802,14 @@ void main() {
                 id: 'log-1',
                 taskId: 't-admin',
                 workspaceId: 'ws-demo-001',
-                userName: 'Alex Morgan',
+                displayName: 'Alex Morgan',
                 action: 'Moved from To Do to In Progress',
               ),
               ActivityLog(
                 id: 'log-2',
                 taskId: 't-other',
                 workspaceId: 'ws-demo-001',
-                userName: 'Sarah Designer',
+                displayName: 'Sarah Designer',
                 action: 'Created task "Other"',
               ),
             ]),
@@ -935,7 +935,7 @@ void main() {
       // The demo actor resolves to the member display name, never the email
       // prefix or the raw account name.
       final check = taskLogs.firstWhere((l) => l.action.startsWith('Checked'));
-      expect(check.userName, 'Alex Morgan');
+      expect(check.displayName, 'Alex Morgan');
       expect(tester.takeException(), isNull);
     });
 
