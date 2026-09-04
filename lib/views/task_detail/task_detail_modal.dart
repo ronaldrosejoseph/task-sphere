@@ -15,6 +15,7 @@ import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../core/services/storage_service.dart';
+import '../../core/web/field_namer.dart';
 
 const _uuid = Uuid();
 
@@ -43,6 +44,14 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   late TextEditingController _descController;
   late TextEditingController _newSubtaskController;
   late TextEditingController _commentController;
+
+  // Web autofill: each field stamps the engine's transparent DOM input with
+  // its id/name while focused (see nameFocusedFormField); native platforms
+  // ignore the call entirely.
+  final _titleFocusNode = FocusNode(debugLabel: 'task-title');
+  final _descriptionFocusNode = FocusNode(debugLabel: 'task-description');
+  final _subtaskFocusNode = FocusNode(debugLabel: 'subtask-title');
+  final _commentFocusNode = FocusNode(debugLabel: 'comment');
 
   late String _selectedLaneId;
   late TaskPriority _selectedPriority;
@@ -80,7 +89,19 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     _subtasks = List.from(widget.task?.subtasks ?? []);
     _attachmentPaths = List.from(widget.task?.attachmentPaths ?? []);
     _newTaskId = widget.task?.id ?? _uuid.v4();
+    _titleFocusNode.addListener(() => _stampDomField(_titleFocusNode, 'task-title'));
+    _descriptionFocusNode
+        .addListener(() => _stampDomField(_descriptionFocusNode, 'task-description'));
+    _subtaskFocusNode
+        .addListener(() => _stampDomField(_subtaskFocusNode, 'subtask-title'));
+    _commentFocusNode.addListener(() => _stampDomField(_commentFocusNode, 'comment'));
     _startTickerIfRunning();
+  }
+
+  void _stampDomField(FocusNode node, String fieldId) {
+    if (node.hasFocus) {
+      nameFocusedFormField(fieldId, fieldId);
+    }
   }
 
   @override
@@ -90,6 +111,10 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     _descController.dispose();
     _newSubtaskController.dispose();
     _commentController.dispose();
+    _titleFocusNode.dispose();
+    _descriptionFocusNode.dispose();
+    _subtaskFocusNode.dispose();
+    _commentFocusNode.dispose();
     super.dispose();
   }
 
@@ -403,6 +428,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   // Title Input
                   TextField(
                     controller: _titleController,
+                    focusNode: _titleFocusNode,
                     readOnly: !canEditTitleDescription,
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     decoration: const InputDecoration(
@@ -458,6 +484,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: _descController,
+                    focusNode: _descriptionFocusNode,
                     // Always grow with the content so the full description is
                     // readable without expansion controls; the modal scrolls.
                     minLines: 3,
@@ -595,6 +622,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                       Expanded(
                         child: TextField(
                           controller: _newSubtaskController,
+                          focusNode: _subtaskFocusNode,
                           decoration: const InputDecoration(
                             hintText: 'Add a subtask item...',
                             isDense: true,
@@ -675,6 +703,7 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
                         Expanded(
                           child: TextField(
                             controller: _commentController,
+                            focusNode: _commentFocusNode,
                             decoration: InputDecoration(
                               hintText: 'Add a comment...',
                               isDense: true,
