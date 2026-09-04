@@ -3,7 +3,7 @@ class TaskComment {
   final String taskId;
   final String workspaceId;
   final String? userId;
-  final String userName;
+  final String displayName;
   final String body;
   final DateTime createdAt;
 
@@ -12,7 +12,7 @@ class TaskComment {
     required this.taskId,
     required this.workspaceId,
     this.userId,
-    required this.userName,
+    required this.displayName,
     required this.body,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -23,7 +23,7 @@ class TaskComment {
       'task_id': taskId,
       'workspace_id': workspaceId,
       'user_id': userId,
-      'user_name': userName,
+      'display_name': displayName,
       'body': body,
       'created_at': createdAt.toIso8601String(),
     };
@@ -35,7 +35,7 @@ class TaskComment {
       taskId: json['task_id'] as String,
       workspaceId: json['workspace_id'] as String,
       userId: json['user_id'] as String?,
-      userName: json['user_name'] as String? ?? 'User',
+      displayName: json['display_name'] as String? ?? 'User',
       body: json['body'] as String? ?? '',
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)

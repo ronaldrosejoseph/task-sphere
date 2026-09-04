@@ -81,6 +81,9 @@ class _PersistentTaskRepository implements TaskRepository {
 
   @override
   Stream<void> watchTasks(String workspaceId) => const Stream.empty();
+
+  @override
+  Stream<void> watchComments(String taskId) => const Stream.empty();
 }
 
 void main() {

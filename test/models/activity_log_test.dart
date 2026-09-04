@@ -8,7 +8,7 @@ void main() {
         id: 'log-1',
         taskId: 'task-1',
         workspaceId: 'ws-1',
-        userName: 'Alex',
+        displayName: 'Alex',
         action: 'Moved task to Done',
         createdAt: DateTime.utc(2026, 8, 20, 9, 30),
       );
@@ -18,22 +18,22 @@ void main() {
       expect(restored.id, log.id);
       expect(restored.taskId, log.taskId);
       expect(restored.workspaceId, log.workspaceId);
-      expect(restored.userName, log.userName);
+      expect(restored.displayName, log.displayName);
       expect(restored.action, log.action);
       expect(restored.createdAt, log.createdAt);
     });
 
     test('defaults createdAt to now', () {
       final before = DateTime.now();
-      final log = ActivityLog(id: 'log-1', workspaceId: 'ws-1', userName: 'A', action: 'x');
+      final log = ActivityLog(id: 'log-1', workspaceId: 'ws-1', displayName: 'A', action: 'x');
       final after = DateTime.now();
       expect(log.createdAt.isBefore(before), isFalse);
       expect(log.createdAt.isAfter(after), isFalse);
     });
 
-    test('falls back for missing userName and action', () {
+    test('falls back for missing displayName and action', () {
       final log = ActivityLog.fromJson({'id': 'log-1', 'workspace_id': 'ws-1'});
-      expect(log.userName, 'User');
+      expect(log.displayName, 'User');
       expect(log.action, 'performed action');
     });
   });

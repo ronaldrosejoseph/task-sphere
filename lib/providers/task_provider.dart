@@ -53,14 +53,30 @@ class TaskCommentsNotifier extends Notifier<List<TaskComment>> {
 
   TaskRepository? _repo;
   int _mutationCount = 0;
+  StreamSubscription<void>? _commentSub;
+  Timer? _reloadDebounce;
 
   TaskRepository get _repository => _repo!;
 
   @override
   List<TaskComment> build() {
     _repo = ref.watch(taskRepositoryProvider);
+    _commentSub?.cancel();
+    ref.onDispose(() {
+      _commentSub?.cancel();
+      _reloadDebounce?.cancel();
+    });
     if (_repository.isPersistent) {
       unawaited(_load());
+      // Comments added or deleted on other devices reload through the
+      // realtime channel; the debounce batches rapid fire (e.g. echoes of
+      // this device's own inserts).
+      _commentSub = _repository.watchComments(taskId).listen((_) {
+        _reloadDebounce?.cancel();
+        _reloadDebounce = Timer(const Duration(milliseconds: 300), () {
+          unawaited(_load());
+        });
+      });
     }
     return const [];
   }
@@ -90,7 +106,7 @@ class TaskCommentsNotifier extends Notifier<List<TaskComment>> {
       userId: user?.id,
       // Snapshot the admin-configured display name when the member has one,
       // otherwise the account name — never the email prefix.
-      userName: memberDisplayName(ws.members, user?.email) ??
+      displayName: memberDisplayName(ws.members, user?.email) ??
           user?.displayName ??
           'User',
       body: text,
@@ -129,6 +145,10 @@ class ActivityLogNotifier extends Notifier<List<ActivityLog>> {
     _repo = ref.watch(activityLogRepositoryProvider);
     _workspaceId =
         ref.watch(activeWorkspaceProvider.select((s) => s.activeWorkspace.id));
+    // A workspace switch rebuilds this notifier; drop the previous
+    // workspace's channel so it stops reloading stale data.
+    _logSub?.cancel();
+    _reloadDebounce?.cancel();
     ref.onDispose(() {
       _logSub?.cancel();
       _reloadDebounce?.cancel();
@@ -162,13 +182,13 @@ class ActivityLogNotifier extends Notifier<List<ActivityLog>> {
     state = logs;
   }
 
-  void addLog(String workspaceId, String userName, String action, {String? taskId}) {
+  void addLog(String workspaceId, String displayName, String action, {String? taskId}) {
     _mutationCount += 1;
     final newLog = ActivityLog(
       id: _uuid.v4(),
       workspaceId: workspaceId,
       taskId: taskId,
-      userName: userName,
+      displayName: displayName,
       action: action,
     );
     state = [newLog, ...state];

@@ -32,6 +32,8 @@ abstract class TaskRepository {
   Future<void> deleteComment(String commentId);
 
   Stream<void> watchTasks(String workspaceId);
+
+  Stream<void> watchComments(String taskId);
 }
 
 class InMemoryTaskRepository implements TaskRepository {
@@ -61,6 +63,9 @@ class InMemoryTaskRepository implements TaskRepository {
 
   @override
   Stream<void> watchTasks(String workspaceId) => const Stream.empty();
+
+  @override
+  Stream<void> watchComments(String taskId) => const Stream.empty();
 }
 
 class SupabaseTaskRepository implements TaskRepository {
@@ -225,6 +230,29 @@ class SupabaseTaskRepository implements TaskRepository {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'subtasks',
+          callback: (_) => controller.add(null),
+        )
+        .subscribe();
+
+    final stream = controller.stream;
+    controller.onCancel = () => _client.removeChannel(channel);
+    return stream;
+  }
+
+  @override
+  Stream<void> watchComments(String taskId) {
+    final controller = StreamController<void>();
+    final channel = _client
+        .channel('task-comments-$taskId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'task_comments',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'task_id',
+            value: taskId,
+          ),
           callback: (_) => controller.add(null),
         )
         .subscribe();
