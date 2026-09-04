@@ -937,6 +937,134 @@ void main() {
       expect(check.userName, 'Alex Morgan');
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('saving without changes logs nothing on the feed', (tester) async {
+      tester.view.physicalSize = const Size(900, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final task = TaskItem(
+        id: 'task-noop',
+        workspaceId: 'ws-demo-001',
+        laneId: 'lane-1',
+        title: 'Noop ticket',
+        createdAt: DateTime.now().subtract(const Duration(days: 1)),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDialog(
+                      context: ctx,
+                      builder: (_) => TaskDetailModal(task: task),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Task'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TaskDetailModal), findsNothing);
+      expect(container.read(activityLogsProvider), isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('changing priority and assignee logs granular entries', (tester) async {
+      tester.view.physicalSize = const Size(900, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final task = TaskItem(
+        id: 'task-pa',
+        workspaceId: 'ws-demo-001',
+        laneId: 'lane-1',
+        title: 'Priority ticket',
+        priority: TaskPriority.urgent,
+        assigneeEmail: 'sarah.designer@tasksphere.app',
+        assigneeName: 'Sarah Designer',
+        createdAt: DateTime.now().subtract(const Duration(days: 1)),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDialog(
+                      context: ctx,
+                      builder: (_) => TaskDetailModal(task: task),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      // Priority: Urgent -> Low.
+      await tester.dragUntilVisible(
+        find.text('Urgent'),
+        find.byType(Scrollable).first,
+        const Offset(0, -150),
+      );
+      await tester.tap(find.text('Urgent'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Low').last);
+      await tester.pumpAndSettle();
+
+      // Assignee: Sarah Designer -> Alex Morgan.
+      await tester.dragUntilVisible(
+        find.text('Sarah Designer'),
+        find.byType(Scrollable).first,
+        const Offset(0, -150),
+      );
+      await tester.tap(find.text('Sarah Designer'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Alex Morgan').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Task'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TaskDetailModal), findsNothing);
+      final actions = container
+          .read(activityLogsProvider)
+          .where((l) => l.taskId == 'task-pa')
+          .map((l) => l.action)
+          .toList();
+      expect(actions, contains('Changed priority from Urgent to Low'));
+      expect(
+        actions,
+        contains('Changed assignee from Sarah Designer to Alex Morgan'),
+      );
+      // No generic entry: every change is represented specifically.
+      expect(actions.any((a) => a.startsWith('Updated task')), isFalse);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('time tracker', () {

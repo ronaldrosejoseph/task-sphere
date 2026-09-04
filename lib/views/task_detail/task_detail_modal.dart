@@ -1081,8 +1081,11 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
             taskId: newTask.id,
           );
     } else {
-      // Update Existing Task
-      final updated = widget.task!.copyWith(
+      // Update Existing Task. The save is diffed against the task as it was
+      // when the modal opened: each field change becomes its own feed entry,
+      // and a no-op save persists nothing and logs nothing.
+      final original = widget.task!;
+      final updated = original.copyWith(
         laneId: _selectedLaneId,
         title: title,
         description: _descController.text.trim(),
@@ -1094,42 +1097,68 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         subtasks: _subtasks,
         attachmentPaths: _attachmentPaths,
       );
-      ref.read(tasksProvider.notifier).updateTask(updated);
-      final logNotifier = ref.read(activityLogsProvider.notifier);
+      final wsState = ref.read(activeWorkspaceProvider);
+      final laneTitles = {for (final l in wsState.lanes) l.id: l.title};
+      final actions = <String>[];
 
-      // Log what changed since the modal opened: subtask check/uncheck flips
-      // and newly attached files each become a feed entry.
-      final beforeBySubtaskId = {for (final st in widget.task!.subtasks) st.id: st};
+      if (updated.laneId != original.laneId) {
+        actions.add('Moved from ${laneTitles[original.laneId] ?? 'another lane'} '
+            'to ${laneTitles[updated.laneId] ?? 'another lane'}');
+      }
+      if (updated.priority != original.priority) {
+        actions.add('Changed priority from ${original.priority.label} '
+            'to ${updated.priority.label}');
+      }
+      if (updated.assigneeEmail != original.assigneeEmail) {
+        final members = wsState.activeWorkspace.members;
+        final oldAssignee = memberDisplayLabel(members, original.assigneeEmail) ??
+            original.assigneeName ??
+            'Unassigned';
+        final newAssignee = memberDisplayLabel(members, updated.assigneeEmail) ??
+            _assigneeName ??
+            'Unassigned';
+        actions.add('Changed assignee from $oldAssignee to $newAssignee');
+      }
+
+      // Subtask check/uncheck flips since the modal opened.
+      final beforeBySubtaskId = {for (final st in original.subtasks) st.id: st};
       for (final after in _subtasks) {
         final before = beforeBySubtaskId[after.id];
         if (before != null && before.isCompleted != after.isCompleted) {
-          logNotifier.addLog(
-            wsId,
-            actor,
-            after.isCompleted
-                ? 'Checked subtask "${before.title}"'
-                : 'Unchecked subtask "${before.title}"',
-            taskId: updated.id,
-          );
+          actions.add(after.isCompleted
+              ? 'Checked subtask "${before.title}"'
+              : 'Unchecked subtask "${before.title}"');
         }
       }
+      // Newly attached files since the modal opened.
       for (final path in _attachmentPaths) {
-        if (!widget.task!.attachmentPaths.contains(path)) {
-          logNotifier.addLog(
-            wsId,
-            actor,
-            'Added attachment "${path.split('/').last}"',
-            taskId: updated.id,
-          );
+        if (!original.attachmentPaths.contains(path)) {
+          actions.add('Added attachment "${path.split('/').last}"');
         }
+      }
+      // Title, description, due date, estimate, subtask additions/removals,
+      // and attachment removals share one generic entry so no change is lost.
+      final otherChanged = updated.title != original.title ||
+          updated.description != original.description ||
+          updated.dueDate != original.dueDate ||
+          updated.estimatedHours != original.estimatedHours ||
+          original.subtasks.length != _subtasks.length ||
+          !original.attachmentPaths.every(_attachmentPaths.contains);
+      if (otherChanged) {
+        actions.add('Updated task "$title"');
       }
 
-      logNotifier.addLog(
-            wsId,
-            actor,
-            'Updated task "$title"',
-            taskId: updated.id,
-          );
+      if (actions.isEmpty) {
+        // Nothing changed; leave the row and the feed untouched.
+        if (mounted) Navigator.pop(context);
+        return;
+      }
+
+      ref.read(tasksProvider.notifier).updateTask(updated);
+      final logNotifier = ref.read(activityLogsProvider.notifier);
+      for (final action in actions) {
+        logNotifier.addLog(wsId, actor, action, taskId: updated.id);
+      }
     }
 
     // The create path above awaits the task insert, so the modal may have
