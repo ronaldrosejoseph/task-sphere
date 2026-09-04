@@ -9,7 +9,9 @@ import 'package:task_sphere/core/repositories/activity_log_repository.dart';
 import 'package:task_sphere/core/repositories/task_repository.dart';
 import 'package:task_sphere/core/services/supabase_service.dart';
 import 'package:task_sphere/models/task.dart';
+import 'package:task_sphere/models/subtask.dart';
 import 'package:task_sphere/models/task_comment.dart';
+import 'package:task_sphere/models/activity_log.dart';
 import 'package:task_sphere/models/user_profile.dart';
 import 'package:task_sphere/providers/auth_provider.dart';
 import 'package:task_sphere/providers/task_provider.dart';
@@ -38,6 +40,15 @@ class _FixedAuthNotifier extends AuthNotifier {
 
   @override
   UserProfile? build() => user;
+}
+
+class _FixedActivityLogNotifier extends ActivityLogNotifier {
+  _FixedActivityLogNotifier(this.logs);
+
+  final List<ActivityLog> logs;
+
+  @override
+  List<ActivityLog> build() => logs;
 }
 
 void main() {
@@ -776,6 +787,154 @@ void main() {
 
       expect(find.text('Member note'), findsNothing);
       expect(repo.deletedComments, ['c-member']);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('ticket activity feed', () {
+    testWidgets('shows only this ticket entries at the bottom of the modal', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          activityLogsProvider.overrideWith(
+            () => _FixedActivityLogNotifier([
+              ActivityLog(
+                id: 'log-1',
+                taskId: 't-admin',
+                workspaceId: 'ws-demo-001',
+                userName: 'Alex Morgan',
+                action: 'Moved from To Do to In Progress',
+              ),
+              ActivityLog(
+                id: 'log-2',
+                taskId: 't-other',
+                workspaceId: 'ws-demo-001',
+                userName: 'Sarah Designer',
+                action: 'Created task "Other"',
+              ),
+            ]),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await pumpModal(
+        tester,
+        task: adminTicket,
+        container: container,
+        size: const Size(500, 1400),
+      );
+
+      // The feed is the last section; scroll it into view.
+      await tester.dragUntilVisible(
+        find.text('Activity'),
+        find.byType(Scrollable).first,
+        const Offset(0, -200),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Activity'), findsOneWidget);
+      expect(find.text('Moved from To Do to In Progress'), findsOneWidget);
+      expect(find.text('Alex Morgan'), findsOneWidget);
+      // Entries for other tickets are filtered out.
+      expect(find.text('Created task "Other"'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('attachments sit above comments, the activity feed last', (tester) async {
+      final container = memberContainer();
+      addTearDown(container.dispose);
+      await pumpModal(
+        tester,
+        task: adminTicket,
+        container: container,
+        size: const Size(900, 1400),
+      );
+
+      // Scroll to the very bottom: the feed is the last section.
+      await tester.dragUntilVisible(
+        find.text('Activity'),
+        find.byType(Scrollable).first,
+        const Offset(0, -300),
+      );
+      await tester.pumpAndSettle();
+
+      final attachmentsY = tester.getTopLeft(find.text('Attachments')).dy;
+      final commentsY = tester.getTopLeft(find.text('Comments')).dy;
+      final activityY = tester.getTopLeft(find.text('Activity')).dy;
+      expect(attachmentsY, lessThan(commentsY));
+      expect(commentsY, lessThan(activityY));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('saving a checked subtask logs it on the feed with the display name', (tester) async {
+      tester.view.physicalSize = const Size(900, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      // Default providers sign in the demo user (display name 'Alex Morgan').
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final task = TaskItem(
+        id: 'task-sub',
+        workspaceId: 'ws-demo-001',
+        laneId: 'lane-1',
+        title: 'Subtask ticket',
+        subtasks: [
+          Subtask(
+            id: 's-1',
+            taskId: 'task-sub',
+            title: 'First subtask',
+            isCompleted: false,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDialog(
+                      context: ctx,
+                      builder: (_) => TaskDetailModal(task: task),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.dragUntilVisible(
+        find.text('Subtasks Checklist'),
+        find.byType(Scrollable).first,
+        const Offset(0, -200),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Task'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TaskDetailModal), findsNothing);
+      final taskLogs = container
+          .read(activityLogsProvider)
+          .where((l) => l.taskId == 'task-sub')
+          .toList();
+      expect(
+        taskLogs.map((l) => l.action),
+        contains('Checked subtask "First subtask"'),
+      );
+      // The demo actor resolves to the member display name, never the email
+      // prefix or the raw account name.
+      final check = taskLogs.firstWhere((l) => l.action.startsWith('Checked'));
+      expect(check.userName, 'Alex Morgan');
       expect(tester.takeException(), isNull);
     });
   });

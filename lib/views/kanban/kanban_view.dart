@@ -386,7 +386,24 @@ class _KanbanColumnWidget extends ConsumerWidget {
       child: DragTarget<TaskItem>(
         onWillAcceptWithDetails: (details) => details.data.laneId != lane.id,
         onAcceptWithDetails: (details) {
-          ref.read(tasksProvider.notifier).moveTaskLane(details.data.id, lane.id);
+          final task = details.data;
+          ref.read(tasksProvider.notifier).moveTaskLane(task.id, lane.id);
+          // Record the move on the ticket's activity feed; the log snapshots
+          // the admin-set display name when the actor has one.
+          final wsState = ref.read(activeWorkspaceProvider);
+          final laneTitles = {for (final l in wsState.lanes) l.id: l.title};
+          final user = ref.read(authProvider);
+          ref.read(activityLogsProvider.notifier).addLog(
+                wsState.activeWorkspace.id,
+                memberDisplayName(
+                      wsState.activeWorkspace.members,
+                      user?.email,
+                    ) ??
+                    user?.displayName ??
+                    'Admin',
+                'Moved from ${laneTitles[task.laneId] ?? 'another lane'} to ${lane.title}',
+                taskId: task.id,
+              );
         },
         builder: (context, candidateData, rejectedData) {
           final isHighlight = candidateData.isNotEmpty;

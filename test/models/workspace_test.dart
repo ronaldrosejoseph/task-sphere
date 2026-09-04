@@ -128,6 +128,47 @@ void main() {
     });
   });
 
+  group('memberDisplayName', () {
+    final members = [
+      WorkspaceMember(
+        id: 'm1',
+        workspaceId: 'ws1',
+        email: 'alex.admin@example.com',
+        role: UserRole.admin,
+        displayName: 'Alex Morgan',
+      ),
+      WorkspaceMember(
+        id: 'm2',
+        workspaceId: 'ws1',
+        email: 'sarah.designer@example.com',
+        role: UserRole.member,
+        displayName: '   ',
+      ),
+      WorkspaceMember(
+        id: 'm3',
+        workspaceId: 'ws1',
+        email: 'dev.team@example.com',
+        role: UserRole.member,
+      ),
+    ];
+
+    test('returns the configured name case-insensitively', () {
+      expect(memberDisplayName(members, 'ALEX.ADMIN@example.com'), 'Alex Morgan');
+    });
+
+    test('never falls back to the email prefix', () {
+      // No name set or only whitespace: null so callers can use the account
+      // name instead of exposing the email prefix.
+      expect(memberDisplayName(members, 'sarah.designer@example.com'), isNull);
+      expect(memberDisplayName(members, 'dev.team@example.com'), isNull);
+    });
+
+    test('returns null when no member matches or email is missing', () {
+      expect(memberDisplayName(members, 'ghost@example.com'), isNull);
+      expect(memberDisplayName(members, null), isNull);
+    });
+  });
+
   group('Workspace', () {
     test('roundtrips through JSON', () {
       final workspace = Workspace(
