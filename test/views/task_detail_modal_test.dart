@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/repositories/activity_log_repository.dart';
 import 'package:task_sphere/core/repositories/task_repository.dart';
@@ -1061,6 +1062,123 @@ void main() {
         actions,
         contains('Changed assignee from Sarah Designer to Alex Morgan'),
       );
+      // No generic entry: every change is represented specifically.
+      expect(actions.any((a) => a.startsWith('Updated task')), isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('description, due date, and subtask edits log granular entries', (tester) async {
+      tester.view.physicalSize = const Size(900, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final task = TaskItem(
+        id: 'task-gran',
+        workspaceId: 'ws-demo-001',
+        laneId: 'lane-1',
+        title: 'Granular ticket',
+        description: 'Old description',
+        createdAt: DateTime.now().subtract(const Duration(days: 1)),
+        subtasks: [
+          Subtask(
+            id: 's-keep',
+            taskId: 'task-gran',
+            title: 'Keep me',
+            isCompleted: false,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDialog(
+                      context: ctx,
+                      builder: (_) => TaskDetailModal(task: task),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      // Description: replace the content.
+      final descField = find.ancestor(
+        of: find.text('Add details, context, or requirements...'),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(descField, 'New description');
+      await tester.pumpAndSettle();
+
+      // Due date: none -> today (picked via the date picker).
+      await tester.dragUntilVisible(
+        find.text('Set Due Date'),
+        find.byType(Scrollable).first,
+        const Offset(0, -150),
+      );
+      await tester.tap(find.text('Set Due Date'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+
+      // Subtasks: add one, remove the original.
+      await tester.dragUntilVisible(
+        find.text('Add a subtask item...'),
+        find.byType(Scrollable).first,
+        const Offset(0, -150),
+      );
+      final subtaskField = find.ancestor(
+        of: find.text('Add a subtask item...'),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(subtaskField, 'Extra item');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.add_circle));
+      await tester.pumpAndSettle();
+      await tester.dragUntilVisible(
+        find.text('Keep me'),
+        find.byType(Scrollable).first,
+        const Offset(0, -150),
+      );
+      await tester.tap(
+        find.descendant(
+          of: find.widgetWithText(ListTile, 'Keep me'),
+          matching: find.byIcon(Icons.close),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Task'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TaskDetailModal), findsNothing);
+      final actions = container
+          .read(activityLogsProvider)
+          .where((l) => l.taskId == 'task-gran')
+          .map((l) => l.action)
+          .toList();
+      expect(actions, contains('Changed description'));
+      expect(
+        actions,
+        contains(
+          'Changed due date from None to '
+          '${DateFormat('MMM dd, yyyy').format(DateTime.now())}',
+        ),
+      );
+      expect(actions, contains('Added subtask "Extra item"'));
+      expect(actions, contains('Removed subtask "Keep me"'));
       // No generic entry: every change is represented specifically.
       expect(actions.any((a) => a.startsWith('Updated task')), isFalse);
       expect(tester.takeException(), isNull);

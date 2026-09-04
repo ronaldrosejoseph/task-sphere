@@ -1120,6 +1120,38 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         actions.add('Changed assignee from $oldAssignee to $newAssignee');
       }
 
+      // Description edits.
+      final originalDesc = original.description;
+      final newDesc = updated.description;
+      if (originalDesc != newDesc) {
+        if (newDesc.isEmpty) {
+          actions.add('Removed description');
+        } else if (originalDesc.isEmpty) {
+          actions.add('Added description');
+        } else {
+          actions.add('Changed description');
+        }
+      }
+      // Due date edits.
+      if (updated.dueDate != original.dueDate) {
+        String fmtDate(DateTime? d) =>
+            d == null ? 'None' : DateFormat('MMM dd, yyyy').format(d);
+        actions.add('Changed due date from ${fmtDate(original.dueDate)} '
+            'to ${fmtDate(updated.dueDate)}');
+      }
+      // Subtask additions and removals since the modal opened.
+      final originalSubtaskIds = {for (final st in original.subtasks) st.id};
+      final currentSubtaskIds = {for (final st in _subtasks) st.id};
+      for (final st in original.subtasks) {
+        if (!currentSubtaskIds.contains(st.id)) {
+          actions.add('Removed subtask "${st.title}"');
+        }
+      }
+      for (final st in _subtasks) {
+        if (!originalSubtaskIds.contains(st.id)) {
+          actions.add('Added subtask "${st.title}"');
+        }
+      }
       // Subtask check/uncheck flips since the modal opened.
       final beforeBySubtaskId = {for (final st in original.subtasks) st.id: st};
       for (final after in _subtasks) {
@@ -1136,13 +1168,10 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
           actions.add('Added attachment "${path.split('/').last}"');
         }
       }
-      // Title, description, due date, estimate, subtask additions/removals,
-      // and attachment removals share one generic entry so no change is lost.
+      // Title edits, estimate changes, and attachment removals share one
+      // generic entry so no change is lost.
       final otherChanged = updated.title != original.title ||
-          updated.description != original.description ||
-          updated.dueDate != original.dueDate ||
           updated.estimatedHours != original.estimatedHours ||
-          original.subtasks.length != _subtasks.length ||
           !original.attachmentPaths.every(_attachmentPaths.contains);
       if (otherChanged) {
         actions.add('Updated task "$title"');
