@@ -953,6 +953,8 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
 
     final List<PlatformFile> files;
     try {
+      // pickFiles multi-selects by default (file_picker 12); every image the
+      // user chose is uploaded below.
       files = await FilePicker.pickFiles(type: FileType.image);
     } catch (e) {
       _showUploadError('Could not open the file picker: $e');
@@ -961,25 +963,39 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     // The user cancelled the picker.
     if (files.isEmpty) return;
 
-    final file = files.first;
+    var failures = 0;
+    for (final file in files) {
+      if (!await _uploadAttachment(file)) {
+        failures++;
+      }
+    }
+    if (failures > 0 && mounted) {
+      final message = failures == files.length
+          ? 'Upload failed. Check your connection and try again.'
+          : '$failures of ${files.length} images failed to upload.';
+      _showUploadError(message);
+    }
+  }
+
+  /// Uploads one picked image; returns false when the file is invalid or the
+  /// upload fails (the specific failure is debugPrinted by the storage
+  /// service, and skipped files are reported by the caller as a count).
+  Future<bool> _uploadAttachment(PlatformFile file) async {
     // iOS Safari photo picks can come through with an empty name; storage
     // keys must end in a usable filename.
     final fileName = file.name.trim().isEmpty ? 'attachment.jpg' : file.name;
     if (!TaskDetailModal.isAllowedImageFileName(fileName)) {
-      _showUploadError('Only image files can be uploaded (JPG, PNG, GIF, WEBP, HEIC, BMP).');
-      return;
+      return false;
     }
 
     final Uint8List bytes;
     try {
       bytes = await file.readAsBytes();
     } catch (e) {
-      _showUploadError('Could not read the selected file: $e');
-      return;
+      return false;
     }
     if (bytes.isEmpty) {
-      _showUploadError('The selected file is empty.');
-      return;
+      return false;
     }
 
     final workspaceId = ref.read(activeWorkspaceProvider).activeWorkspace.id;
@@ -992,12 +1008,12 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
     );
     if (path == null) {
       // uploadAttachment already debugPrints the underlying error.
-      _showUploadError('Upload failed. Check your connection and try again.');
-      return;
+      return false;
     }
     if (mounted) {
       setState(() => _attachmentPaths.add(path));
     }
+    return true;
   }
 
   void _showUploadError(String message) {
