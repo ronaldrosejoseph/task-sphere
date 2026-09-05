@@ -32,6 +32,14 @@ abstract class WorkspaceRepository {
   /// edited one (role/display name). No-op for in-memory repositories.
   Stream<void> watchMemberships(String userId);
 
+  /// Emits when [userId] is removed from a workspace. Removals cannot reach
+  /// the removed user through the workspace_members channels: realtime
+  /// applies RLS to the deleted row and the membership lookup fails once the
+  /// row is gone. A database trigger instead writes a member_kicks row whose
+  /// column-based policy the removed user can always read; this stream
+  /// surfaces those INSERTs. No-op for in-memory repositories.
+  Stream<void> watchMemberKicks(String userId);
+
   Future<List<KanbanLane>?> fetchLanes(String workspaceId);
 
   Future<List<WorkspaceMember>?> fetchMembers(String workspaceId);
@@ -173,6 +181,9 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Stream<void> watchMemberships(String userId) => const Stream.empty();
+
+  @override
+  Stream<void> watchMemberKicks(String userId) => const Stream.empty();
 }
 
 class SupabaseWorkspaceRepository implements WorkspaceRepository {
@@ -540,16 +551,40 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
   Stream<void> watchMemberships(String userId) {
     final controller = StreamController<void>();
     // Scoped to the signed-in user rather than one workspace, so invitations
-    // to other workspaces and removals arrive too. Realtime applies RLS:
-    // INSERT events only reach users who can read the new row (they were just
-    // made a member), and DELETE events pass because the removed row was
-    // readable before the delete.
+    // and role/display-name edits arrive too. Note that realtime applies RLS
+    // to each event: INSERT events reach users who can read the new row (the
+    // invitee), but the DELETE of a member's own row is NOT delivered to them
+    // — the membership lookup fails once the row is gone. Removals are
+    // covered by [watchMemberKicks] instead.
     final channel = _client
         .channel('memberships-$userId')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'workspace_members',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: userId,
+          ),
+          callback: (_) => controller.add(null),
+        )
+        .subscribe();
+
+    final stream = controller.stream;
+    controller.onCancel = () => _client.removeChannel(channel);
+    return stream;
+  }
+
+  @override
+  Stream<void> watchMemberKicks(String userId) {
+    final controller = StreamController<void>();
+    final channel = _client
+        .channel('kicks-$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'member_kicks',
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
             column: 'user_id',

@@ -263,6 +263,20 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Stream<void> watchMemberships(String userId) => membershipEvents.stream;
+
+  /// Emitted to simulate the member_kicks INSERT the database trigger writes
+  /// when a member is removed (the only signal that reliably reaches the
+  /// removed member's device).
+  final StreamController<void> kickEvents = StreamController<void>.broadcast();
+
+  /// User ids the notifier subscribed kick notifications for.
+  final List<String> kickWatchUserIds = [];
+
+  @override
+  Stream<void> watchMemberKicks(String userId) {
+    kickWatchUserIds.add(userId);
+    return kickEvents.stream;
+  }
 }
 
 class FakeActivityLogRepository implements ActivityLogRepository {
@@ -967,6 +981,77 @@ void main() {
       expect(notifier.state.hasWorkspace, isFalse);
       expect(notifier.state.activeWorkspace.name, 'No Workspace');
       expect(notifier.state.removedFromWorkspace, 'Solo');
+    });
+
+    test('member removal reaches the device through the kick channel and switches workspaces', () async {
+      // Regression: an admin removing a member deletes the row that granted
+      // the member access, so realtime RLS hides the DELETE from them — the
+      // workspace and membership channels stay silent. The database trigger
+      // writes a member_kicks row instead; that INSERT must drive the same
+      // membership reload.
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          Workspace(id: 'ws-1', name: 'Old Team', adminId: 'a'),
+          Workspace(id: 'ws-2', name: 'Fresh Team', adminId: 'other'),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+      await _settle();
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
+
+      // The admin removes the user from the active workspace; only the kick
+      // notification arrives on their device.
+      repo.workspaces.removeWhere((w) => w.id == 'ws-1');
+      repo.kickEvents.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+
+      expect(notifier.state.activeWorkspace.id, 'ws-2');
+      expect(notifier.state.allWorkspaces.map((w) => w.id), ['ws-2']);
+      expect(notifier.state.removedFromWorkspace, 'Old Team');
+      expect(notifier.state.lanes, isNotEmpty);
+    });
+
+    test('a member removal kick from the only workspace falls back to the empty state', () async {
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          Workspace(id: 'ws-1', name: 'Solo', adminId: 'a'),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+      await _settle();
+
+      repo.workspaces.clear();
+      repo.kickEvents.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+
+      expect(notifier.state.hasWorkspace, isFalse);
+      expect(notifier.state.activeWorkspace.name, 'No Workspace');
+      expect(notifier.state.removedFromWorkspace, 'Solo');
+    });
+
+    test('the kick channel is watched for the signed-in user', () async {
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          Workspace(id: 'ws-1', name: 'Team', adminId: 'a'),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+
+      await container.read(activeWorkspaceProvider.notifier).loadInitialData();
+      await _settle();
+
+      // Subscribed for the signed-in user and no one else (build() may drive
+      // loadInitialData twice, so only the set of users matters).
+      expect(repo.kickWatchUserIds, isNotEmpty);
+      expect(repo.kickWatchUserIds.toSet(), {'a'});
     });
   });
 
