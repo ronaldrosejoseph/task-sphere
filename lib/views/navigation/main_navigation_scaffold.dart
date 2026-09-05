@@ -31,6 +31,20 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
     final activeWs = workspaceState.activeWorkspace;
     final currentUser = ref.watch(authProvider);
 
+    // A realtime kick from the active workspace sets the notice; show it once
+    // and clear it so it never re-fires on rebuilds.
+    ref.listen(activeWorkspaceProvider, (previous, next) {
+      final removed = next.removedFromWorkspace;
+      if (removed == null || removed.isEmpty) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('You were removed from $removed')),
+        );
+      });
+      ref.read(activeWorkspaceProvider.notifier).clearRemovedFromWorkspace();
+    });
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth > 800;

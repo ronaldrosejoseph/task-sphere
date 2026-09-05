@@ -229,6 +229,12 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Stream<void> watchWorkspace(String workspaceId) => workspaceEvents.stream;
+
+  /// Emitted to simulate membership changes (invites/removals) from elsewhere.
+  final StreamController<void> membershipEvents = StreamController<void>.broadcast();
+
+  @override
+  Stream<void> watchMemberships(String userId) => membershipEvents.stream;
 }
 
 class FakeActivityLogRepository implements ActivityLogRepository {
@@ -779,6 +785,105 @@ void main() {
       await notifier.addLane('Review', const Color(0xFF6366F1));
       expect(notifier.state.lanes.last.title, 'Review');
       expect(notifier.state.lanes.last.orderIndex, 4);
+    });
+
+    test('an invite to another workspace appears in the switcher without refresh', () async {
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          Workspace(id: 'ws-1', name: 'Team', adminId: 'a'),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+      await _settle();
+
+      // Another device's admin adds the user to a brand-new workspace; the
+      // personal membership channel emits and the list reloads.
+      repo.workspaces = [
+        ...repo.workspaces,
+        Workspace(id: 'ws-2', name: 'Fresh Team', adminId: 'other'),
+      ];
+      repo.membershipEvents.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+
+      expect(notifier.state.allWorkspaces.map((w) => w.id), contains('ws-2'));
+      // The active workspace and its board are untouched.
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
+      expect(notifier.state.removedFromWorkspace, isNull);
+    });
+
+    test('being removed from the active workspace switches to the next one', () async {
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          Workspace(id: 'ws-1', name: 'Old Team', adminId: 'a'),
+          Workspace(id: 'ws-2', name: 'Fresh Team', adminId: 'other'),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+      await _settle();
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
+
+      // The admin removes the user from the active workspace.
+      repo.workspaces.removeWhere((w) => w.id == 'ws-1');
+      repo.membershipEvents.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+
+      expect(notifier.state.activeWorkspace.id, 'ws-2');
+      expect(notifier.state.allWorkspaces.map((w) => w.id), ['ws-2']);
+      expect(notifier.state.removedFromWorkspace, 'Old Team');
+      // The switched-to workspace loads its lanes for the board.
+      expect(notifier.state.lanes, isNotEmpty);
+    });
+
+    test('being removed from the only workspace falls back to the empty state', () async {
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          Workspace(id: 'ws-1', name: 'Solo', adminId: 'a'),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+      await _settle();
+
+      repo.workspaces.clear();
+      repo.membershipEvents.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+
+      expect(notifier.state.hasWorkspace, isFalse);
+      expect(notifier.state.activeWorkspace.name, 'No Workspace');
+      expect(notifier.state.removedFromWorkspace, 'Solo');
+    });
+
+    test('clearRemovedFromWorkspace dismisses the notice', () async {
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          Workspace(id: 'ws-1', name: 'Solo', adminId: 'a'),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+      await _settle();
+      repo.workspaces.clear();
+      repo.membershipEvents.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+      expect(notifier.state.removedFromWorkspace, 'Solo');
+
+      notifier.clearRemovedFromWorkspace();
+
+      expect(notifier.state.removedFromWorkspace, isNull);
     });
   });
 

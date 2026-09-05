@@ -27,6 +27,11 @@ abstract class WorkspaceRepository {
     required String email,
   });
 
+  /// Emits when any workspace_members row for [userId] changes, across all
+  /// workspaces — a new membership (invited), a removed one (kicked), or an
+  /// edited one (role/display name). No-op for in-memory repositories.
+  Stream<void> watchMemberships(String userId);
+
   Future<List<KanbanLane>?> fetchLanes(String workspaceId);
 
   Future<List<WorkspaceMember>?> fetchMembers(String workspaceId);
@@ -150,6 +155,9 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Stream<void> watchWorkspace(String workspaceId) => const Stream.empty();
+
+  @override
+  Stream<void> watchMemberships(String userId) => const Stream.empty();
 }
 
 class SupabaseWorkspaceRepository implements WorkspaceRepository {
@@ -479,6 +487,34 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
             type: PostgresChangeFilterType.eq,
             column: 'id',
             value: workspaceId,
+          ),
+          callback: (_) => controller.add(null),
+        )
+        .subscribe();
+
+    final stream = controller.stream;
+    controller.onCancel = () => _client.removeChannel(channel);
+    return stream;
+  }
+
+  @override
+  Stream<void> watchMemberships(String userId) {
+    final controller = StreamController<void>();
+    // Scoped to the signed-in user rather than one workspace, so invitations
+    // to other workspaces and removals arrive too. Realtime applies RLS:
+    // INSERT events only reach users who can read the new row (they were just
+    // made a member), and DELETE events pass because the removed row was
+    // readable before the delete.
+    final channel = _client
+        .channel('memberships-$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'workspace_members',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: userId,
           ),
           callback: (_) => controller.add(null),
         )
