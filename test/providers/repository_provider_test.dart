@@ -201,6 +201,34 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
     members.add(member);
   }
 
+  final List<(String, String)> memberRemovals = [];
+
+  @override
+  Future<void> removeMember(String workspaceId, String memberId) async {
+    memberRemovals.add((workspaceId, memberId));
+    members.removeWhere((m) => m.id == memberId);
+    workspaces = [
+      for (final ws in workspaces)
+        ws.id == workspaceId
+            ? ws.copyWith(members: [
+                for (final m in ws.members)
+                  if (m.id != memberId) m,
+              ])
+            : ws,
+    ];
+  }
+
+  final List<(String, String)> workspaceNameUpdates = [];
+
+  @override
+  Future<void> updateWorkspaceName(String workspaceId, String name) async {
+    workspaceNameUpdates.add((workspaceId, name));
+    workspaces = [
+      for (final ws in workspaces)
+        ws.id == workspaceId ? ws.copyWith(name: name) : ws,
+    ];
+  }
+
   final List<(String, String?)> memberDisplayNameUpdates = [];
 
   @override
@@ -885,6 +913,61 @@ void main() {
 
       expect(notifier.state.removedFromWorkspace, isNull);
     });
+
+    test('workspace deletion switches the member away even when only the workspace channel fires', () async {
+      // Regression: deleting a workspace cleared the member's board through
+      // the workspace channel (lanes/tasks cascade), but the membership
+      // channel's DELETE event did not always arrive, leaving a stale
+      // workspace header over an empty board. The reload must recover via
+      // the membership path on its own.
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          Workspace(id: 'ws-1', name: 'Team A', adminId: 'other'),
+          Workspace(id: 'ws-2', name: 'Team B', adminId: 'other'),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+      await _settle();
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
+
+      // The admin deletes ws-1. Only the workspace-scoped channel fires.
+      repo.workspaces.removeWhere((w) => w.id == 'ws-1');
+      repo.workspaceEvents.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+
+      // The member is moved to their other workspace, not left on a stale
+      // view with a cleared board.
+      expect(notifier.state.activeWorkspace.id, 'ws-2');
+      expect(notifier.state.allWorkspaces.map((w) => w.id), ['ws-2']);
+      expect(notifier.state.removedFromWorkspace, 'Team A');
+      expect(notifier.state.lanes, isNotEmpty);
+    });
+
+    test('workspace deletion of the only workspace falls back to the empty state via the workspace channel', () async {
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          Workspace(id: 'ws-1', name: 'Solo', adminId: 'a'),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+      await _settle();
+
+      repo.workspaces.clear();
+      repo.workspaceEvents.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+
+      expect(notifier.state.hasWorkspace, isFalse);
+      expect(notifier.state.activeWorkspace.name, 'No Workspace');
+      expect(notifier.state.removedFromWorkspace, 'Solo');
+    });
   });
 
   group('ActivityLogNotifier with a persistent repository', () {
@@ -1402,6 +1485,266 @@ void main() {
       );
       await _settle();
       expect(repo.memberDisplayNameUpdates, isEmpty);
+    });
+  });
+
+  group('Workspace renaming', () {
+    Workspace adminWorkspace() => Workspace(
+          id: 'ws-1',
+          name: 'Old Name',
+          adminId: 'a',
+          members: [
+            WorkspaceMember(
+              id: 'm-1',
+              workspaceId: 'ws-1',
+              userId: 'a',
+              email: 'a@x.com',
+              role: UserRole.admin,
+            ),
+          ],
+        );
+
+    Workspace memberWorkspace() => Workspace(
+          id: 'ws-1',
+          name: 'Old Name',
+          adminId: 'someone-else',
+          members: [
+            WorkspaceMember(
+              id: 'm-1',
+              workspaceId: 'ws-1',
+              userId: 'a',
+              email: 'a@x.com',
+              role: UserRole.member,
+            ),
+          ],
+        );
+
+    test('admin renames the workspace in both lists and persists', () async {
+      final repo = FakeWorkspaceRepository()..workspaces = [adminWorkspace()];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      notifier.updateWorkspaceName('New Name');
+
+      final state = container.read(activeWorkspaceProvider);
+      expect(state.activeWorkspace.name, 'New Name');
+      expect(state.allWorkspaces.single.name, 'New Name');
+      await _settle();
+      expect(repo.workspaceNameUpdates, [('ws-1', 'New Name')]);
+      expect(repo.workspaces.single.name, 'New Name');
+    });
+
+    test('trims whitespace and ignores empty or unchanged names', () async {
+      final repo = FakeWorkspaceRepository()..workspaces = [adminWorkspace()];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      notifier.updateWorkspaceName('  Shiny Team  ');
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.name,
+        'Shiny Team',
+      );
+
+      // Empty and same-name calls are no-ops: no state churn, no writes.
+      notifier.updateWorkspaceName('   ');
+      notifier.updateWorkspaceName('Shiny Team');
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.name,
+        'Shiny Team',
+      );
+      await _settle();
+      expect(repo.workspaceNameUpdates, [('ws-1', 'Shiny Team')]);
+    });
+
+    test('non-admins cannot rename the workspace', () async {
+      final repo = FakeWorkspaceRepository()..workspaces = [memberWorkspace()];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      notifier.updateWorkspaceName('Hacked Name');
+
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.name,
+        isNot('Hacked Name'),
+      );
+      await _settle();
+      expect(repo.workspaceNameUpdates, isEmpty);
+    });
+
+    test('demo user cannot rename even as the workspace admin', () async {
+      final demoWs = Workspace(
+        id: 'ws-1',
+        name: 'Team',
+        adminId: 'demo-user-123',
+        members: [
+          WorkspaceMember(
+            id: 'm-1',
+            workspaceId: 'ws-1',
+            userId: 'demo-user-123',
+            email: 'alex.admin@tasksphere.app',
+            role: UserRole.admin,
+          ),
+        ],
+      );
+      final repo = FakeWorkspaceRepository()..workspaces = [demoWs];
+      final container = ProviderContainer(
+        overrides: [
+          workspaceRepositoryProvider.overrideWith((ref) => repo),
+          authProvider.overrideWith(() => _FixedAuthNotifier(UserProfile.demo())),
+        ],
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await _settle();
+
+      notifier.updateWorkspaceName('Hacked Name');
+
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.name,
+        'Team',
+      );
+      await _settle();
+      expect(repo.workspaceNameUpdates, isEmpty);
+    });
+  });
+
+  group('Member removal', () {
+    Workspace twoAdminsWorkspace() => Workspace(
+          id: 'ws-1',
+          name: 'Team',
+          adminId: 'a',
+          members: [
+            WorkspaceMember(
+              id: 'm-admin-a',
+              workspaceId: 'ws-1',
+              userId: 'a',
+              email: 'a@x.com',
+              role: UserRole.admin,
+            ),
+            WorkspaceMember(
+              id: 'm-admin-b',
+              workspaceId: 'ws-1',
+              userId: 'b',
+              email: 'b@x.com',
+              role: UserRole.admin,
+            ),
+            WorkspaceMember(
+              id: 'm-member',
+              workspaceId: 'ws-1',
+              userId: 'c',
+              email: 'c@x.com',
+              role: UserRole.member,
+            ),
+          ],
+        );
+
+    test('an admin removes a member and the other admin in both lists, persisting', () async {
+      final repo = FakeWorkspaceRepository()..workspaces = [twoAdminsWorkspace()];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+      WorkspaceState state() => container.read(activeWorkspaceProvider);
+
+      final member = state().activeWorkspace.members
+          .firstWhere((m) => m.id == 'm-member');
+      notifier.removeMember(member);
+
+      expect(state().activeWorkspace.members.map((m) => m.id),
+          isNot(contains('m-member')));
+      expect(state().allWorkspaces.single.members.map((m) => m.id),
+          isNot(contains('m-member')));
+
+      // Removing another admin is allowed.
+      final otherAdmin = state().activeWorkspace.members
+          .firstWhere((m) => m.id == 'm-admin-b');
+      notifier.removeMember(otherAdmin);
+
+      expect(state().activeWorkspace.members.map((m) => m.id), ['m-admin-a']);
+      await _settle();
+      expect(
+        repo.memberRemovals,
+        [('ws-1', 'm-member'), ('ws-1', 'm-admin-b')],
+      );
+      expect(repo.workspaces.single.members.map((m) => m.id), ['m-admin-a']);
+    });
+
+    test('cannot remove yourself or the last admin', () async {
+      final repo = FakeWorkspaceRepository()..workspaces = [twoAdminsWorkspace()];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+      WorkspaceState state() => container.read(activeWorkspaceProvider);
+
+      // Self (user 'a') removal is ignored.
+      final self = state().activeWorkspace.members
+          .firstWhere((m) => m.id == 'm-admin-a');
+      notifier.removeMember(self);
+      expect(state().activeWorkspace.members.length, 3);
+
+      // Removing the other admin is fine; the then-last admin (self) stays.
+      final otherAdmin = state().activeWorkspace.members
+          .firstWhere((m) => m.id == 'm-admin-b');
+      notifier.removeMember(otherAdmin);
+      notifier.removeMember(state().activeWorkspace.members
+          .firstWhere((m) => m.id == 'm-admin-a'));
+      final remaining = state().activeWorkspace.members;
+      expect(remaining.map((m) => m.id), ['m-admin-a', 'm-member']);
+      expect(remaining.where((m) => m.role == UserRole.admin).length, 1);
+      await _settle();
+      expect(repo.memberRemovals, [('ws-1', 'm-admin-b')]);
+    });
+
+    test('non-admins cannot remove members', () async {
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          Workspace(
+            id: 'ws-1',
+            name: 'Team',
+            adminId: 'someone-else',
+            members: [
+              WorkspaceMember(
+                id: 'm-1',
+                workspaceId: 'ws-1',
+                userId: 'a',
+                email: 'a@x.com',
+                role: UserRole.member,
+              ),
+              WorkspaceMember(
+                id: 'm-2',
+                workspaceId: 'ws-1',
+                userId: 'z',
+                email: 'z@x.com',
+                role: UserRole.member,
+              ),
+            ],
+          ),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      final victim = container
+          .read(activeWorkspaceProvider)
+          .activeWorkspace
+          .members
+          .firstWhere((m) => m.id == 'm-2');
+      notifier.removeMember(victim);
+
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.members.length,
+        2,
+      );
+      await _settle();
+      expect(repo.memberRemovals, isEmpty);
     });
   });
 }

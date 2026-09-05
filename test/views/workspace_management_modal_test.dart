@@ -351,4 +351,159 @@ void main() {
     expect(find.text('Switch Workspace'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('admins can remove members and other admins, but not themselves', (tester) async {
+    tester.view.physicalSize = const Size(900, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final repo = FakeWorkspaceRepository()
+      ..workspaces = [
+        Workspace(
+          id: 'ws-1',
+          name: 'Team',
+          adminId: 'u-1',
+          members: [
+            WorkspaceMember(
+              id: 'u-1',
+              workspaceId: 'ws-1',
+              userId: 'u-1',
+              email: 'me@x.com',
+              role: UserRole.admin,
+            ),
+            WorkspaceMember(
+              id: 'u-2',
+              workspaceId: 'ws-1',
+              userId: 'u-2',
+              email: 'peer@x.com',
+              role: UserRole.admin,
+            ),
+            WorkspaceMember(
+              id: 'u-3',
+              workspaceId: 'ws-1',
+              userId: 'u-3',
+              email: 'dev@x.com',
+              role: UserRole.member,
+            ),
+          ],
+        ),
+      ]
+      ..lanes = [KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do')];
+    final container = ProviderContainer(
+      overrides: [
+        authProvider.overrideWith(
+          () => _FixedAuthNotifier(
+            UserProfile(id: 'u-1', email: 'me@x.com', displayName: 'Me'),
+          ),
+        ),
+        isDemoUserProvider.overrideWith((ref) => false),
+        workspaceRepositoryProvider.overrideWith((ref) => repo),
+      ],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(activeWorkspaceProvider.notifier);
+    await notifier.loadInitialData();
+    await _pumpModal(tester, container);
+
+    // Removal is offered for the other admin and the member, not for the
+    // acting admin's own row.
+    expect(find.byIcon(Icons.person_remove_outlined), findsNWidgets(2));
+
+    // Remove the other admin first; the confirm dialog shows their label.
+    await tester.tap(find.byIcon(Icons.person_remove_outlined).first);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Remove peer'), findsOneWidget);
+    await tester.tap(find.text('Remove'));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(activeWorkspaceProvider).activeWorkspace.members.map((m) => m.id),
+      ['u-1', 'u-3'],
+    );
+    expect(find.byIcon(Icons.person_remove_outlined), findsOneWidget);
+
+    // The member is removable too; only the admin's own row has no control.
+    await tester.tap(find.byIcon(Icons.person_remove_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove'));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(activeWorkspaceProvider).activeWorkspace.members.map((m) => m.id),
+      ['u-1'],
+    );
+    expect(find.byIcon(Icons.person_remove_outlined), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('removing a member confirms before deleting', (tester) async {
+    tester.view.physicalSize = const Size(900, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // Drive the REAL notifier through the repo so the removal persists.
+    final repo = FakeWorkspaceRepository()
+      ..workspaces = [
+        Workspace(
+          id: 'ws-1',
+          name: 'Team',
+          adminId: 'u-1',
+          members: [
+            WorkspaceMember(
+              id: 'u-1',
+              workspaceId: 'ws-1',
+              userId: 'u-1',
+              email: 'u@x.com',
+              role: UserRole.admin,
+            ),
+            WorkspaceMember(
+              id: 'u-2',
+              workspaceId: 'ws-1',
+              userId: 'u-2',
+              email: 'm@x.com',
+              role: UserRole.member,
+            ),
+          ],
+        ),
+      ]
+      ..lanes = [KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do')];
+    final container = ProviderContainer(
+      overrides: [
+        authProvider.overrideWith(
+          () => _FixedAuthNotifier(
+            UserProfile(id: 'u-1', email: 'u@x.com', displayName: 'U'),
+          ),
+        ),
+        isDemoUserProvider.overrideWith((ref) => false),
+        workspaceRepositoryProvider.overrideWith((ref) => repo),
+      ],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(activeWorkspaceProvider.notifier);
+    await notifier.loadInitialData();
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Scaffold(body: Center(child: WorkspaceManagementModal())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Cancel keeps the member.
+    await tester.tap(find.byIcon(Icons.person_remove_outlined).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(repo.memberRemovals, isEmpty);
+
+    // Confirm removes them.
+    await tester.tap(find.byIcon(Icons.person_remove_outlined).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove'));
+    await tester.pumpAndSettle();
+    expect(repo.memberRemovals, hasLength(1));
+  });
 }

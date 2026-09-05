@@ -9,6 +9,53 @@ import '../kanban/widgets/lane_manager_dialog.dart';
 class SettingsView extends ConsumerWidget {
   const SettingsView({super.key});
 
+  Future<void> _promptRename(BuildContext context, WidgetRef ref) async {
+    final workspace = ref.read(activeWorkspaceProvider).activeWorkspace;
+    final controller = TextEditingController(text: workspace.name);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename workspace'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Shown in the sidebar, app bar, and notifications.',
+              style: TextStyle(fontSize: 12.5),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              maxLength: 40,
+              decoration: const InputDecoration(
+                hintText: 'e.g. Design Studio',
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+              ),
+              onSubmitted: (_) => Navigator.pop(ctx, true),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    // The dialog's exit animation still references the controller, so it
+    // must outlive the pop; the transient dialog is disposed with the route.
+    if (saved != true || controller.text.trim().isEmpty) return;
+    ref.read(activeWorkspaceProvider.notifier).updateWorkspaceName(controller.text);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
@@ -30,8 +77,28 @@ class SettingsView extends ConsumerWidget {
         Text('Configure kanban lanes, auto-expiry task archiving, themes, and serverless sync accounts.', style: TextStyle(color: Colors.grey[400])),
         const SizedBox(height: 24),
 
-        // Admin-only: lanes and archiving are workspace settings.
+        // Admin-only: lanes and archiving are workspace settings. The demo
+        // sandbox is read-only, so its rename control is hidden entirely.
         if (isAdmin) ...[
+        if (!isDemoUser)
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.drive_file_rename_outline, color: Color(0xFF6366F1)),
+              title: const Text('Workspace Name', style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(
+                activeWorkspace.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.edit_outlined, color: Colors.grey),
+                tooltip: 'Rename workspace',
+                onPressed: () => _promptRename(context, ref),
+              ),
+            ),
+          ),
+        if (!isDemoUser) const SizedBox(height: 20),
+
         // Manage Lanes
         Card(
           child: ListTile(

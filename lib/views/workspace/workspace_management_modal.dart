@@ -221,6 +221,12 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
                               tooltip: 'Edit display name',
                               onPressed: () => _editDisplayName(member),
                             ),
+                          if (!isDemoUser && isAdmin && _canRemoveMember(member, activeWs))
+                            IconButton(
+                              icon: const Icon(Icons.person_remove_outlined, size: 18, color: Colors.redAccent),
+                              tooltip: 'Remove from workspace',
+                              onPressed: () => _confirmRemoveMember(member),
+                            ),
                           if (member.role == UserRole.admin)
                             const Chip(label: Text('Admin', style: TextStyle(fontSize: 10)))
                           else
@@ -327,6 +333,51 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
     if (confirmed != true || !mounted) return;
     await ref.read(activeWorkspaceProvider.notifier).deleteWorkspace(ws.id);
     if (mounted) Navigator.pop(context);
+  }
+
+  /// Whether an admin may remove [member]: never your own row, and never
+  /// the workspace's last admin (removing them would orphan the workspace).
+  bool _canRemoveMember(WorkspaceMember member, Workspace ws) {
+    final currentUser = ref.read(authProvider);
+    final userEmail = currentUser?.email;
+    final isSelf =
+        (member.userId != null && member.userId == currentUser?.id) ||
+            (userEmail != null && member.email.toLowerCase() == userEmail.toLowerCase());
+    if (isSelf) return false;
+    if (member.role != UserRole.admin) return true;
+    final adminCount = ws.members.where((m) => m.role == UserRole.admin).length;
+    return adminCount > 1;
+  }
+
+  Future<void> _confirmRemoveMember(WorkspaceMember member) async {
+    final ws = ref.read(activeWorkspaceProvider).activeWorkspace;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Remove ${member.displayLabel}?'),
+        content: Text(
+          '${member.displayLabel} will lose access to "${ws.name}" immediately. '
+          'Any tickets they created stay in the workspace.',
+          style: const TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    ref.read(activeWorkspaceProvider.notifier).removeMember(member);
   }
 
   Future<void> _editDisplayName(WorkspaceMember member) async {

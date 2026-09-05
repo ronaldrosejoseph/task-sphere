@@ -634,6 +634,27 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     }
   }
 
+  /// Renames the active workspace. Admin-only and read-only in the demo
+  /// sandbox, mirroring the other workspace settings mutations.
+  void updateWorkspaceName(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    if (ref.read(isDemoUserProvider)) return;
+    if (!isAdmin(ref.read(authProvider))) return;
+    if (trimmed == state.activeWorkspace.name) return;
+    final updatedWs = state.activeWorkspace.copyWith(name: trimmed);
+    state = state.copyWith(
+      activeWorkspace: updatedWs,
+      allWorkspaces: [
+        for (final w in state.allWorkspaces)
+          w.id == updatedWs.id ? updatedWs : w,
+      ],
+    );
+    if (_repository.isPersistent) {
+      unawaited(_repository.updateWorkspaceName(updatedWs.id, trimmed));
+    }
+  }
+
   void updateAutoExpiryLanes(List<String> laneIds) {
     if (!isAdmin(ref.read(authProvider))) return;
     final updatedWs = state.activeWorkspace.copyWith(autoExpiryLaneIds: laneIds);
@@ -707,6 +728,45 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     }
   }
 
+  /// Removes a member — any role, other admins included — from the active
+  /// workspace. Admin-only and read-only in the demo sandbox. The removed
+  /// user's other devices pick up the DELETE through their membership
+  /// realtime channel and are switched out of the workspace automatically.
+  /// A workspace always keeps its admin who is acting (no self-removal) and
+  /// its last admin.
+  void removeMember(WorkspaceMember member) {
+    if (ref.read(isDemoUserProvider)) return;
+    if (!isAdmin(ref.read(authProvider))) return;
+    final currentUser = ref.read(authProvider);
+    final userEmail = currentUser?.email;
+    final isSelf =
+        (member.userId != null && member.userId == currentUser?.id) ||
+            (userEmail != null && member.email.toLowerCase() == userEmail.toLowerCase());
+    if (isSelf) return;
+
+    final members = state.activeWorkspace.members;
+    if (!members.any((m) => m.id == member.id)) return;
+    final admins = members.where((m) => m.role == UserRole.admin).toList();
+    // Removing the last admin would orphan the workspace.
+    if (member.role == UserRole.admin && admins.length <= 1) return;
+
+    final remaining = [
+      for (final m in members)
+        if (m.id != member.id) m,
+    ];
+    final updatedWs = state.activeWorkspace.copyWith(members: remaining);
+    state = state.copyWith(
+      activeWorkspace: updatedWs,
+      allWorkspaces: [
+        for (final w in state.allWorkspaces)
+          w.id == updatedWs.id ? updatedWs : w,
+      ],
+    );
+    if (_repository.isPersistent) {
+      unawaited(_repository.removeMember(updatedWs.id, member.id));
+    }
+  }
+
   void _subscribeToWorkspace(String workspaceId) {
     _workspaceSub?.cancel();
     _workspaceSub = _repository.watchWorkspace(workspaceId).listen((_) {
@@ -732,6 +792,19 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     final members = await _repository.fetchMembers(workspaceId);
     final workspace = await _repository.fetchWorkspace(workspaceId);
     if (!ref.mounted || state.activeWorkspace.id != workspaceId) return;
+
+    // RLS no longer exposes any of this workspace's data: the user was
+    // removed from it or the workspace was deleted (realtime delivers the
+    // cascade events to the workspace channel even when the membership
+    // channel's DELETE does not arrive). Recover through the membership
+    // path — switch to another workspace or fall to the empty state —
+    // instead of degrading into an empty board under a stale workspace
+    // header. Members being non-null but empty rules out network errors,
+    // which surface as null from the repository.
+    if (members != null && members.isEmpty && workspace == null) {
+      await _reloadMemberships();
+      return;
+    }
 
     if (lanes != null) {
       final sortedLanes = List<KanbanLane>.from(lanes)
