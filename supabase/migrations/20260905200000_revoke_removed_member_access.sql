@@ -13,6 +13,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+    -- Only revoke when the member has no OTHER workspace membership left
+    -- (case-insensitive email match); the site admin is never revoked.
     DELETE FROM public.allowed_signup_emails a
     WHERE lower(a.email) = lower(OLD.email)
       AND a.is_site_admin = false
