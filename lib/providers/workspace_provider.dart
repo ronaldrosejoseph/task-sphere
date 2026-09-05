@@ -634,6 +634,27 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     }
   }
 
+  /// Renames the active workspace. Admin-only and read-only in the demo
+  /// sandbox, mirroring the other workspace settings mutations.
+  void updateWorkspaceName(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    if (ref.read(isDemoUserProvider)) return;
+    if (!isAdmin(ref.read(authProvider))) return;
+    if (trimmed == state.activeWorkspace.name) return;
+    final updatedWs = state.activeWorkspace.copyWith(name: trimmed);
+    state = state.copyWith(
+      activeWorkspace: updatedWs,
+      allWorkspaces: [
+        for (final w in state.allWorkspaces)
+          w.id == updatedWs.id ? updatedWs : w,
+      ],
+    );
+    if (_repository.isPersistent) {
+      unawaited(_repository.updateWorkspaceName(updatedWs.id, trimmed));
+    }
+  }
+
   void updateAutoExpiryLanes(List<String> laneIds) {
     if (!isAdmin(ref.read(authProvider))) return;
     final updatedWs = state.activeWorkspace.copyWith(autoExpiryLaneIds: laneIds);

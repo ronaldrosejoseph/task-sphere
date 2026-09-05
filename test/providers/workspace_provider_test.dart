@@ -368,4 +368,71 @@ void main() {
       );
     });
   });
+
+  group('Workspace renaming (in-memory)', () {
+    test('admin rename updates the active workspace and the switcher list', () {
+      final container = makeContainer();
+      container
+          .read(activeWorkspaceProvider.notifier)
+          .updateWorkspaceName('Renamed Team');
+
+      final state = container.read(activeWorkspaceProvider);
+      expect(state.activeWorkspace.name, 'Renamed Team');
+      expect(state.allWorkspaces.single.name, 'Renamed Team');
+    });
+
+    test('empty names are ignored', () {
+      final container = makeContainer();
+      container
+          .read(activeWorkspaceProvider.notifier)
+          .updateWorkspaceName('   ');
+
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.name,
+        'Engineering & Design Team',
+      );
+    });
+
+    test('a plain member cannot rename the workspace', () {
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith(
+            () => _FixedAuthNotifier(
+              UserProfile(
+                id: 'user-456',
+                email: 'sarah.designer@tasksphere.app',
+                displayName: 'Sarah',
+              ),
+            ),
+          ),
+          isDemoUserProvider.overrideWith((ref) => false),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container
+          .read(activeWorkspaceProvider.notifier)
+          .updateWorkspaceName('Hacked Name');
+
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.name,
+        'Engineering & Design Team',
+      );
+    });
+
+    test('demo user cannot rename even as the workspace admin', () {
+      // Default providers sign in the demo user (demo sandbox is read-only).
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      container
+          .read(activeWorkspaceProvider.notifier)
+          .updateWorkspaceName('Hacked Name');
+
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.name,
+        'Engineering & Design Team',
+      );
+    });
+  });
 }

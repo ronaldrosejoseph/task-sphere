@@ -61,6 +61,10 @@ abstract class WorkspaceRepository {
 
   Future<void> updateShowArchivedTasks(String workspaceId, bool show);
 
+  /// Renames a workspace. Admin-only (the workspaces RLS policies gate
+  /// UPDATEs to workspace admins), so members' calls fail server-side.
+  Future<void> updateWorkspaceName(String workspaceId, String name);
+
   /// Saves the admin-chosen auto-expiry lanes. An empty list disables
   /// auto-expiry. New workspaces are seeded with their Done / Wont Do lanes.
   Future<void> updateAutoExpiryLaneIds(String workspaceId, List<String> laneIds);
@@ -128,6 +132,9 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Future<void> updateShowArchivedTasks(String workspaceId, bool show) async {}
+
+  @override
+  Future<void> updateWorkspaceName(String workspaceId, String name) async {}
 
   @override
   Future<void> updateAutoExpiryLaneIds(String workspaceId, List<String> laneIds) async {}
@@ -362,6 +369,17 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
       await _client
           .from('workspaces')
           .update({'show_archived_tasks': show}).eq('id', workspaceId);
+    } catch (e) {
+      debugPrint('Workspace update error: $e');
+    }
+  }
+
+  @override
+  Future<void> updateWorkspaceName(String workspaceId, String name) async {
+    try {
+      await _client
+          .from('workspaces')
+          .update({'name': name}).eq('id', workspaceId);
     } catch (e) {
       debugPrint('Workspace update error: $e');
     }

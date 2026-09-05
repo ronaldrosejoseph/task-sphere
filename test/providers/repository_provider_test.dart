@@ -201,6 +201,17 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
     members.add(member);
   }
 
+  final List<(String, String)> workspaceNameUpdates = [];
+
+  @override
+  Future<void> updateWorkspaceName(String workspaceId, String name) async {
+    workspaceNameUpdates.add((workspaceId, name));
+    workspaces = [
+      for (final ws in workspaces)
+        ws.id == workspaceId ? ws.copyWith(name: name) : ws,
+    ];
+  }
+
   final List<(String, String?)> memberDisplayNameUpdates = [];
 
   @override
@@ -1402,6 +1413,132 @@ void main() {
       );
       await _settle();
       expect(repo.memberDisplayNameUpdates, isEmpty);
+    });
+  });
+
+  group('Workspace renaming', () {
+    Workspace adminWorkspace() => Workspace(
+          id: 'ws-1',
+          name: 'Old Name',
+          adminId: 'a',
+          members: [
+            WorkspaceMember(
+              id: 'm-1',
+              workspaceId: 'ws-1',
+              userId: 'a',
+              email: 'a@x.com',
+              role: UserRole.admin,
+            ),
+          ],
+        );
+
+    Workspace memberWorkspace() => Workspace(
+          id: 'ws-1',
+          name: 'Old Name',
+          adminId: 'someone-else',
+          members: [
+            WorkspaceMember(
+              id: 'm-1',
+              workspaceId: 'ws-1',
+              userId: 'a',
+              email: 'a@x.com',
+              role: UserRole.member,
+            ),
+          ],
+        );
+
+    test('admin renames the workspace in both lists and persists', () async {
+      final repo = FakeWorkspaceRepository()..workspaces = [adminWorkspace()];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      notifier.updateWorkspaceName('New Name');
+
+      final state = container.read(activeWorkspaceProvider);
+      expect(state.activeWorkspace.name, 'New Name');
+      expect(state.allWorkspaces.single.name, 'New Name');
+      await _settle();
+      expect(repo.workspaceNameUpdates, [('ws-1', 'New Name')]);
+      expect(repo.workspaces.single.name, 'New Name');
+    });
+
+    test('trims whitespace and ignores empty or unchanged names', () async {
+      final repo = FakeWorkspaceRepository()..workspaces = [adminWorkspace()];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      notifier.updateWorkspaceName('  Shiny Team  ');
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.name,
+        'Shiny Team',
+      );
+
+      // Empty and same-name calls are no-ops: no state churn, no writes.
+      notifier.updateWorkspaceName('   ');
+      notifier.updateWorkspaceName('Shiny Team');
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.name,
+        'Shiny Team',
+      );
+      await _settle();
+      expect(repo.workspaceNameUpdates, [('ws-1', 'Shiny Team')]);
+    });
+
+    test('non-admins cannot rename the workspace', () async {
+      final repo = FakeWorkspaceRepository()..workspaces = [memberWorkspace()];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      notifier.updateWorkspaceName('Hacked Name');
+
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.name,
+        isNot('Hacked Name'),
+      );
+      await _settle();
+      expect(repo.workspaceNameUpdates, isEmpty);
+    });
+
+    test('demo user cannot rename even as the workspace admin', () async {
+      final demoWs = Workspace(
+        id: 'ws-1',
+        name: 'Team',
+        adminId: 'demo-user-123',
+        members: [
+          WorkspaceMember(
+            id: 'm-1',
+            workspaceId: 'ws-1',
+            userId: 'demo-user-123',
+            email: 'alex.admin@tasksphere.app',
+            role: UserRole.admin,
+          ),
+        ],
+      );
+      final repo = FakeWorkspaceRepository()..workspaces = [demoWs];
+      final container = ProviderContainer(
+        overrides: [
+          workspaceRepositoryProvider.overrideWith((ref) => repo),
+          authProvider.overrideWith(() => _FixedAuthNotifier(UserProfile.demo())),
+        ],
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await _settle();
+
+      notifier.updateWorkspaceName('Hacked Name');
+
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.name,
+        'Team',
+      );
+      await _settle();
+      expect(repo.workspaceNameUpdates, isEmpty);
     });
   });
 }
