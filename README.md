@@ -37,6 +37,12 @@ Task Sphere is a modern, high-performance task management application for mobile
   <em>Ticket detail — subtasks, attachments, comments, and per-ticket activity feed</em>
 </p>
 
+<p align="center">
+  <img src="screenshots/Settings.png" alt="Settings with workspace admin controls" width="820">
+  <br>
+  <em>Settings — workspace naming, auto-archive, task expiration, and member management</em>
+</p>
+
 ---
 
 ## 🛠️ Step-by-Step Backend Setup
