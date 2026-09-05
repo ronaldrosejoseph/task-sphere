@@ -10,7 +10,7 @@ Task Sphere is a modern, high-performance task management application for mobile
 - 📌 **Customizable Kanban Board**: Default lanes (`To Do`, `In Progress`, `Partially Done`, `Done`, `Wont Do`) + Admin custom lane creator, color customizer, and column reordering.
 - 🗄️ **Smart Auto-Expiry & Archiving**: Automatically hide old completed tasks from active view after a configurable duration (7, 14, 30 days or Never) with a dedicated search/restore Archive view.
 - 👥 **Workspaces & Role-Based Access (RBAC)**: Create multi-user workspaces with **Admin** (lane control, task assignment, member management) and **Member** permissions.
-- 📊 **Analytics Dashboard**: Interactive visual charts (`fl_chart`) tracking velocity, lane distribution, member workload, and logged work hours.
+- 📊 **Analytics Dashboard**: Interactive visual charts (`fl_chart`) tracking velocity, lane distribution, and member workload.
 - 📁 **Serverless Supabase Storage Attachments**: Private, RLS-protected bucket with signed URLs - files are shared with the workspace, not a single user.
 - 🔔 **Local Notifications**: Scheduled due date reminders (mobile & desktop).
 - 🌙 **Modern Glassmorphic UI**: Sleek dark/light modes, micro-animations (`flutter_animate`), responsive desktop sidebar & mobile navigation bar.
@@ -284,7 +284,7 @@ npx wrangler pages deploy build/web --project-name <your-unique-name>
 ```bash
 flutter pub get
 flutter analyze          # zero issues enforced by CI
-flutter test             # 91 unit + widget tests
+flutter test             # 239 unit + widget tests
 ```
 
 - **CI** (`.github/workflows/ci.yml`) runs `flutter analyze` and `flutter test` on every push and pull request.
@@ -301,7 +301,8 @@ lib/
 ├── core/
 │   ├── theme/                 # Modern theme design system, glassmorphism card styles
 │   ├── repositories/          # Supabase + in-memory persistence for workspaces, tasks, logs
-│   └── services/              # Supabase, Storage, Google Auth & Local Notification services
+│   ├── services/              # Supabase, Storage, Google Auth & Local Notification services
+│   └── web/                   # Web-only helpers (DOM field id/name for browser autofill)
 ├── models/                    # Workspace, Lane, Task, Subtask, Activity Log models
 ├── providers/                 # Riverpod Auth, Workspace, Task, and Theme state management
 └── views/
@@ -309,15 +310,16 @@ lib/
     ├── navigation/            # Main scaffold with responsive Sidebar / Bottom Bar
     ├── kanban/                # Dynamic drag-and-drop Kanban Board & Lane Manager
     ├── list_calendar/         # List, Calendar & Archive views
-    ├── analytics/             # Velocity, workload & time breakdown charts
-    ├── task_detail/           # Task editor modal, attachments, subtasks, stopwatch
+    ├── analytics/             # Velocity, workload & lane distribution charts
+    ├── task_detail/           # Task editor modal, attachments, subtasks & comments
     ├── workspace/             # Workspace switcher & member role management
-    └── settings/              # Auto-expiry threshold & notification preferences
+    └── settings/              # Auto-expiry threshold & appearance preferences
 
 test/
 ├── models/                    # JSON roundtrips, parsing, ordering helpers
 ├── providers/                 # Notifier behavior incl. fake-repository persistence tests
-└── views/                     # Kanban rendering, filters, drag & drop, lane management
+├── services/                  # Notification scheduling behavior
+└── views/                     # Board, filters, drag & drop, task modal, settings, navigation
 ```
 
 ---
