@@ -793,6 +793,19 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     final workspace = await _repository.fetchWorkspace(workspaceId);
     if (!ref.mounted || state.activeWorkspace.id != workspaceId) return;
 
+    // RLS no longer exposes any of this workspace's data: the user was
+    // removed from it or the workspace was deleted (realtime delivers the
+    // cascade events to the workspace channel even when the membership
+    // channel's DELETE does not arrive). Recover through the membership
+    // path — switch to another workspace or fall to the empty state —
+    // instead of degrading into an empty board under a stale workspace
+    // header. Members being non-null but empty rules out network errors,
+    // which surface as null from the repository.
+    if (members != null && members.isEmpty && workspace == null) {
+      await _reloadMemberships();
+      return;
+    }
+
     if (lanes != null) {
       final sortedLanes = List<KanbanLane>.from(lanes)
         ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));

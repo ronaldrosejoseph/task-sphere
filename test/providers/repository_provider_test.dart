@@ -913,6 +913,61 @@ void main() {
 
       expect(notifier.state.removedFromWorkspace, isNull);
     });
+
+    test('workspace deletion switches the member away even when only the workspace channel fires', () async {
+      // Regression: deleting a workspace cleared the member's board through
+      // the workspace channel (lanes/tasks cascade), but the membership
+      // channel's DELETE event did not always arrive, leaving a stale
+      // workspace header over an empty board. The reload must recover via
+      // the membership path on its own.
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          Workspace(id: 'ws-1', name: 'Team A', adminId: 'other'),
+          Workspace(id: 'ws-2', name: 'Team B', adminId: 'other'),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+      await _settle();
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
+
+      // The admin deletes ws-1. Only the workspace-scoped channel fires.
+      repo.workspaces.removeWhere((w) => w.id == 'ws-1');
+      repo.workspaceEvents.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+
+      // The member is moved to their other workspace, not left on a stale
+      // view with a cleared board.
+      expect(notifier.state.activeWorkspace.id, 'ws-2');
+      expect(notifier.state.allWorkspaces.map((w) => w.id), ['ws-2']);
+      expect(notifier.state.removedFromWorkspace, 'Team A');
+      expect(notifier.state.lanes, isNotEmpty);
+    });
+
+    test('workspace deletion of the only workspace falls back to the empty state via the workspace channel', () async {
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          Workspace(id: 'ws-1', name: 'Solo', adminId: 'a'),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+      await _settle();
+
+      repo.workspaces.clear();
+      repo.workspaceEvents.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+
+      expect(notifier.state.hasWorkspace, isFalse);
+      expect(notifier.state.activeWorkspace.name, 'No Workspace');
+      expect(notifier.state.removedFromWorkspace, 'Solo');
+    });
   });
 
   group('ActivityLogNotifier with a persistent repository', () {
