@@ -261,8 +261,14 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
   /// Emitted to simulate membership changes (invites/removals) from elsewhere.
   final StreamController<void> membershipEvents = StreamController<void>.broadcast();
 
+  /// User ids the notifier subscribed membership changes for.
+  final List<String> membershipWatchUserIds = [];
+
   @override
-  Stream<void> watchMemberships(String userId) => membershipEvents.stream;
+  Stream<void> watchMemberships(String userId) {
+    membershipWatchUserIds.add(userId);
+    return membershipEvents.stream;
+  }
 
   /// Emitted to simulate the member_kicks INSERT the database trigger writes
   /// when a member is removed (the only signal that reliably reaches the
@@ -1052,6 +1058,41 @@ void main() {
       // loadInitialData twice, so only the set of users matters).
       expect(repo.kickWatchUserIds, isNotEmpty);
       expect(repo.kickWatchUserIds.toSet(), {'a'});
+    });
+
+    test('a user with no workspace still hears an invite in realtime', () async {
+      // Regression: the empty state returned from loadInitialData before the
+      // membership channel was subscribed, so an invite to a first workspace
+      // never appeared until an app restart. Fresh signups and members kicked
+      // out of their last workspace both land in that state.
+      final repo = FakeWorkspaceRepository();
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+
+      await notifier.loadInitialData();
+      await _settle();
+      expect(notifier.state.hasWorkspace, isFalse);
+
+      // The membership and kick channels are live even without a workspace.
+      expect(repo.membershipWatchUserIds, isNotEmpty);
+      expect(repo.membershipWatchUserIds.toSet(), {'a'});
+      expect(repo.kickWatchUserIds, isNotEmpty);
+      expect(repo.kickWatchUserIds.toSet(), {'a'});
+
+      // An admin invites the user to a brand-new workspace; the membership
+      // channel emits and the workspace activates with no removal notice.
+      repo.workspaces = [
+        Workspace(id: 'ws-2', name: 'Fresh Team', adminId: 'other'),
+      ];
+      repo.membershipEvents.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _settle();
+
+      expect(notifier.state.hasWorkspace, isTrue);
+      expect(notifier.state.activeWorkspace.id, 'ws-2');
+      expect(notifier.state.removedFromWorkspace, isNull);
+      expect(notifier.state.lanes, isNotEmpty);
     });
   });
 
