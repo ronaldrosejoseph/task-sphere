@@ -32,24 +32,38 @@ class WorkspaceState {
   final List<KanbanLane> lanes;
   final bool isLoading;
 
+  /// The workspace the signed-in user was just removed from (realtime kick).
+  /// The navigation shell shows one notice, then calls
+  /// [WorkspaceNotifier.clearRemovedFromWorkspace].
+  final String? removedFromWorkspace;
+
   WorkspaceState({
     required this.activeWorkspace,
     required this.allWorkspaces,
     required this.lanes,
     this.isLoading = false,
+    this.removedFromWorkspace,
   });
+
+  // Sentinel so copyWith can clear removedFromWorkspace with an explicit
+  // null; a plain `?? this.x` would make the notice impossible to dismiss.
+  static const Object _unset = Object();
 
   WorkspaceState copyWith({
     Workspace? activeWorkspace,
     List<Workspace>? allWorkspaces,
     List<KanbanLane>? lanes,
     bool? isLoading,
+    Object? removedFromWorkspace = _unset,
   }) {
     return WorkspaceState(
       activeWorkspace: activeWorkspace ?? this.activeWorkspace,
       allWorkspaces: allWorkspaces ?? this.allWorkspaces,
       lanes: lanes ?? this.lanes,
       isLoading: isLoading ?? this.isLoading,
+      removedFromWorkspace: removedFromWorkspace == _unset
+          ? this.removedFromWorkspace
+          : removedFromWorkspace as String?,
     );
   }
 
@@ -70,11 +84,12 @@ class WorkspaceState {
   }
 
   /// Shown when the signed-in user has no workspace yet.
-  static WorkspaceState empty() {
+  static WorkspaceState empty({String? removedFromWorkspace}) {
     return WorkspaceState(
       activeWorkspace: Workspace(id: '', name: 'No Workspace', adminId: ''),
       allWorkspaces: const [],
       lanes: const [],
+      removedFromWorkspace: removedFromWorkspace,
     );
   }
 }
@@ -85,7 +100,9 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   String? _userEmail;
 
   StreamSubscription<void>? _workspaceSub;
+  StreamSubscription<void>? _membershipSub;
   Timer? _reloadDebounce;
+  Timer? _membershipDebounce;
 
   /// Number of lane writes in flight. Realtime reloads are suppressed while
   /// this is non-zero so a reload can never snapshot the database mid-write
@@ -128,7 +145,9 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
 
     ref.onDispose(() {
       _workspaceSub?.cancel();
+      _membershipSub?.cancel();
       _reloadDebounce?.cancel();
+      _membershipDebounce?.cancel();
     });
 
     final initial =
@@ -233,6 +252,74 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
       isLoading: false,
     );
     _subscribeToWorkspace(active.id);
+    _subscribeToMemberships();
+  }
+
+  /// Watches the signed-in user's memberships across ALL workspaces, so an
+  /// invite to another workspace or a removal shows up without a refresh.
+  /// Subscriptions are per user, so unlike the active-workspace channel this
+  /// is set up once per session, not on every switch.
+  void _subscribeToMemberships() {
+    final userId = _userId;
+    if (!_repository.isPersistent || userId == null || userId.isEmpty) return;
+    _membershipSub?.cancel();
+    _membershipSub = _repository.watchMemberships(userId).listen((_) {
+      _membershipDebounce?.cancel();
+      _membershipDebounce = Timer(
+        const Duration(milliseconds: 300),
+        _reloadMemberships,
+      );
+    });
+  }
+
+  /// Re-fetches the user's workspace list after a membership change. When the
+  /// active workspace is no longer among them (kicked out, or it was deleted
+  /// and the membership cascade fired), switch to the first remaining
+  /// workspace — or the empty state — and record the removal for a notice.
+  Future<void> _reloadMemberships() async {
+    final userId = _userId;
+    final userEmail = _userEmail;
+    if (userId == null || userEmail == null) return;
+    final snapshot =
+        await _repository.fetchWorkspaces(userId: userId, email: userEmail);
+    if (!ref.mounted || snapshot == null) return;
+
+    final currentActiveId = state.activeWorkspace.id;
+    if (snapshot.workspaces.any((w) => w.id == currentActiveId)) {
+      // Still a member: the switcher list may have grown (invite to a new
+      // workspace) or been renamed; the active workspace's live data keeps
+      // coming from its own channel.
+      state = state.copyWith(allWorkspaces: snapshot.workspaces);
+      return;
+    }
+
+    final removedName = state.activeWorkspace.name;
+    if (snapshot.workspaces.isEmpty) {
+      // No workspaces left: the existing empty state screen guides the user.
+      state = WorkspaceState.empty(removedFromWorkspace: removedName);
+      return;
+    }
+
+    final next = snapshot.workspaces.first;
+    if (_repository.isPersistent) {
+      final lanes = await _ensureLanes(next.id);
+      if (!ref.mounted || state.activeWorkspace.id != currentActiveId) return;
+      state = WorkspaceState(
+        activeWorkspace: next,
+        allWorkspaces: snapshot.workspaces,
+        lanes: lanes,
+        isLoading: false,
+        removedFromWorkspace: removedName,
+      );
+      _subscribeToWorkspace(next.id);
+      unawaited(_persistActiveWorkspace(next.id));
+    }
+  }
+
+  /// Called by the UI after it has shown the removal notice.
+  void clearRemovedFromWorkspace() {
+    if (state.removedFromWorkspace == null) return;
+    state = state.copyWith(removedFromWorkspace: null);
   }
 
   static const _defaultLanes = [

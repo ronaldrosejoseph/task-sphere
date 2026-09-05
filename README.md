@@ -17,6 +17,28 @@ Task Sphere is a modern, high-performance task management application for mobile
 
 ---
 
+## 📸 Screenshots
+
+<p align="center">
+  <img src="screenshots/Kanban.png" alt="Kanban board with drag-and-drop lanes and filters" width="820">
+  <br>
+  <em>Kanban board — drag-and-drop lanes, task cards, and search/filter controls</em>
+</p>
+
+<p align="center">
+  <img src="screenshots/Analytics.png" alt="Analytics dashboard with velocity and workload charts" width="820">
+  <br>
+  <em>Analytics dashboard — velocity, lane distribution, and member workload</em>
+</p>
+
+<p align="center">
+  <img src="screenshots/Ticket.png" alt="Ticket detail with subtasks, comments, and activity feed" width="420">
+  <br>
+  <em>Ticket detail — subtasks, attachments, comments, and per-ticket activity feed</em>
+</p>
+
+---
+
 ## 🛠️ Step-by-Step Backend Setup
 
 ### 1. Supabase Project Setup (Database, Auth, Storage & Realtime)
