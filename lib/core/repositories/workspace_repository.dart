@@ -65,6 +65,11 @@ abstract class WorkspaceRepository {
   /// UPDATEs to workspace admins), so members' calls fail server-side.
   Future<void> updateWorkspaceName(String workspaceId, String name);
 
+  /// Removes a member (any role) from a workspace. Admin-only (the members
+  /// RLS policy lets admins DELETE any row). The removed user's devices
+  /// learn about it through their membership realtime channel.
+  Future<void> removeMember(String workspaceId, String memberId);
+
   /// Saves the admin-chosen auto-expiry lanes. An empty list disables
   /// auto-expiry. New workspaces are seeded with their Done / Wont Do lanes.
   Future<void> updateAutoExpiryLaneIds(String workspaceId, List<String> laneIds);
@@ -135,6 +140,9 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Future<void> updateWorkspaceName(String workspaceId, String name) async {}
+
+  @override
+  Future<void> removeMember(String workspaceId, String memberId) async {}
 
   @override
   Future<void> updateAutoExpiryLaneIds(String workspaceId, List<String> laneIds) async {}
@@ -382,6 +390,19 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
           .update({'name': name}).eq('id', workspaceId);
     } catch (e) {
       debugPrint('Workspace update error: $e');
+    }
+  }
+
+  @override
+  Future<void> removeMember(String workspaceId, String memberId) async {
+    try {
+      await _client
+          .from('workspace_members')
+          .delete()
+          .eq('id', memberId)
+          .eq('workspace_id', workspaceId);
+    } catch (e) {
+      debugPrint('Member removal error: $e');
     }
   }
 
