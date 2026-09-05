@@ -37,6 +37,12 @@ Task Sphere is a modern, high-performance task management application for mobile
   <em>Ticket detail — subtasks, attachments, comments, and per-ticket activity feed</em>
 </p>
 
+<p align="center">
+  <img src="screenshots/Settings.png" alt="Settings with workspace admin controls" width="820">
+  <br>
+  <em>Settings — workspace naming, auto-archive, task expiration, and member management</em>
+</p>
+
 ---
 
 ## 🛠️ Step-by-Step Backend Setup
@@ -284,7 +290,7 @@ npx wrangler pages deploy build/web --project-name <your-unique-name>
 ```bash
 flutter pub get
 flutter analyze          # zero issues enforced by CI
-flutter test             # 256 unit + widget tests
+flutter test             # 259 unit + widget tests
 ```
 
 - **CI** (`.github/workflows/ci.yml`) runs `flutter analyze` and `flutter test` on every push and pull request.

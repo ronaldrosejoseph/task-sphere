@@ -101,6 +101,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
 
   StreamSubscription<void>? _workspaceSub;
   StreamSubscription<void>? _membershipSub;
+  StreamSubscription<void>? _kickSub;
   Timer? _reloadDebounce;
   Timer? _membershipDebounce;
 
@@ -146,6 +147,7 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     ref.onDispose(() {
       _workspaceSub?.cancel();
       _membershipSub?.cancel();
+      _kickSub?.cancel();
       _reloadDebounce?.cancel();
       _membershipDebounce?.cancel();
     });
@@ -253,6 +255,26 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     );
     _subscribeToWorkspace(active.id);
     _subscribeToMemberships();
+    _subscribeToKicks();
+  }
+
+  /// Watches kick notifications: the user was removed from a workspace by an
+  /// admin. Removals cannot travel the membership channel — realtime applies
+  /// RLS to the deleted row and the membership lookup fails once it is gone —
+  /// so the database trigger writes member_kicks rows the removed member can
+  /// always read. Session-scoped like the membership subscription; both share
+  /// the membership reload debounce.
+  void _subscribeToKicks() {
+    final userId = _userId;
+    if (!_repository.isPersistent || userId == null || userId.isEmpty) return;
+    _kickSub?.cancel();
+    _kickSub = _repository.watchMemberKicks(userId).listen((_) {
+      _membershipDebounce?.cancel();
+      _membershipDebounce = Timer(
+        const Duration(milliseconds: 300),
+        _reloadMemberships,
+      );
+    });
   }
 
   /// Watches the signed-in user's memberships across ALL workspaces, so an
@@ -729,11 +751,11 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   }
 
   /// Removes a member — any role, other admins included — from the active
-  /// workspace. Admin-only and read-only in the demo sandbox. The removed
-  /// user's other devices pick up the DELETE through their membership
-  /// realtime channel and are switched out of the workspace automatically.
-  /// A workspace always keeps its admin who is acting (no self-removal) and
-  /// its last admin.
+  /// workspace. Admin-only and read-only in the demo sandbox. The database's
+  /// AFTER DELETE trigger writes a member_kicks row, which the removed user's
+  /// other devices receive and react to by switching out of the workspace
+  /// automatically. A workspace always keeps its admin who is acting (no
+  /// self-removal) and its last admin.
   void removeMember(WorkspaceMember member) {
     if (ref.read(isDemoUserProvider)) return;
     if (!isAdmin(ref.read(authProvider))) return;
