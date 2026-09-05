@@ -223,6 +223,12 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     );
     if (snapshot == null || !ref.mounted) return;
 
+    // Session-scoped membership/kick channels must exist even before the
+    // user has any workspace (fresh signup, or kicked out of their last
+    // one): an invite to a first workspace has to arrive in realtime too.
+    _subscribeToMemberships();
+    _subscribeToKicks();
+
     if (snapshot.workspaces.isEmpty) {
       // First-time user: require an explicit workspace creation.
       state = WorkspaceState.empty();
@@ -254,8 +260,6 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
       isLoading: false,
     );
     _subscribeToWorkspace(active.id);
-    _subscribeToMemberships();
-    _subscribeToKicks();
   }
 
   /// Watches kick notifications: the user was removed from a workspace by an
@@ -307,7 +311,10 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
     if (!ref.mounted || snapshot == null) return;
 
     final currentActiveId = state.activeWorkspace.id;
-    if (snapshot.workspaces.any((w) => w.id == currentActiveId)) {
+    final hasActiveWorkspace =
+        currentActiveId.isNotEmpty && currentActiveId != 'loading';
+    if (hasActiveWorkspace &&
+        snapshot.workspaces.any((w) => w.id == currentActiveId)) {
       // Still a member: the switcher list may have grown (invite to a new
       // workspace) or been renamed; the active workspace's live data keeps
       // coming from its own channel.
@@ -315,7 +322,9 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
       return;
     }
 
-    final removedName = state.activeWorkspace.name;
+    // Invited into a first workspace from the empty screen: there is no
+    // removal to announce, so fall through and activate the workspace.
+    final removedName = hasActiveWorkspace ? state.activeWorkspace.name : null;
     if (snapshot.workspaces.isEmpty) {
       // No workspaces left: the existing empty state screen guides the user.
       state = WorkspaceState.empty(removedFromWorkspace: removedName);
