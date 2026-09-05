@@ -72,7 +72,9 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/
+    # Listed per file: the folder also holds README screenshots that must
+    # not be bundled into app builds.
+    - assets/images/google_logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
