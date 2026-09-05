@@ -26,6 +26,14 @@ final canCreateWorkspaceProvider = FutureProvider<bool>((ref) async {
   return ref.watch(workspaceRepositoryProvider).canCreateWorkspace();
 });
 
+/// Emails flagged `is_site_admin` in the signup allowlist. The member list
+/// uses it to protect the site admin from removal; WorkspaceNotifier
+/// .removeMember and the database enforce the same rule.
+final siteAdminEmailsProvider = FutureProvider<List<String>>((ref) async {
+  if (ref.watch(isDemoUserProvider)) return const [];
+  return ref.watch(workspaceRepositoryProvider).fetchSiteAdminEmails();
+});
+
 class WorkspaceState {
   final Workspace activeWorkspace;
   final List<Workspace> allWorkspaces;
@@ -764,8 +772,8 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   /// AFTER DELETE trigger writes a member_kicks row, which the removed user's
   /// other devices receive and react to by switching out of the workspace
   /// automatically. A workspace always keeps its admin who is acting (no
-  /// self-removal) and its last admin.
-  void removeMember(WorkspaceMember member) {
+  /// self-removal) and its last admin, and the site admin is never removable.
+  Future<void> removeMember(WorkspaceMember member) async {
     if (ref.read(isDemoUserProvider)) return;
     if (!isAdmin(ref.read(authProvider))) return;
     final currentUser = ref.read(authProvider);
@@ -774,6 +782,11 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
         (member.userId != null && member.userId == currentUser?.id) ||
             (userEmail != null && member.email.toLowerCase() == userEmail.toLowerCase());
     if (isSelf) return;
+
+    // The site admin owns the app: another workspace admin must not be able
+    // to cut off their access. The database trigger is the backstop.
+    final siteAdmins = await ref.read(siteAdminEmailsProvider.future);
+    if (siteAdmins.contains(member.email.toLowerCase())) return;
 
     final members = state.activeWorkspace.members;
     if (!members.any((m) => m.id == member.id)) return;

@@ -65,6 +65,13 @@ abstract class WorkspaceRepository {
   /// allowlisted and not a plain member of any workspace.
   Future<bool> canCreateWorkspace();
 
+  /// Emails flagged `is_site_admin` in the signup allowlist (lowercased).
+  /// The app uses this to keep the site admin from being removed from any
+  /// workspace; the database trigger remains the hard backstop. The
+  /// allowlist's admin-only policy gates this to workspace admins, so plain
+  /// members get an empty list.
+  Future<List<String>> fetchSiteAdminEmails();
+
   Future<void> updateAutoArchiveDays(String workspaceId, int days);
 
   Future<void> updateShowArchivedTasks(String workspaceId, bool show);
@@ -142,6 +149,9 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Future<bool> canCreateWorkspace() async => true;
+
+  @override
+  Future<List<String>> fetchSiteAdminEmails() async => const [];
 
   @override
   Future<void> updateShowArchivedTasks(String workspaceId, bool show) async {}
@@ -368,6 +378,23 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
     } catch (e) {
       debugPrint('can_create_workspace error: $e');
       return true;
+    }
+  }
+
+  @override
+  Future<List<String>> fetchSiteAdminEmails() async {
+    try {
+      final response = await _client
+          .from('allowed_signup_emails')
+          .select('email')
+          .eq('is_site_admin', true);
+      return [
+        for (final row in response as List)
+          ((row as Map<String, dynamic>)['email'] as String).toLowerCase(),
+      ];
+    } catch (e) {
+      debugPrint('Site admin fetch error: $e');
+      return const [];
     }
   }
 

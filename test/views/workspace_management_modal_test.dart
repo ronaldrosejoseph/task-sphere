@@ -436,6 +436,67 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('the site admin row shows a lock instead of a remove control', (tester) async {
+    tester.view.physicalSize = const Size(900, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final repo = FakeWorkspaceRepository()
+      ..siteAdminEmails = ['boss@x.com']
+      ..workspaces = [
+        Workspace(
+          id: 'ws-1',
+          name: 'Team',
+          adminId: 'u-1',
+          members: [
+            WorkspaceMember(
+              id: 'u-1',
+              workspaceId: 'ws-1',
+              userId: 'u-1',
+              email: 'me@x.com',
+              role: UserRole.admin,
+            ),
+            WorkspaceMember(
+              id: 'u-2',
+              workspaceId: 'ws-1',
+              userId: 'u-2',
+              email: 'boss@x.com',
+              role: UserRole.admin,
+            ),
+            WorkspaceMember(
+              id: 'u-3',
+              workspaceId: 'ws-1',
+              userId: 'u-3',
+              email: 'dev@x.com',
+              role: UserRole.member,
+            ),
+          ],
+        ),
+      ]
+      ..lanes = [KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do')];
+    final container = ProviderContainer(
+      overrides: [
+        authProvider.overrideWith(
+          () => _FixedAuthNotifier(
+            UserProfile(id: 'u-1', email: 'me@x.com', displayName: 'Me'),
+          ),
+        ),
+        isDemoUserProvider.overrideWith((ref) => false),
+        workspaceRepositoryProvider.overrideWith((ref) => repo),
+      ],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(activeWorkspaceProvider.notifier);
+    await notifier.loadInitialData();
+    await _pumpModal(tester, container);
+
+    // The site admin (also an admin) is locked; only the plain member row
+    // offers removal.
+    expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+    expect(find.byIcon(Icons.person_remove_outlined), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('removing a member confirms before deleting', (tester) async {
     tester.view.physicalSize = const Size(900, 1400);
     tester.view.devicePixelRatio = 1.0;

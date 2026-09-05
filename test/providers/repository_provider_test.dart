@@ -94,6 +94,12 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
   bool canAccess = true;
   bool canCreate = true;
 
+  /// Emails flagged is_site_admin in the signup allowlist.
+  List<String> siteAdminEmails = [];
+
+  @override
+  Future<List<String>> fetchSiteAdminEmails() async => List.of(siteAdminEmails);
+
   @override
   bool get isPersistent => true;
 
@@ -1780,7 +1786,7 @@ void main() {
 
       final member = state().activeWorkspace.members
           .firstWhere((m) => m.id == 'm-member');
-      notifier.removeMember(member);
+      await notifier.removeMember(member);
 
       expect(state().activeWorkspace.members.map((m) => m.id),
           isNot(contains('m-member')));
@@ -1790,7 +1796,7 @@ void main() {
       // Removing another admin is allowed.
       final otherAdmin = state().activeWorkspace.members
           .firstWhere((m) => m.id == 'm-admin-b');
-      notifier.removeMember(otherAdmin);
+      await notifier.removeMember(otherAdmin);
 
       expect(state().activeWorkspace.members.map((m) => m.id), ['m-admin-a']);
       await _settle();
@@ -1812,14 +1818,14 @@ void main() {
       // Self (user 'a') removal is ignored.
       final self = state().activeWorkspace.members
           .firstWhere((m) => m.id == 'm-admin-a');
-      notifier.removeMember(self);
+      await notifier.removeMember(self);
       expect(state().activeWorkspace.members.length, 3);
 
       // Removing the other admin is fine; the then-last admin (self) stays.
       final otherAdmin = state().activeWorkspace.members
           .firstWhere((m) => m.id == 'm-admin-b');
-      notifier.removeMember(otherAdmin);
-      notifier.removeMember(state().activeWorkspace.members
+      await notifier.removeMember(otherAdmin);
+      await notifier.removeMember(state().activeWorkspace.members
           .firstWhere((m) => m.id == 'm-admin-a'));
       final remaining = state().activeWorkspace.members;
       expect(remaining.map((m) => m.id), ['m-admin-a', 'm-member']);
@@ -1863,7 +1869,7 @@ void main() {
           .activeWorkspace
           .members
           .firstWhere((m) => m.id == 'm-2');
-      notifier.removeMember(victim);
+      await notifier.removeMember(victim);
 
       expect(
         container.read(activeWorkspaceProvider).activeWorkspace.members.length,
@@ -1871,6 +1877,71 @@ void main() {
       );
       await _settle();
       expect(repo.memberRemovals, isEmpty);
+    });
+
+    test('the site admin cannot be removed by a workspace admin', () async {
+      // Regression: an invited co-admin could remove the site admin from the
+      // workspace, cutting off the app owner's access. The provider must
+      // no-op (the DB trigger is the backstop for non-app callers).
+      final repo = FakeWorkspaceRepository()
+        ..siteAdminEmails = ['boss@x.com']
+        ..workspaces = [
+          Workspace(
+            id: 'ws-1',
+            name: 'Team',
+            adminId: 'a',
+            members: [
+              WorkspaceMember(
+                id: 'm-admin',
+                workspaceId: 'ws-1',
+                userId: 'a',
+                email: 'a@x.com',
+                role: UserRole.admin,
+              ),
+              WorkspaceMember(
+                id: 'm-boss',
+                workspaceId: 'ws-1',
+                userId: 'boss',
+                email: 'boss@x.com',
+                role: UserRole.admin,
+              ),
+              WorkspaceMember(
+                id: 'm-member',
+                workspaceId: 'ws-1',
+                userId: 'c',
+                email: 'c@x.com',
+                role: UserRole.member,
+              ),
+            ],
+          ),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      final boss = container
+          .read(activeWorkspaceProvider)
+          .activeWorkspace
+          .members
+          .firstWhere((m) => m.id == 'm-boss');
+      await notifier.removeMember(boss);
+
+      expect(repo.memberRemovals, isEmpty);
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.members
+            .map((m) => m.id),
+        ['m-admin', 'm-boss', 'm-member'],
+      );
+
+      // Other members remain removable.
+      final member = container
+          .read(activeWorkspaceProvider)
+          .activeWorkspace
+          .members
+          .firstWhere((m) => m.id == 'm-member');
+      await notifier.removeMember(member);
+      expect(repo.memberRemovals, [('ws-1', 'm-member')]);
     });
   });
 }

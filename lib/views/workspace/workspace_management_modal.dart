@@ -33,6 +33,9 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
     final allWs = workspaceState.allWorkspaces;
     final isAdmin = ref.read(activeWorkspaceProvider.notifier).isAdmin(currentUser);
     final canCreate = ref.watch(canCreateWorkspaceProvider).value ?? false;
+    final siteAdminEmails = (ref.watch(siteAdminEmailsProvider).value ?? const <String>[])
+        .map((e) => e.toLowerCase())
+        .toSet();
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -221,7 +224,17 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
                               tooltip: 'Edit display name',
                               onPressed: () => _editDisplayName(member),
                             ),
-                          if (!isDemoUser && isAdmin && _canRemoveMember(member, activeWs))
+                          if (siteAdminEmails.contains(member.email.toLowerCase()))
+                            const Tooltip(
+                              message: 'Site admin — cannot be removed',
+                              child: Padding(
+                                padding: EdgeInsets.all(8),
+                                child: Icon(Icons.lock_outline, size: 18),
+                              ),
+                            )
+                          else if (!isDemoUser &&
+                              isAdmin &&
+                              _canRemoveMember(member, activeWs, siteAdminEmails))
                             IconButton(
                               icon: const Icon(Icons.person_remove_outlined, size: 18, color: Colors.redAccent),
                               tooltip: 'Remove from workspace',
@@ -335,15 +348,18 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
     if (mounted) Navigator.pop(context);
   }
 
-  /// Whether an admin may remove [member]: never your own row, and never
-  /// the workspace's last admin (removing them would orphan the workspace).
-  bool _canRemoveMember(WorkspaceMember member, Workspace ws) {
+  /// Whether an admin may remove [member]: never your own row, never the
+  /// site admin, and never the workspace's last admin (removing them would
+  /// orphan the workspace).
+  bool _canRemoveMember(
+      WorkspaceMember member, Workspace ws, Set<String> siteAdminEmails) {
     final currentUser = ref.read(authProvider);
     final userEmail = currentUser?.email;
     final isSelf =
         (member.userId != null && member.userId == currentUser?.id) ||
             (userEmail != null && member.email.toLowerCase() == userEmail.toLowerCase());
     if (isSelf) return false;
+    if (siteAdminEmails.contains(member.email.toLowerCase())) return false;
     if (member.role != UserRole.admin) return true;
     final adminCount = ws.members.where((m) => m.role == UserRole.admin).length;
     return adminCount > 1;
@@ -377,7 +393,7 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
       ),
     );
     if (confirmed != true || !mounted) return;
-    ref.read(activeWorkspaceProvider.notifier).removeMember(member);
+    await ref.read(activeWorkspaceProvider.notifier).removeMember(member);
   }
 
   Future<void> _editDisplayName(WorkspaceMember member) async {
