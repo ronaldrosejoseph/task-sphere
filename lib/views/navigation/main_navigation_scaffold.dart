@@ -38,6 +38,11 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
       if (removed == null || removed.isEmpty) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        // The shell is the root route (AuthScreen swaps it in inline), so
+        // popping down to the first route dismisses any open dialog — the
+        // task detail modal, lane manager, or workspace manager — without
+        // ever popping the shell itself.
+        Navigator.of(context).popUntil((route) => route.isFirst);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('You were removed from $removed')),
         );

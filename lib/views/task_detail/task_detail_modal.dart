@@ -61,12 +61,20 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   List<String> _attachmentPaths = [];
   late final String _newTaskId;
 
+  // The workspace this modal edits tickets for. When it stops being the
+  // active one (kicked out, or the user switched), the modal closes itself:
+  // its lane/assignee dropdowns and save targets belong to the old workspace.
+  late final String _modalWorkspaceId;
+  bool _closedForWorkspaceChange = false;
+
   @override
   void initState() {
     super.initState();
     final lanes = [...ref.read(activeWorkspaceProvider).lanes]
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     _selectedLaneId = widget.task?.laneId ?? widget.initialLaneId ?? (lanes.isNotEmpty ? lanes.first.id : '');
+    _modalWorkspaceId = widget.task?.workspaceId ??
+        ref.read(activeWorkspaceProvider).activeWorkspace.id;
 
     _titleController = TextEditingController(text: widget.task?.title ?? '');
     _descController = TextEditingController(text: widget.task?.description ?? '');
@@ -108,12 +116,19 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   }
 
   Widget _buildLaneField(WorkspaceState workspaceState) {
+    final sortedLanes = [...workspaceState.lanes]
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    // The selected lane may belong to a workspace this modal was opened for
+    // but that is no longer active (e.g. the user was just removed from it);
+    // a DropdownButton asserts its value exists among the items, so fall back
+    // to the unselected state for the frame before the modal closes itself.
+    final hasSelectedLane =
+        _selectedLaneId.isNotEmpty && sortedLanes.any((l) => l.id == _selectedLaneId);
     return DropdownButtonFormField<String>(
-      initialValue: _selectedLaneId.isNotEmpty ? _selectedLaneId : null,
+      initialValue: hasSelectedLane ? _selectedLaneId : null,
       isExpanded: true,
       decoration: const InputDecoration(labelText: 'Kanban Lane', isDense: true),
-      items: ([...workspaceState.lanes]
-            ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex)))
+      items: sortedLanes
           .map((lane) {
         return DropdownMenuItem(
           value: lane.id,
@@ -170,8 +185,13 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   }
 
   Widget _buildAssigneeField(WorkspaceState workspaceState) {
+    final members = workspaceState.activeWorkspace.members;
+    // Same transient-frame guard as the lane field: the assignee may belong
+    // to a workspace that stopped being active (kick / switch).
+    final hasAssignee = _assigneeEmail != null &&
+        members.any((m) => m.email.toLowerCase() == _assigneeEmail!.toLowerCase());
     return DropdownButtonFormField<String>(
-      initialValue: _assigneeEmail,
+      initialValue: hasAssignee ? _assigneeEmail : null,
       isExpanded: true,
       decoration: const InputDecoration(labelText: 'Assignee', isDense: true),
       items: [
@@ -287,6 +307,19 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
   @override
   Widget build(BuildContext context) {
     final workspaceState = ref.watch(activeWorkspaceProvider);
+    // The modal edits tickets of _modalWorkspaceId only. When the active
+    // workspace moves on — the user was removed from it via realtime, or
+    // switched away — close immediately rather than render another
+    // workspace's lanes/members inside the old ticket's form.
+    ref.listen(activeWorkspaceProvider, (previous, next) {
+      if (_closedForWorkspaceChange) return;
+      if (next.activeWorkspace.id != _modalWorkspaceId) {
+        _closedForWorkspaceChange = true;
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      }
+    });
     final currentUser = ref.read(authProvider);
     final isAdmin = ref.read(activeWorkspaceProvider.notifier).isAdmin(currentUser);
     final isOwnTicket = widget.task != null &&

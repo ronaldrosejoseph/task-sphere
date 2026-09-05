@@ -16,6 +16,7 @@ import 'package:task_sphere/models/activity_log.dart';
 import 'package:task_sphere/models/user_profile.dart';
 import 'package:task_sphere/providers/auth_provider.dart';
 import 'package:task_sphere/providers/task_provider.dart';
+import 'package:task_sphere/providers/workspace_provider.dart';
 import 'package:task_sphere/views/task_detail/task_detail_modal.dart';
 import '../providers/repository_provider_test.dart'
     show FakeActivityLogRepository, FakeTaskRepository;
@@ -1088,6 +1089,53 @@ void main() {
         actions,
         contains('Changed assignee from Sarah Designer to Unassigned'),
       );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('closes itself when its workspace stops being active', (tester) async {
+      tester.view.physicalSize = const Size(900, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      final task = container
+          .read(tasksProvider)
+          .firstWhere((t) => t.id == 'task-101');
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDialog(
+                      context: ctx,
+                      builder: (_) => TaskDetailModal(task: task),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TaskDetailModal), findsOneWidget);
+
+      // The active workspace moves on (realtime removal from this workspace,
+      // or a manual switch): the modal belongs to the old workspace and must
+      // close itself instead of rendering foreign lanes/members.
+      await container
+          .read(activeWorkspaceProvider.notifier)
+          .createWorkspace('Fresh Team', 'demo-user-123', 'alex.admin@tasksphere.app');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TaskDetailModal), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
