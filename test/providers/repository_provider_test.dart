@@ -1286,7 +1286,10 @@ void main() {
     test('admin deleting the active workspace switches to the next one', () async {
       final ws1 = adminWorkspace();
       final ws2 = Workspace(id: 'ws-2', name: 'Other', adminId: 'a');
-      final repo = FakeWorkspaceRepository()..workspaces = [ws1, ws2];
+      // Only the site admin may delete workspaces.
+      final repo = FakeWorkspaceRepository()
+        ..siteAdminEmails = ['a@x.com']
+        ..workspaces = [ws1, ws2];
       final notifier = await loadFromRepo(repo);
 
       await notifier.deleteWorkspace('ws-1');
@@ -1299,7 +1302,9 @@ void main() {
 
     test('deleting the last workspace shows the no-workspace state', () async {
       final ws1 = adminWorkspace();
-      final repo = FakeWorkspaceRepository()..workspaces = [ws1];
+      final repo = FakeWorkspaceRepository()
+        ..siteAdminEmails = ['a@x.com']
+        ..workspaces = [ws1];
       final notifier = await loadFromRepo(repo);
 
       await notifier.deleteWorkspace('ws-1');
@@ -1307,6 +1312,24 @@ void main() {
       expect(repo.deleteCalls, ['ws-1']);
       expect(notifier.state.hasWorkspace, isFalse);
       expect(notifier.state.activeWorkspace.name, 'No Workspace');
+    });
+
+    test('a workspace admin who is not the site admin cannot delete the workspace', () async {
+      // Regression: deletion used to be open to any workspace admin; it is
+      // now reserved for the site admin (the DELETE policy mirrors this).
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          adminWorkspace(),
+          Workspace(id: 'ws-2', name: 'Other', adminId: 'a'),
+        ];
+      final notifier = await loadFromRepo(repo);
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
+
+      await notifier.deleteWorkspace('ws-1');
+
+      expect(repo.deleteCalls, isEmpty);
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
+      expect(notifier.state.allWorkspaces, hasLength(2));
     });
 
     test('non-admins cannot delete the workspace', () async {
@@ -1386,7 +1409,11 @@ void main() {
     }
 
     FakeWorkspaceRepository repoWith(List<Workspace> workspaces) {
-      return FakeWorkspaceRepository()..workspaces = workspaces;
+      // The acting user ('a') is the site admin in this group, so workspace
+      // deletion and creation succeed for them.
+      return FakeWorkspaceRepository()
+        ..siteAdminEmails = ['a@x.com']
+        ..workspaces = workspaces;
     }
 
     test('loadInitialData restores the last active workspace', () async {

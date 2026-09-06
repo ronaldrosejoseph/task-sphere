@@ -36,6 +36,9 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
     final siteAdminEmails = (ref.watch(siteAdminEmailsProvider).value ?? const <String>[])
         .map((e) => e.toLowerCase())
         .toSet();
+    final userEmail = currentUser?.email;
+    final isSiteAdmin =
+        userEmail != null && siteAdminEmails.contains(userEmail.toLowerCase());
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -92,9 +95,10 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
             ),
             const SizedBox(height: 16),
 
-            if (!isDemoUser && ((allWs.isEmpty && canCreate) || isAdmin)) ...[
-              // Create New Workspace (everyone without a workspace needs the
-              // entry point; members of existing ones are admin-only).
+            if (!isDemoUser && canCreate && (allWs.isEmpty || isAdmin)) ...[
+              // Create New Workspace — site admins only (the repository
+              // denies workspace creation for everyone else), and a no-
+              // workspace site admin still gets the entry point.
               Row(
                 children: [
                   Expanded(
@@ -249,8 +253,8 @@ class _WorkspaceManagementModalState extends ConsumerState<WorkspaceManagementMo
                     ),
                   ],
 
-                  // Danger Zone (real admins only, hidden in the demo sandbox)
-                  if (!isDemoUser && isAdmin) ...[
+                  // Danger Zone (site admin only, hidden in the demo sandbox)
+                  if (!isDemoUser && isAdmin && isSiteAdmin) ...[
                     const SizedBox(height: 8),
                     const Divider(height: 24),
                     Container(

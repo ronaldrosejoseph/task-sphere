@@ -53,7 +53,8 @@ abstract class WorkspaceRepository {
   });
 
   /// Permanently removes the workspace; tasks, lanes, members, subtasks and
-  /// activity logs are removed by the database cascade. Admin-only (RLS).
+  /// activity logs are removed by the database cascade. Site-admin only
+  /// (the workspaces DELETE policy grants it to no one else).
   Future<void> deleteWorkspace(String workspaceId);
 
   /// True when the signed-in user may enter the app: the site admin, still
@@ -61,8 +62,9 @@ abstract class WorkspaceRepository {
   /// (workspace deleted, allowlist entry removed) get false.
   Future<bool> canAccessApp();
 
-  /// True when the signed-in user may create a workspace: the site admin, or
-  /// allowlisted and not a plain member of any workspace.
+  /// True when the signed-in user may create a workspace: the site admin
+  /// only (normal workspace admins were restricted to managing the
+  /// workspaces they are already in).
   Future<bool> canCreateWorkspace();
 
   /// Emails flagged `is_site_admin` in the signup allowlist (lowercased).
