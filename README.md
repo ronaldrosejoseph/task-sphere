@@ -78,6 +78,34 @@ Task Sphere is a modern, high-performance task management application for mobile
    ```
    The flag can only be changed from the SQL editor (the app blocks it), and
    deleting a workspace never removes the site admin from the allowlist.
+
+   **Site admin role notes**
+
+   - Only site admins can **create workspaces and delete workspaces**, and
+     no other admin can remove a site admin from a workspace's member list
+     (their row shows a lock). Inviting someone as a workspace admin does
+     **not** make them a site admin.
+   - **Give another member full access (promote)** — the flag is not
+     exposed in the app; run the same upsert above with their email:
+     ```sql
+     INSERT INTO public.allowed_signup_emails (email, is_site_admin)
+     VALUES ('them@example.com', true)
+     ON CONFLICT (email) DO UPDATE SET is_site_admin = true;
+     ```
+   - **Remove a site admin (handover)** — while the flag is set, no
+     workspace admin (and not even the app UI) can remove that member, so
+     the order matters:
+     1. Promote the successor with the upsert above (both are site admins
+        during the handover).
+     2. Clear the old admin's flag from the SQL editor:
+        ```sql
+        UPDATE public.allowed_signup_emails
+        SET is_site_admin = false
+        WHERE lower(email) = lower('oldadmin@example.com');
+        ```
+     3. The old admin can now be removed from workspace member lists like
+        anyone else. If they are left with no workspace membership and no
+        allowlist entry, their next sign-in is blocked.
 6. Enable the **Google provider** (required for sign-in on every platform):
    - Go to **Authentication -> Providers -> Google**.
    - Toggle **Enable Sign in with Google**.
