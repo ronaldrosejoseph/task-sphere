@@ -4,8 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/theme/app_theme.dart';
+import 'package:task_sphere/models/lane.dart';
+import 'package:task_sphere/models/task.dart';
 import 'package:task_sphere/models/user_profile.dart';
+import 'package:task_sphere/models/workspace.dart';
 import 'package:task_sphere/providers/auth_provider.dart';
+import 'package:task_sphere/providers/task_provider.dart';
 import 'package:task_sphere/providers/workspace_provider.dart';
 import 'package:task_sphere/views/settings/settings_view.dart';
 
@@ -24,17 +28,20 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  Future<ProviderContainer> pumpSettings(WidgetTester tester) async {
+  Future<ProviderContainer> pumpSettings(
+    WidgetTester tester, {
+    ProviderContainer? container,
+  }) async {
     tester.view.physicalSize = const Size(900, 1800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
+    final effective = container ?? ProviderContainer();
+    if (container == null) addTearDown(effective.dispose);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
-        container: container,
+        container: effective,
         child: MaterialApp(
           theme: AppTheme.lightTheme,
           home: const Scaffold(body: SettingsView()),
@@ -42,7 +49,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    return container;
+    return effective;
   }
 
   testWidgets('auto-expiry chips render in dark mode', (tester) async {
@@ -239,4 +246,59 @@ void main() {
     expect(find.byIcon(Icons.edit_outlined), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('pulling down on the settings list refreshes workspace and tasks', (tester) async {
+    final workspace = Workspace(id: 'ws-s', name: 'Settings Team', adminId: 'a');
+    final wsSpy = _RefreshSpyWorkspaceNotifier(
+      WorkspaceState(
+        activeWorkspace: workspace,
+        allWorkspaces: [workspace],
+        lanes: [KanbanLane(id: 'lane-1', workspaceId: 'ws-s', title: 'To Do')],
+      ),
+    );
+    final taskSpy = _RefreshSpyTaskNotifier(const []);
+    final container = ProviderContainer(
+      overrides: [
+        activeWorkspaceProvider.overrideWith(() => wsSpy),
+        tasksProvider.overrideWith(() => taskSpy),
+      ],
+    );
+    addTearDown(container.dispose);
+    await pumpSettings(tester, container: container);
+
+    await tester.fling(find.byType(ListView).first, const Offset(0, 600), 1000);
+    await tester.pumpAndSettle();
+
+    expect(wsSpy.reloads, 1);
+    expect(taskSpy.reloads, 1);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+class _RefreshSpyWorkspaceNotifier extends WorkspaceNotifier {
+  _RefreshSpyWorkspaceNotifier(this.initialState);
+
+  final WorkspaceState initialState;
+
+  int reloads = 0;
+
+  @override
+  WorkspaceState build() => initialState;
+
+  @override
+  Future<void> loadInitialData() async => reloads++;
+}
+
+class _RefreshSpyTaskNotifier extends TaskNotifier {
+  _RefreshSpyTaskNotifier(this.tasks);
+
+  final List<TaskItem> tasks;
+
+  int reloads = 0;
+
+  @override
+  List<TaskItem> build() => tasks;
+
+  @override
+  Future<void> reload() async => reloads++;
 }

@@ -42,13 +42,21 @@ class _ListCalendarViewState extends ConsumerState<ListCalendarView> with Single
           ],
         ),
         Expanded(
-          child: TabBarView(
-            controller: _subTabController,
-            children: const [
-              _TaskListView(),
-              _CalendarView(),
-              _ArchivedTasksView(),
-            ],
+          // The pages live inside the TabBarView's horizontal PageView
+          // (depth 0, horizontal — never a pull target), so accept the
+          // page lists' notifications (depth 1) as well.
+          child: RefreshIndicator(
+            notificationPredicate: (notification) =>
+                notification.depth <= 1,
+            onRefresh: () => refreshActiveData(ref),
+            child: TabBarView(
+              controller: _subTabController,
+              children: const [
+                _TaskListView(),
+                _CalendarView(),
+                _ArchivedTasksView(),
+              ],
+            ),
           ),
         ),
       ],
@@ -67,6 +75,7 @@ class _TaskListView extends ConsumerWidget {
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(20),
       itemCount: lanes.length,
       itemBuilder: (context, index) {
@@ -125,6 +134,7 @@ class _CalendarView extends ConsumerWidget {
     final tasks = ref.watch(tasksProvider).where((t) => t.dueDate != null && !t.isArchived).toList();
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(20),
       children: [
         const Text(
@@ -171,21 +181,29 @@ class _ArchivedTasksView extends ConsumerWidget {
     final archivedTasks = ref.watch(tasksProvider).where((t) => t.isArchived).toList();
 
     if (archivedTasks.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey[600]),
-            const SizedBox(height: 16),
-            const Text('No Archived Tasks', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text('Completed tasks past auto-expiry limit will appear here.', style: TextStyle(color: Colors.grey[400])),
-          ],
-        ),
+      // Scrollable even when empty so the pull-to-refresh gesture works.
+      return CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey[600]),
+                const SizedBox(height: 16),
+                const Text('No Archived Tasks', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text('Completed tasks past auto-expiry limit will appear here.', style: TextStyle(color: Colors.grey[400])),
+              ],
+            ),
+          ),
+        ],
       );
     }
 
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(20),
       itemCount: archivedTasks.length,
       itemBuilder: (context, index) {

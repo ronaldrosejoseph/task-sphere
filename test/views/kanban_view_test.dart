@@ -492,4 +492,54 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('Pull-to-refresh', () {
+    testWidgets('pulling down on the board refreshes workspace and tasks', (tester) async {
+      final workspace = Workspace(id: 'ws-refresh', name: 'Refresh', adminId: 'u-1');
+      final workspaceSpy = _RefreshSpyWorkspaceNotifier(
+        WorkspaceState(
+          activeWorkspace: workspace,
+          allWorkspaces: [workspace],
+          lanes: [KanbanLane(id: 'lane-1', workspaceId: 'ws-refresh', title: 'To Do')],
+        ),
+      );
+      final taskSpy = _RefreshSpyTaskNotifier(const []);
+      final container = ProviderContainer(
+        overrides: [
+          activeWorkspaceProvider.overrideWith(() => workspaceSpy),
+          tasksProvider.overrideWith(() => taskSpy),
+        ],
+      );
+      addTearDown(container.dispose);
+      await pumpBoard(tester, container: container);
+
+      // The single lane is empty; its body stays scrollable so the pull
+      // gesture works even without cards.
+      expect(find.text('No tasks'), findsOneWidget);
+      await tester.fling(find.text('No tasks'), const Offset(0, 400), 1000);
+      await tester.pumpAndSettle();
+
+      expect(workspaceSpy.reloads, 1);
+      expect(taskSpy.reloads, 1);
+      expect(tester.takeException(), isNull);
+    });
+  });
+}
+
+class _RefreshSpyWorkspaceNotifier extends _FixedWorkspaceNotifier {
+  _RefreshSpyWorkspaceNotifier(super.initialState);
+
+  int reloads = 0;
+
+  @override
+  Future<void> loadInitialData() async => reloads++;
+}
+
+class _RefreshSpyTaskNotifier extends _FixedTaskNotifier {
+  _RefreshSpyTaskNotifier(super.tasks);
+
+  int reloads = 0;
+
+  @override
+  Future<void> reload() async => reloads++;
 }

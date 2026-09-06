@@ -4,6 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:task_sphere/core/theme/app_theme.dart';
+import 'package:task_sphere/models/lane.dart';
+import 'package:task_sphere/models/task.dart';
+import 'package:task_sphere/models/workspace.dart';
+import 'package:task_sphere/providers/task_provider.dart';
+import 'package:task_sphere/providers/workspace_provider.dart';
 import 'package:task_sphere/views/analytics/analytics_view.dart';
 
 void main() {
@@ -87,4 +92,76 @@ void main() {
     expect(find.text('Tasks by Lane'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('pulling down refreshes the workspace and tasks', (tester) async {
+    final workspace = Workspace(id: 'ws-a', name: 'Analytics', adminId: 'a');
+    final wsSpy = _RefreshSpyWorkspaceNotifier(
+      WorkspaceState(
+        activeWorkspace: workspace,
+        allWorkspaces: [workspace],
+        lanes: [KanbanLane(id: 'lane-1', workspaceId: 'ws-a', title: 'To Do')],
+      ),
+    );
+    final taskSpy = _RefreshSpyTaskNotifier(const []);
+    final container = ProviderContainer(
+      overrides: [
+        activeWorkspaceProvider.overrideWith(() => wsSpy),
+        tasksProvider.overrideWith(() => taskSpy),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    tester.view.physicalSize = const Size(900, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: AppTheme.darkTheme,
+          home: const Scaffold(body: AnalyticsView()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.fling(
+      find.byType(SingleChildScrollView).first,
+      const Offset(0, 500),
+      1000,
+    );
+    await tester.pumpAndSettle();
+
+    expect(wsSpy.reloads, 1);
+    expect(taskSpy.reloads, 1);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+class _RefreshSpyWorkspaceNotifier extends WorkspaceNotifier {
+  _RefreshSpyWorkspaceNotifier(this.initialState);
+
+  final WorkspaceState initialState;
+
+  int reloads = 0;
+
+  @override
+  WorkspaceState build() => initialState;
+
+  @override
+  Future<void> loadInitialData() async => reloads++;
+}
+
+class _RefreshSpyTaskNotifier extends TaskNotifier {
+  _RefreshSpyTaskNotifier(this.tasks);
+
+  final List<TaskItem> tasks;
+
+  int reloads = 0;
+
+  @override
+  List<TaskItem> build() => tasks;
+
+  @override
+  Future<void> reload() async => reloads++;
 }

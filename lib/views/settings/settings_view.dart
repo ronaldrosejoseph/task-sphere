@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/theme_provider.dart';
+import '../../providers/task_provider.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../core/services/supabase_service.dart';
@@ -69,10 +70,13 @@ class SettingsView extends ConsumerWidget {
     final showArchived = activeWorkspace.showArchivedTasks;
     final effectiveLaneIds = activeWorkspace.autoExpiryLaneIds;
 
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        const Text('App Settings & Preferences', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+    return RefreshIndicator(
+      onRefresh: () => refreshActiveData(ref),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        children: [
+          const Text('App Settings & Preferences', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
         const SizedBox(height: 6),
         Text('Configure kanban lanes, auto-expiry task archiving, themes, and serverless sync accounts.', style: TextStyle(color: Colors.grey[400])),
         const SizedBox(height: 24),
@@ -271,6 +275,7 @@ class SettingsView extends ConsumerWidget {
           ),
         ),
       ],
+      ),
     );
   }
 }

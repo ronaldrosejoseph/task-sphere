@@ -1,15 +1,19 @@
 # Task Sphere
 
 Flutter Kanban task-management app (Android / iOS / macOS / Web) with Supabase
-(database, auth, realtime, storage) and Cloudflare Pages hosting. Private repo:
-`github.com/ronaldrosejoseph/task-sphere`, branch `main` = production.
+(database, auth, realtime, storage) and Cloudflare Pages hosting. **Public**
+repo: `github.com/ronaldrosejoseph/task-sphere`, branch `main` = production.
+Everything committed here is world-visible — never add credentials, secrets,
+project identifiers, or personal machine details.
 
 ## Development workflow (follow every change)
 
-1. **One GitHub issue per change** (project board "Task Sphere", project 3).
-   Add the issue to the board and track its status:
+1. **One GitHub issue per change** (project board "Task Sphere", project 3 —
+   private). Add the issue to the board and track its status:
    - `gh project item-add 3 --owner ronaldrosejoseph --url <issue-url>`
-   - `gh project item-edit 3 --owner ronaldrosejoseph --url <issue-url> --field-id PVTSSF_lAHOAe2eAM4BhxDHzhgrlzc --single-select-option-id 98236657` (Done)
+   - `gh project item-edit 3 --owner ronaldrosejoseph --url <issue-url>`
+     with the status field/option ids for "Done" from the maintainer's local
+     notes (not in this public file)
 2. **Branch per ticket, merge via PR** — never push to `main` directly:
    - `git checkout -b <short-ticket-name>`
    - commit with `Closes #N` in the message
@@ -21,7 +25,8 @@ Flutter Kanban task-management app (Android / iOS / macOS / Web) with Supabase
 
 ## Environment
 
-- Flutter SDK: `/Users/ronaldjoseph/dev/flutter/bin/flutter` (NOT on PATH).
+- The Flutter SDK is NOT on PATH; invoke it via its full path (kept in the
+  maintainer's local tooling notes, not in this public file).
 - Git pushes use HTTPS with gh's credential helper — **no SSH key is
   configured**; do not switch the remote to SSH. Run `gh auth setup-git` if
   pushes start failing.
@@ -78,7 +83,17 @@ deploy.
 - Permissions: app-side `isAdmin` matches by member user id OR email; the
   database mirrors this with `is_workspace_admin`/`is_workspace_member`
   SECURITY DEFINER functions and RLS. Members can edit title/description only
-  on tickets they created (`created_by`); only admins delete tickets.
+  on tickets they created (`created_by`); only admins delete tickets. The
+  signup allowlist's `is_site_admin` flag is the only role allowed to create
+  or delete workspaces, and the database blocks removing the site admin from
+  a workspace's member list (`protect_site_admin_membership` trigger).
+- Removing a member reaches their device through `member_kicks` notification
+  rows written by a trigger: the membership DELETE itself is invisible to the
+  removed user under RLS, so realtime alone can never deliver it.
+- Ticket edits use optimistic concurrency: rows carry a server-stamped
+  `updated_at` version (`set_tasks_updated_at` trigger), and a save that lost
+  the race is discarded and surfaced as a conflict notice instead of silently
+  overwriting another device's change.
 - Tests live in `test/`, mirroring `lib/` — provider tests use fake
   repositories; view tests use widget tests.
 

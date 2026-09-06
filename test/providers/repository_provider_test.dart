@@ -537,6 +537,36 @@ void main() {
       expect(container.read(taskConflictProvider), isNull);
     });
 
+    test('a manual reload re-fetches tasks for the active workspace', () async {
+      final repo = FakeTaskRepository()
+        ..stored.add(TaskItem(
+          id: 'remote-1',
+          workspaceId: 'ws-1',
+          laneId: 'lane-1',
+          title: 'Remote task',
+        ));
+      final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository(), taskRepo: repo);
+      addTearDown(container.dispose);
+      container.read(tasksProvider);
+      await _settle();
+      expect(container.read(tasksProvider).single.title, 'Remote task');
+
+      // Another device changes rows; reload() picks them up even without a
+      // realtime event (the pull-to-refresh recovery path).
+      repo.stored[0] = repo.stored[0].copyWith(title: 'Remote task v2');
+      repo.stored.add(TaskItem(
+        id: 'remote-2',
+        workspaceId: 'ws-1',
+        laneId: 'lane-1',
+        title: 'Added elsewhere',
+      ));
+      await container.read(tasksProvider.notifier).reload();
+      await _settle();
+
+      expect(container.read(tasksProvider).map((t) => t.title),
+          containsAll(['Remote task v2', 'Added elsewhere']));
+    });
+
     test('addTask writes to the repository', () async {
       final repo = FakeTaskRepository();
       final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository(), taskRepo: repo);
