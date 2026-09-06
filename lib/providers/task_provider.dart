@@ -40,6 +40,25 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 
 final tasksProvider = NotifierProvider<TaskNotifier, List<TaskItem>>(TaskNotifier.new);
 
+/// A ticket edit that lost a race against another device's write. The
+/// navigation shell shows one notice per revision, then clears it.
+class TaskConflict {
+  const TaskConflict({
+    required this.taskId,
+    required this.title,
+    required this.revision,
+  });
+
+  final String taskId;
+  final String title;
+  final int revision;
+}
+
+final taskConflictProvider =
+    NotifierProvider<MutableValue<TaskConflict?>, TaskConflict?>(
+  () => MutableValue(null),
+);
+
 final taskCommentsProvider =
     NotifierProvider.family<TaskCommentsNotifier, List<TaskComment>, String>(
   TaskCommentsNotifier.new,
@@ -206,6 +225,7 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
   StreamSubscription<void>? _taskSub;
   Timer? _reloadDebounce;
   int _mutationCount = 0;
+  int _conflictRevision = 0;
 
   TaskRepository get _repository => _repo!;
 
@@ -393,6 +413,34 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     ];
   }
 
+  /// Persists [updatedTask] with its version check. On success the state
+  /// copy is re-anchored on the server's fresh updated_at so rapid
+  /// consecutive edits do not false-conflict while a reload is pending. On
+  /// a lost race the optimistic copy is dropped, the ticket is reloaded
+  /// (showing the winning version) and a conflict notice is raised.
+  Future<void> _persistUpdate(TaskItem updatedTask) async {
+    TaskItem? fresh;
+    try {
+      fresh = await _repository.updateTask(updatedTask);
+    } catch (_) {
+      // Transport error: keep the optimistic copy; the next reload or
+      // retry reconciles. Errors are not conflicts.
+      return;
+    }
+    if (!ref.mounted) return;
+    if (fresh != null) {
+      final saved = fresh;
+      state = state.map((t) => t.id == saved.id ? saved : t).toList();
+      return;
+    }
+    ref.read(taskConflictProvider.notifier).set(TaskConflict(
+          taskId: updatedTask.id,
+          title: updatedTask.title,
+          revision: ++_conflictRevision,
+        ));
+    unawaited(_load());
+  }
+
   void moveTaskLane(String taskId, String newLaneId) {
     _mutationCount += 1;
     TaskItem? moved;
@@ -404,7 +452,7 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
       return task;
     }).toList();
     if (_repository.isPersistent && moved != null) {
-      unawaited(_repository.updateTask(moved!));
+      unawaited(_persistUpdate(moved!));
     }
   }
 
@@ -437,7 +485,7 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     _mutationCount += 1;
     state = state.map((t) => t.id == updatedTask.id ? updatedTask : t).toList();
     if (_repository.isPersistent) {
-      unawaited(_repository.updateTask(updatedTask));
+      unawaited(_persistUpdate(updatedTask));
     }
   }
 
@@ -470,7 +518,7 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
       return task;
     }).toList();
     if (_repository.isPersistent && updatedTask != null) {
-      unawaited(_repository.updateTask(updatedTask!));
+      unawaited(_persistUpdate(updatedTask!));
     }
   }
 
@@ -486,7 +534,7 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
       return task;
     }).toList();
     if (_repository.isPersistent && updatedTask != null) {
-      unawaited(_repository.updateTask(updatedTask!));
+      unawaited(_persistUpdate(updatedTask!));
     }
   }
 
@@ -501,7 +549,7 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
       return task;
     }).toList();
     if (_repository.isPersistent && updatedTask != null) {
-      unawaited(_repository.updateTask(updatedTask!));
+      unawaited(_persistUpdate(updatedTask!));
     }
   }
 }

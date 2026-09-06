@@ -149,6 +149,9 @@ class TaskItem {
   // 'Unassigned' choice) clears it. A plain `?? this.x` can never unassign.
   static const Object _unset = Object();
 
+  /// A copy keeps the base [updatedAt] — the server version this edit is
+  /// based on. The repository saves conditionally on that version, so a
+  /// fresh timestamp here would defeat the conflict check.
   TaskItem copyWith({
     String? laneId,
     String? title,
@@ -180,7 +183,7 @@ class TaskItem {
       subtasks: subtasks ?? this.subtasks,
       createdBy: createdBy,
       createdAt: createdAt,
-      updatedAt: DateTime.now(),
+      updatedAt: updatedAt,
     );
   }
 }

@@ -65,7 +65,7 @@ class _PersistentTaskRepository implements TaskRepository {
   Future<void> insertTask(TaskItem task) async {}
 
   @override
-  Future<void> updateTask(TaskItem task) async {}
+  Future<TaskItem?> updateTask(TaskItem task) async => task;
 
   @override
   Future<void> deleteTask(String taskId) async {}

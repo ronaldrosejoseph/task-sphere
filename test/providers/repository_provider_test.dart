@@ -39,11 +39,17 @@ class FakeTaskRepository implements TaskRepository {
     stored.add(task);
   }
 
+  /// Task ids whose save loses the version race (another device wrote the
+  /// row first) — updateTask returns null for them without storing.
+  final Set<String> conflictTaskIds = {};
+
   @override
-  Future<void> updateTask(TaskItem task) async {
+  Future<TaskItem?> updateTask(TaskItem task) async {
     updated.add(task);
+    if (conflictTaskIds.contains(task.id)) return null;
     final index = stored.indexWhere((t) => t.id == task.id);
     if (index != -1) stored[index] = task;
+    return task;
   }
 
   @override
@@ -454,6 +460,74 @@ void main() {
       await _settle();
 
       expect(container.read(tasksProvider).map((t) => t.id), contains('remote-2'));
+    });
+
+    test('an edit that loses the version race is dropped, reloaded, and surfaced', () async {
+      final base = TaskItem(
+        id: 't-1',
+        workspaceId: 'ws-1',
+        laneId: 'lane-1',
+        title: 'Base title',
+        updatedAt: DateTime.utc(2026, 8, 1, 12),
+      );
+      final repo = FakeTaskRepository()
+        ..stored.add(base)
+        // Another device writes the row first, so the version check fails.
+        ..conflictTaskIds.add('t-1');
+      final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository(), taskRepo: repo);
+      addTearDown(container.dispose);
+      container.read(tasksProvider);
+      await _settle();
+      expect(container.read(tasksProvider).single.title, 'Base title');
+
+      container.read(tasksProvider.notifier).updateTask(base.copyWith(title: 'My edit'));
+
+      // The optimistic copy is dropped; the ticket reloads to the server
+      // version and the conflict is surfaced for the shell notice.
+      await _settle();
+      await _settle();
+      await _settle();
+
+      expect(repo.stored.single.title, 'Base title');
+      expect(container.read(tasksProvider).single.title, 'Base title');
+      final conflict = container.read(taskConflictProvider);
+      expect(conflict?.taskId, 't-1');
+      expect(conflict?.title, 'My edit');
+      expect(conflict, isNotNull);
+    });
+
+    test('a successful save re-anchors the next edit without a false conflict', () async {
+      final base = TaskItem(
+        id: 't-1',
+        workspaceId: 'ws-1',
+        laneId: 'lane-1',
+        title: 'Original',
+        updatedAt: DateTime.utc(2026, 8, 1, 12),
+      );
+      final repo = FakeTaskRepository()..stored.add(base);
+      final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository(), taskRepo: repo);
+      addTearDown(container.dispose);
+      container.read(tasksProvider);
+      await _settle();
+
+      container.read(tasksProvider.notifier).updateTask(
+            container.read(tasksProvider).single.copyWith(title: 'Renamed'),
+          );
+      await _settle();
+      await _settle();
+
+      expect(repo.stored.single.title, 'Renamed');
+      expect(container.read(taskConflictProvider), isNull);
+
+      // The follow-up edit is based on the saved copy, so it applies cleanly.
+      container.read(tasksProvider.notifier).updateTask(
+            container.read(tasksProvider).single.copyWith(title: 'Renamed again'),
+          );
+      await _settle();
+      await _settle();
+
+      expect(repo.stored.single.title, 'Renamed again');
+      expect(container.read(taskConflictProvider), isNull);
     });
 
     test('addTask writes to the repository', () async {

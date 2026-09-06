@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/workspace_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/task_provider.dart';
 import '../kanban/kanban_view.dart';
 import '../list_calendar/list_calendar_view.dart';
 import '../analytics/analytics_view.dart';
@@ -48,6 +49,25 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
         );
       });
       ref.read(activeWorkspaceProvider.notifier).clearRemovedFromWorkspace();
+    });
+
+    // A ticket edit lost a race against another device's write (optimistic
+    // concurrency). The losing copy has been discarded and the ticket
+    // reloaded; tell the user once per conflict.
+    ref.listen(taskConflictProvider, (previous, next) {
+      if (next == null || next.revision == previous?.revision) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '"${next.title}" was changed by another device. '
+              'Your edit was not applied — the ticket was refreshed.',
+            ),
+          ),
+        );
+      });
+      ref.read(taskConflictProvider.notifier).set(null);
     });
 
     return LayoutBuilder(
