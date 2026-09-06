@@ -53,7 +53,8 @@ abstract class WorkspaceRepository {
   });
 
   /// Permanently removes the workspace; tasks, lanes, members, subtasks and
-  /// activity logs are removed by the database cascade. Admin-only (RLS).
+  /// activity logs are removed by the database cascade. Site-admin only
+  /// (the workspaces DELETE policy grants it to no one else).
   Future<void> deleteWorkspace(String workspaceId);
 
   /// True when the signed-in user may enter the app: the site admin, still
@@ -61,9 +62,17 @@ abstract class WorkspaceRepository {
   /// (workspace deleted, allowlist entry removed) get false.
   Future<bool> canAccessApp();
 
-  /// True when the signed-in user may create a workspace: the site admin, or
-  /// allowlisted and not a plain member of any workspace.
+  /// True when the signed-in user may create a workspace: the site admin
+  /// only (normal workspace admins were restricted to managing the
+  /// workspaces they are already in).
   Future<bool> canCreateWorkspace();
+
+  /// Emails flagged `is_site_admin` in the signup allowlist (lowercased).
+  /// The app uses this to keep the site admin from being removed from any
+  /// workspace; the database trigger remains the hard backstop. The
+  /// allowlist's admin-only policy gates this to workspace admins, so plain
+  /// members get an empty list.
+  Future<List<String>> fetchSiteAdminEmails();
 
   Future<void> updateAutoArchiveDays(String workspaceId, int days);
 
@@ -142,6 +151,9 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
 
   @override
   Future<bool> canCreateWorkspace() async => true;
+
+  @override
+  Future<List<String>> fetchSiteAdminEmails() async => const [];
 
   @override
   Future<void> updateShowArchivedTasks(String workspaceId, bool show) async {}
@@ -368,6 +380,23 @@ class SupabaseWorkspaceRepository implements WorkspaceRepository {
     } catch (e) {
       debugPrint('can_create_workspace error: $e');
       return true;
+    }
+  }
+
+  @override
+  Future<List<String>> fetchSiteAdminEmails() async {
+    try {
+      final response = await _client
+          .from('allowed_signup_emails')
+          .select('email')
+          .eq('is_site_admin', true);
+      return [
+        for (final row in response as List)
+          ((row as Map<String, dynamic>)['email'] as String).toLowerCase(),
+      ];
+    } catch (e) {
+      debugPrint('Site admin fetch error: $e');
+      return const [];
     }
   }
 

@@ -39,11 +39,17 @@ class FakeTaskRepository implements TaskRepository {
     stored.add(task);
   }
 
+  /// Task ids whose save loses the version race (another device wrote the
+  /// row first) — updateTask returns null for them without storing.
+  final Set<String> conflictTaskIds = {};
+
   @override
-  Future<void> updateTask(TaskItem task) async {
+  Future<TaskItem?> updateTask(TaskItem task) async {
     updated.add(task);
+    if (conflictTaskIds.contains(task.id)) return null;
     final index = stored.indexWhere((t) => t.id == task.id);
     if (index != -1) stored[index] = task;
+    return task;
   }
 
   @override
@@ -93,6 +99,12 @@ class FakeWorkspaceRepository implements WorkspaceRepository {
   final List<String> allowlisted = [];
   bool canAccess = true;
   bool canCreate = true;
+
+  /// Emails flagged is_site_admin in the signup allowlist.
+  List<String> siteAdminEmails = [];
+
+  @override
+  Future<List<String>> fetchSiteAdminEmails() async => List.of(siteAdminEmails);
 
   @override
   bool get isPersistent => true;
@@ -448,6 +460,74 @@ void main() {
       await _settle();
 
       expect(container.read(tasksProvider).map((t) => t.id), contains('remote-2'));
+    });
+
+    test('an edit that loses the version race is dropped, reloaded, and surfaced', () async {
+      final base = TaskItem(
+        id: 't-1',
+        workspaceId: 'ws-1',
+        laneId: 'lane-1',
+        title: 'Base title',
+        updatedAt: DateTime.utc(2026, 8, 1, 12),
+      );
+      final repo = FakeTaskRepository()
+        ..stored.add(base)
+        // Another device writes the row first, so the version check fails.
+        ..conflictTaskIds.add('t-1');
+      final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository(), taskRepo: repo);
+      addTearDown(container.dispose);
+      container.read(tasksProvider);
+      await _settle();
+      expect(container.read(tasksProvider).single.title, 'Base title');
+
+      container.read(tasksProvider.notifier).updateTask(base.copyWith(title: 'My edit'));
+
+      // The optimistic copy is dropped; the ticket reloads to the server
+      // version and the conflict is surfaced for the shell notice.
+      await _settle();
+      await _settle();
+      await _settle();
+
+      expect(repo.stored.single.title, 'Base title');
+      expect(container.read(tasksProvider).single.title, 'Base title');
+      final conflict = container.read(taskConflictProvider);
+      expect(conflict?.taskId, 't-1');
+      expect(conflict?.title, 'My edit');
+      expect(conflict, isNotNull);
+    });
+
+    test('a successful save re-anchors the next edit without a false conflict', () async {
+      final base = TaskItem(
+        id: 't-1',
+        workspaceId: 'ws-1',
+        laneId: 'lane-1',
+        title: 'Original',
+        updatedAt: DateTime.utc(2026, 8, 1, 12),
+      );
+      final repo = FakeTaskRepository()..stored.add(base);
+      final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository(), taskRepo: repo);
+      addTearDown(container.dispose);
+      container.read(tasksProvider);
+      await _settle();
+
+      container.read(tasksProvider.notifier).updateTask(
+            container.read(tasksProvider).single.copyWith(title: 'Renamed'),
+          );
+      await _settle();
+      await _settle();
+
+      expect(repo.stored.single.title, 'Renamed');
+      expect(container.read(taskConflictProvider), isNull);
+
+      // The follow-up edit is based on the saved copy, so it applies cleanly.
+      container.read(tasksProvider.notifier).updateTask(
+            container.read(tasksProvider).single.copyWith(title: 'Renamed again'),
+          );
+      await _settle();
+      await _settle();
+
+      expect(repo.stored.single.title, 'Renamed again');
+      expect(container.read(taskConflictProvider), isNull);
     });
 
     test('addTask writes to the repository', () async {
@@ -1280,7 +1360,10 @@ void main() {
     test('admin deleting the active workspace switches to the next one', () async {
       final ws1 = adminWorkspace();
       final ws2 = Workspace(id: 'ws-2', name: 'Other', adminId: 'a');
-      final repo = FakeWorkspaceRepository()..workspaces = [ws1, ws2];
+      // Only the site admin may delete workspaces.
+      final repo = FakeWorkspaceRepository()
+        ..siteAdminEmails = ['a@x.com']
+        ..workspaces = [ws1, ws2];
       final notifier = await loadFromRepo(repo);
 
       await notifier.deleteWorkspace('ws-1');
@@ -1293,7 +1376,9 @@ void main() {
 
     test('deleting the last workspace shows the no-workspace state', () async {
       final ws1 = adminWorkspace();
-      final repo = FakeWorkspaceRepository()..workspaces = [ws1];
+      final repo = FakeWorkspaceRepository()
+        ..siteAdminEmails = ['a@x.com']
+        ..workspaces = [ws1];
       final notifier = await loadFromRepo(repo);
 
       await notifier.deleteWorkspace('ws-1');
@@ -1301,6 +1386,24 @@ void main() {
       expect(repo.deleteCalls, ['ws-1']);
       expect(notifier.state.hasWorkspace, isFalse);
       expect(notifier.state.activeWorkspace.name, 'No Workspace');
+    });
+
+    test('a workspace admin who is not the site admin cannot delete the workspace', () async {
+      // Regression: deletion used to be open to any workspace admin; it is
+      // now reserved for the site admin (the DELETE policy mirrors this).
+      final repo = FakeWorkspaceRepository()
+        ..workspaces = [
+          adminWorkspace(),
+          Workspace(id: 'ws-2', name: 'Other', adminId: 'a'),
+        ];
+      final notifier = await loadFromRepo(repo);
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
+
+      await notifier.deleteWorkspace('ws-1');
+
+      expect(repo.deleteCalls, isEmpty);
+      expect(notifier.state.activeWorkspace.id, 'ws-1');
+      expect(notifier.state.allWorkspaces, hasLength(2));
     });
 
     test('non-admins cannot delete the workspace', () async {
@@ -1380,7 +1483,11 @@ void main() {
     }
 
     FakeWorkspaceRepository repoWith(List<Workspace> workspaces) {
-      return FakeWorkspaceRepository()..workspaces = workspaces;
+      // The acting user ('a') is the site admin in this group, so workspace
+      // deletion and creation succeed for them.
+      return FakeWorkspaceRepository()
+        ..siteAdminEmails = ['a@x.com']
+        ..workspaces = workspaces;
     }
 
     test('loadInitialData restores the last active workspace', () async {
@@ -1780,7 +1887,7 @@ void main() {
 
       final member = state().activeWorkspace.members
           .firstWhere((m) => m.id == 'm-member');
-      notifier.removeMember(member);
+      await notifier.removeMember(member);
 
       expect(state().activeWorkspace.members.map((m) => m.id),
           isNot(contains('m-member')));
@@ -1790,7 +1897,7 @@ void main() {
       // Removing another admin is allowed.
       final otherAdmin = state().activeWorkspace.members
           .firstWhere((m) => m.id == 'm-admin-b');
-      notifier.removeMember(otherAdmin);
+      await notifier.removeMember(otherAdmin);
 
       expect(state().activeWorkspace.members.map((m) => m.id), ['m-admin-a']);
       await _settle();
@@ -1812,14 +1919,14 @@ void main() {
       // Self (user 'a') removal is ignored.
       final self = state().activeWorkspace.members
           .firstWhere((m) => m.id == 'm-admin-a');
-      notifier.removeMember(self);
+      await notifier.removeMember(self);
       expect(state().activeWorkspace.members.length, 3);
 
       // Removing the other admin is fine; the then-last admin (self) stays.
       final otherAdmin = state().activeWorkspace.members
           .firstWhere((m) => m.id == 'm-admin-b');
-      notifier.removeMember(otherAdmin);
-      notifier.removeMember(state().activeWorkspace.members
+      await notifier.removeMember(otherAdmin);
+      await notifier.removeMember(state().activeWorkspace.members
           .firstWhere((m) => m.id == 'm-admin-a'));
       final remaining = state().activeWorkspace.members;
       expect(remaining.map((m) => m.id), ['m-admin-a', 'm-member']);
@@ -1863,7 +1970,7 @@ void main() {
           .activeWorkspace
           .members
           .firstWhere((m) => m.id == 'm-2');
-      notifier.removeMember(victim);
+      await notifier.removeMember(victim);
 
       expect(
         container.read(activeWorkspaceProvider).activeWorkspace.members.length,
@@ -1871,6 +1978,71 @@ void main() {
       );
       await _settle();
       expect(repo.memberRemovals, isEmpty);
+    });
+
+    test('the site admin cannot be removed by a workspace admin', () async {
+      // Regression: an invited co-admin could remove the site admin from the
+      // workspace, cutting off the app owner's access. The provider must
+      // no-op (the DB trigger is the backstop for non-app callers).
+      final repo = FakeWorkspaceRepository()
+        ..siteAdminEmails = ['boss@x.com']
+        ..workspaces = [
+          Workspace(
+            id: 'ws-1',
+            name: 'Team',
+            adminId: 'a',
+            members: [
+              WorkspaceMember(
+                id: 'm-admin',
+                workspaceId: 'ws-1',
+                userId: 'a',
+                email: 'a@x.com',
+                role: UserRole.admin,
+              ),
+              WorkspaceMember(
+                id: 'm-boss',
+                workspaceId: 'ws-1',
+                userId: 'boss',
+                email: 'boss@x.com',
+                role: UserRole.admin,
+              ),
+              WorkspaceMember(
+                id: 'm-member',
+                workspaceId: 'ws-1',
+                userId: 'c',
+                email: 'c@x.com',
+                role: UserRole.member,
+              ),
+            ],
+          ),
+        ];
+      final container = _workspaceContainer(repo);
+      addTearDown(container.dispose);
+      final notifier = container.read(activeWorkspaceProvider.notifier);
+      await notifier.loadInitialData();
+
+      final boss = container
+          .read(activeWorkspaceProvider)
+          .activeWorkspace
+          .members
+          .firstWhere((m) => m.id == 'm-boss');
+      await notifier.removeMember(boss);
+
+      expect(repo.memberRemovals, isEmpty);
+      expect(
+        container.read(activeWorkspaceProvider).activeWorkspace.members
+            .map((m) => m.id),
+        ['m-admin', 'm-boss', 'm-member'],
+      );
+
+      // Other members remain removable.
+      final member = container
+          .read(activeWorkspaceProvider)
+          .activeWorkspace
+          .members
+          .firstWhere((m) => m.id == 'm-member');
+      await notifier.removeMember(member);
+      expect(repo.memberRemovals, [('ws-1', 'm-member')]);
     });
   });
 }

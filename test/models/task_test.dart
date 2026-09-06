@@ -125,10 +125,13 @@ void main() {
       expect(copied.createdAt, original.createdAt);
     });
 
-    test('bumps updatedAt to now', () {
+    test("copyWith keeps the base updated_at, the edit's version anchor", () {
       final original = buildTask(updatedAt: DateTime.utc(2020, 1, 1));
       final copied = original.copyWith(title: 'Changed');
-      expect(copied.updatedAt.isAfter(original.updatedAt), isTrue);
+      // The repository saves conditionally on updated_at: a fresh stamp here
+      // would detach every edit from the server version it was read at and
+      // defeat the concurrent-edit conflict check.
+      expect(copied.updatedAt, original.updatedAt);
     });
 
     test('omitted assignee parameters keep the current values', () {

@@ -21,7 +21,12 @@ abstract class TaskRepository {
 
   Future<void> insertTask(TaskItem task);
 
-  Future<void> updateTask(TaskItem task);
+  /// Saves the row only when no other device changed it since [task]'s
+  /// `updated_at` version was read. Returns the saved row — with the
+  /// server-stamped version — or null when another write landed first
+  /// (callers surface the conflict instead of silently overwriting).
+  /// Transport errors are rethrown so they are not mistaken for conflicts.
+  Future<TaskItem?> updateTask(TaskItem task);
 
   Future<void> deleteTask(String taskId);
 
@@ -47,7 +52,7 @@ class InMemoryTaskRepository implements TaskRepository {
   Future<void> insertTask(TaskItem task) async {}
 
   @override
-  Future<void> updateTask(TaskItem task) async {}
+  Future<TaskItem?> updateTask(TaskItem task) async => task;
 
   @override
   Future<void> deleteTask(String taskId) async {}
@@ -126,15 +131,34 @@ class SupabaseTaskRepository implements TaskRepository {
   }
 
   @override
-  Future<void> updateTask(TaskItem task) async {
+  Future<TaskItem?> updateTask(TaskItem task) async {
     try {
-      await _client.from('tasks').update(task.toJson()).eq('id', task.id);
+      final response = await _client
+          .from('tasks')
+          .update(task.toJson())
+          .eq('id', task.id)
+          // The version this edit was based on; the DB trigger bumps
+          // updated_at on every write, so a stale save matches no row.
+          .eq('updated_at', task.updatedAt.toIso8601String())
+          .select();
+      final rows = response as List;
+      if (rows.isEmpty) {
+        debugPrint('Task update conflict: ${task.id}');
+        return null;
+      }
+      // Subtasks are rewritten only when the row update applied, so a
+      // losing edit can never delete the winning version's subtasks.
       await _client.from('subtasks').delete().eq('task_id', task.id);
       if (task.subtasks.isNotEmpty) {
         await _insertSubtasks(task.id, task.subtasks);
       }
+      return TaskItem.fromJson(
+        rows.first as Map<String, dynamic>,
+        subtasks: task.subtasks,
+      );
     } catch (e) {
       debugPrint('Task update error: $e');
+      rethrow;
     }
   }
 

@@ -18,12 +18,20 @@ const demoWorkspaceId = 'ws-demo-001';
 final activeWorkspaceProvider =
     NotifierProvider<WorkspaceNotifier, WorkspaceState>(WorkspaceNotifier.new);
 
-/// Whether the signed-in user may create a workspace (site admin, or
-/// allowlisted and not a plain member anywhere). Drives the create entry
-/// points in the UI; the provider and database enforce the same rule.
+/// Whether the signed-in user may create a workspace (site admin only since
+/// normal workspace admins were restricted). Drives the create entry points
+/// in the UI; the provider and database enforce the same rule.
 final canCreateWorkspaceProvider = FutureProvider<bool>((ref) async {
   if (ref.watch(isDemoUserProvider)) return false;
   return ref.watch(workspaceRepositoryProvider).canCreateWorkspace();
+});
+
+/// Emails flagged `is_site_admin` in the signup allowlist. The member list
+/// uses it to protect the site admin from removal; WorkspaceNotifier
+/// .removeMember and the database enforce the same rule.
+final siteAdminEmailsProvider = FutureProvider<List<String>>((ref) async {
+  if (ref.watch(isDemoUserProvider)) return const [];
+  return ref.watch(workspaceRepositoryProvider).fetchSiteAdminEmails();
 });
 
 class WorkspaceState {
@@ -468,11 +476,18 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
 
   /// Permanently deletes [workspaceId]. Only the active workspace can be
   /// deleted from the app; the database cascade removes tasks, lanes,
-  /// members, subtasks, and activity logs.
+  /// members, subtasks, and activity logs. Site-admin only: workspace
+  /// admins manage everything inside a workspace but cannot destroy it (the
+  /// DELETE RLS policy enforces the same rule).
   Future<void> deleteWorkspace(String workspaceId) async {
     // The demo sandbox is read-only for creations/deletions.
     if (ref.read(isDemoUserProvider)) return;
     if (!isAdmin(ref.read(authProvider))) return;
+    final currentUser = ref.read(authProvider);
+    final userEmail = currentUser?.email;
+    if (userEmail == null) return;
+    final siteAdmins = await ref.read(siteAdminEmailsProvider.future);
+    if (!siteAdmins.contains(userEmail.toLowerCase())) return;
 
     final repo = _repository;
     if (repo.isPersistent) {
@@ -764,8 +779,8 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
   /// AFTER DELETE trigger writes a member_kicks row, which the removed user's
   /// other devices receive and react to by switching out of the workspace
   /// automatically. A workspace always keeps its admin who is acting (no
-  /// self-removal) and its last admin.
-  void removeMember(WorkspaceMember member) {
+  /// self-removal) and its last admin, and the site admin is never removable.
+  Future<void> removeMember(WorkspaceMember member) async {
     if (ref.read(isDemoUserProvider)) return;
     if (!isAdmin(ref.read(authProvider))) return;
     final currentUser = ref.read(authProvider);
@@ -774,6 +789,11 @@ class WorkspaceNotifier extends Notifier<WorkspaceState> {
         (member.userId != null && member.userId == currentUser?.id) ||
             (userEmail != null && member.email.toLowerCase() == userEmail.toLowerCase());
     if (isSelf) return;
+
+    // The site admin owns the app: another workspace admin must not be able
+    // to cut off their access. The database trigger is the backstop.
+    final siteAdmins = await ref.read(siteAdminEmailsProvider.future);
+    if (siteAdmins.contains(member.email.toLowerCase())) return;
 
     final members = state.activeWorkspace.members;
     if (!members.any((m) => m.id == member.id)) return;
