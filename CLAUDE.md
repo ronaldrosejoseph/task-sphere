@@ -8,10 +8,12 @@ project identifiers, or personal machine details.
 
 ## Development workflow (follow every change)
 
-1. **One GitHub issue per change** (project board "Task Sphere", project 3).
-   Add the issue to the board and track its status:
+1. **One GitHub issue per change** (project board "Task Sphere", project 3 —
+   private). Add the issue to the board and track its status:
    - `gh project item-add 3 --owner ronaldrosejoseph --url <issue-url>`
-   - `gh project item-edit 3 --owner ronaldrosejoseph --url <issue-url> --field-id PVTSSF_lAHOAe2eAM4BhxDHzhgrlzc --single-select-option-id 98236657` (Done)
+   - `gh project item-edit 3 --owner ronaldrosejoseph --url <issue-url>`
+     with the status field/option ids for "Done" from the maintainer's local
+     notes (not in this public file)
 2. **Branch per ticket, merge via PR** — never push to `main` directly:
    - `git checkout -b <short-ticket-name>`
    - commit with `Closes #N` in the message
