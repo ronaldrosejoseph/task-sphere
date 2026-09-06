@@ -413,25 +413,27 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     ];
   }
 
-  /// Persists [updatedTask] with its version check. On success the state
-  /// copy is re-anchored on the server's fresh updated_at so rapid
-  /// consecutive edits do not false-conflict while a reload is pending. On
-  /// a lost race the optimistic copy is dropped, the ticket is reloaded
-  /// (showing the winning version) and a conflict notice is raised.
-  Future<void> _persistUpdate(TaskItem updatedTask) async {
+  /// Persists [updatedTask] with its version check; resolves true when the
+  /// row was saved. On success the state copy is re-anchored on the server's
+  /// fresh updated_at so rapid consecutive edits do not false-conflict while
+  /// a reload is pending. On a lost race the optimistic copy is dropped, the
+  /// ticket is reloaded (showing the winning version) and a conflict notice
+  /// is raised; callers must not record side effects (activity logs) for a
+  /// save that returned false.
+  Future<bool> _persistUpdate(TaskItem updatedTask) async {
     TaskItem? fresh;
     try {
       fresh = await _repository.updateTask(updatedTask);
     } catch (_) {
       // Transport error: keep the optimistic copy; the next reload or
       // retry reconciles. Errors are not conflicts.
-      return;
+      return true;
     }
-    if (!ref.mounted) return;
+    if (!ref.mounted) return true;
     if (fresh != null) {
       final saved = fresh;
       state = state.map((t) => t.id == saved.id ? saved : t).toList();
-      return;
+      return true;
     }
     ref.read(taskConflictProvider.notifier).set(TaskConflict(
           taskId: updatedTask.id,
@@ -439,6 +441,7 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
           revision: ++_conflictRevision,
         ));
     unawaited(_load());
+    return false;
   }
 
   void moveTaskLane(String taskId, String newLaneId) {
@@ -481,12 +484,17 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     }
   }
 
-  void updateTask(TaskItem updatedTask) {
+  /// Optimistically applies [updatedTask] and persists it with its version
+  /// check. Resolves true when the save landed; false when another device
+  /// changed the ticket first (the conflict notice explains, and the caller
+  /// must skip side effects such as activity logs).
+  Future<bool> updateTask(TaskItem updatedTask) async {
     _mutationCount += 1;
     state = state.map((t) => t.id == updatedTask.id ? updatedTask : t).toList();
     if (_repository.isPersistent) {
-      unawaited(_persistUpdate(updatedTask));
+      return _persistUpdate(updatedTask);
     }
+    return true;
   }
 
   void deleteTask(String taskId) {

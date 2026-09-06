@@ -1154,10 +1154,15 @@ class _TaskDetailModalState extends ConsumerState<TaskDetailModal> {
         return;
       }
 
-      ref.read(tasksProvider.notifier).updateTask(updated);
-      final logNotifier = ref.read(activityLogsProvider.notifier);
-      for (final action in actions) {
-        logNotifier.addLog(wsId, actor, action, taskId: updated.id);
+      // The save is version-checked: when another device changed the ticket
+      // first, updateTask rejects it (the conflict snackbar explains) and no
+      // activity entry may be written for a change that did not persist.
+      final applied = await ref.read(tasksProvider.notifier).updateTask(updated);
+      if (applied) {
+        final logNotifier = ref.read(activityLogsProvider.notifier);
+        for (final action in actions) {
+          logNotifier.addLog(wsId, actor, action, taskId: updated.id);
+        }
       }
     }
 

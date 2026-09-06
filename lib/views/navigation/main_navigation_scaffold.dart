@@ -60,9 +60,25 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              '"${next.title}" was changed by another device. '
-              'Your edit was not applied — the ticket was refreshed.',
+            // Long enough to read the explanation comfortably.
+            duration: const Duration(seconds: 8),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: const BorderSide(color: Colors.redAccent, width: 1.5),
+            ),
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.redAccent),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '"${next.title}" was changed by another device. '
+                    'Your edit was not applied — the ticket was refreshed.',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
             ),
           ),
         );
