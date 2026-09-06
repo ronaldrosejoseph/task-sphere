@@ -26,8 +26,11 @@ class AnalyticsView extends ConsumerWidget {
 
     final completionRate = totalTasks > 0 ? (doneTasksCount / totalTasks * 100).toStringAsFixed(1) : '0';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+    return RefreshIndicator(
+      onRefresh: () => refreshActiveData(ref),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -185,6 +188,7 @@ class AnalyticsView extends ConsumerWidget {
             },
           ),
         ],
+      ),
       ),
     );
   }

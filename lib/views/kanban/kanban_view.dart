@@ -195,20 +195,28 @@ class KanbanView extends ConsumerWidget {
           // Dynamic Kanban Columns Body
           Expanded(
             child: _AdaptiveDragHost(
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.all(20),
-                itemCount: lanes.length,
-                itemBuilder: (context, index) {
-                  final lane = lanes[index];
-                  final laneTasks = filteredTasks.where((t) => t.laneId == lane.id).toList()
-                    ..sort(compareTasksForBoard);
+              child: RefreshIndicator(
+                // The board scrolls horizontally (depth 0) and each column
+                // list vertically (depth 1); the pull gesture lives on the
+                // columns, so accept both.
+                notificationPredicate: (notification) =>
+                    notification.depth <= 1,
+                onRefresh: () => refreshActiveData(ref),
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.all(20),
+                  itemCount: lanes.length,
+                  itemBuilder: (context, index) {
+                    final lane = lanes[index];
+                    final laneTasks = filteredTasks.where((t) => t.laneId == lane.id).toList()
+                      ..sort(compareTasksForBoard);
 
-                  return _KanbanColumnWidget(
-                    lane: lane,
-                    tasks: laneTasks,
-                  );
-                },
+                    return _KanbanColumnWidget(
+                      lane: lane,
+                      tasks: laneTasks,
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -497,16 +505,31 @@ class _KanbanColumnWidget extends ConsumerWidget {
                   ),
                 ),
 
-                // Lane Cards List
+                // Lane Cards List. Empty lanes are still scrollable so the
+                // pull-to-refresh gesture works everywhere on the board.
                 Expanded(
                   child: tasks.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No tasks',
-                            style: TextStyle(fontSize: 12.5, color: Colors.grey[500]),
+                      ? LayoutBuilder(
+                          builder: (context, constraints) => ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              SizedBox(
+                                height: constraints.maxHeight,
+                                child: Center(
+                                  child: Text(
+                                    'No tasks',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: Colors.grey[500],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         )
                       : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.all(12),
                           itemCount: tasks.length,
                           itemBuilder: (context, index) {

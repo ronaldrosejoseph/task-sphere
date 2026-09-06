@@ -560,4 +560,23 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
       unawaited(_persistUpdate(updatedTask!));
     }
   }
+
+  /// Manual refresh (pull-to-refresh on touch layouts): re-fetches the
+  /// active workspace's tasks. Realtime keeps the board current normally;
+  /// this is the recovery path when a sync was missed. The in-memory demo
+  /// sandbox has nothing remote to re-fetch, mirroring
+  /// [WorkspaceNotifier.loadInitialData].
+  Future<void> reload() async {
+    final repo = _repo;
+    if (repo == null || !repo.isPersistent) return;
+    await _load();
+  }
+}
+
+/// Pull-to-refresh handler shared by the touch-layout views: reloads the
+/// active workspace (workspaces, lanes, members) and the tasks shown on the
+/// board.
+Future<void> refreshActiveData(WidgetRef ref) async {
+  await ref.read(activeWorkspaceProvider.notifier).loadInitialData();
+  await ref.read(tasksProvider.notifier).reload();
 }
