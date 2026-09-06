@@ -945,6 +945,70 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('a rejected save (edit lost its version race) logs nothing', (tester) async {
+      tester.view.physicalSize = const Size(900, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      // Persistent repositories so the version check runs; the task save is
+      // rejected because another device already changed the row.
+      final task = TaskItem(
+        id: 'task-race',
+        workspaceId: 'ws-demo-001',
+        laneId: 'lane-1',
+        title: 'Shared ticket',
+        description: 'Winning description',
+      );
+      final taskRepo = FakeTaskRepository()
+        ..stored.add(task)
+        ..conflictTaskIds.add('task-race');
+      final logRepo = FakeActivityLogRepository();
+      final container = ProviderContainer(
+        overrides: [
+          taskRepositoryProvider.overrideWith((ref) => taskRepo),
+          activityLogRepositoryProvider.overrideWith((ref) => logRepo),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDialog(
+                      context: ctx,
+                      builder: (_) => TaskDetailModal(task: task),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField).first, 'Lost edit');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Task'));
+      await tester.pumpAndSettle();
+
+      // The change was rejected: no activity entry may claim it persisted,
+      // and the modal closes with the conflict already explained by the
+      // shell snackbar.
+      expect(logRepo.inserted, isEmpty);
+      expect(taskRepo.stored.single.title, 'Shared ticket');
+      expect(find.byType(TaskDetailModal), findsNothing);
+      final conflict = container.read(taskConflictProvider);
+      expect(conflict?.taskId, 'task-race');
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('changing priority and assignee logs granular entries', (tester) async {
       tester.view.physicalSize = const Size(900, 1400);
       tester.view.devicePixelRatio = 1.0;

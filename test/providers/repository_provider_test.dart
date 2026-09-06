@@ -480,7 +480,10 @@ void main() {
       await _settle();
       expect(container.read(tasksProvider).single.title, 'Base title');
 
-      container.read(tasksProvider.notifier).updateTask(base.copyWith(title: 'My edit'));
+      final applied = await container
+          .read(tasksProvider.notifier)
+          .updateTask(base.copyWith(title: 'My edit'));
+      expect(applied, isFalse);
 
       // The optimistic copy is dropped; the ticket reloads to the server
       // version and the conflict is surfaced for the shell notice.
@@ -510,20 +513,24 @@ void main() {
       container.read(tasksProvider);
       await _settle();
 
-      container.read(tasksProvider.notifier).updateTask(
+      final firstApplied = await container
+          .read(tasksProvider.notifier)
+          .updateTask(
             container.read(tasksProvider).single.copyWith(title: 'Renamed'),
           );
-      await _settle();
+      expect(firstApplied, isTrue);
       await _settle();
 
       expect(repo.stored.single.title, 'Renamed');
       expect(container.read(taskConflictProvider), isNull);
 
       // The follow-up edit is based on the saved copy, so it applies cleanly.
-      container.read(tasksProvider.notifier).updateTask(
+      final secondApplied = await container
+          .read(tasksProvider.notifier)
+          .updateTask(
             container.read(tasksProvider).single.copyWith(title: 'Renamed again'),
           );
-      await _settle();
+      expect(secondApplied, isTrue);
       await _settle();
 
       expect(repo.stored.single.title, 'Renamed again');

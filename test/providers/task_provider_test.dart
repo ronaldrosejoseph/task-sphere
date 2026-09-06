@@ -109,13 +109,14 @@ void main() {
       expect(tasks.length, 6);
     });
 
-    test('updateTask replaces the matching task', () {
+    test('updateTask replaces the matching task', () async {
       final container = makeContainer();
       final notifier = container.read(tasksProvider.notifier);
       final original = container.read(tasksProvider).first;
 
       final updated = original.copyWith(title: 'Updated title');
-      notifier.updateTask(updated);
+      final applied = await notifier.updateTask(updated);
+      expect(applied, isTrue);
 
       final tasks = container.read(tasksProvider);
       expect(tasks.firstWhere((t) => t.id == original.id).title, 'Updated title');
