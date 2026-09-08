@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'subtask.dart';
+import 'workspace.dart';
 
 enum TaskPriority { urgent, high, medium, low }
 
@@ -42,6 +43,17 @@ int compareTasksForBoard(TaskItem a, TaskItem b) {
   if (aDue == null) return 1;
   if (bDue == null) return -1;
   return aDue.compareTo(bDue);
+}
+
+/// Whether [task] counts as archived for the board, list, calendar, and
+/// archive views: either archived outright, or auto-expired — sitting in one
+/// of the workspace's auto-expiry lanes past the auto-archive day limit.
+bool isTaskArchivedOrExpired(TaskItem task, Workspace workspace,
+    {DateTime? now}) {
+  if (task.isArchived) return true;
+  if (!workspace.autoExpiryLaneIds.contains(task.laneId)) return false;
+  return (now ?? DateTime.now()).difference(task.createdAt).inDays >=
+      workspace.autoArchiveDays;
 }
 
 class TaskItem {

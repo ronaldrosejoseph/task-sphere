@@ -561,6 +561,43 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     }
   }
 
+  /// Restores [task] from the archive. A task still auto-expired — in an
+  /// auto-expiry lane past the day limit — moves to the first lane that is
+  /// not an expiry lane, or it would re-hide on the next render. Purely
+  /// archived tasks (flagged but not past the limit) are unflagged in place.
+  void restoreTask(TaskItem task) {
+    final wsState = ref.read(activeWorkspaceProvider);
+    final ws = wsState.activeWorkspace;
+    final isExpired = ws.autoExpiryLaneIds.contains(task.laneId) &&
+        DateTime.now().difference(task.createdAt).inDays >=
+            ws.autoArchiveDays;
+
+    String? newLaneId;
+    if (isExpired) {
+      final ordered = [...wsState.lanes]
+        ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+      newLaneId = ordered
+          .firstWhere(
+            (lane) => !ws.autoExpiryLaneIds.contains(lane.id),
+            orElse: () => ordered.first,
+          )
+          .id;
+    }
+
+    _mutationCount += 1;
+    TaskItem? updatedTask;
+    state = state.map((t) {
+      if (t.id != task.id) return t;
+      updatedTask = newLaneId == null
+          ? t.copyWith(isArchived: false)
+          : t.copyWith(isArchived: false, laneId: newLaneId);
+      return updatedTask!;
+    }).toList();
+    if (_repository.isPersistent && updatedTask != null) {
+      unawaited(_persistUpdate(updatedTask!));
+    }
+  }
+
   /// Manual refresh (pull-to-refresh on touch layouts): re-fetches the
   /// active workspace's tasks. Realtime keeps the board current normally;
   /// this is the recovery path when a sync was missed. The in-memory demo

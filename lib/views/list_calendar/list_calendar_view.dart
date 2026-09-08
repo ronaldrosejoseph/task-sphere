@@ -69,8 +69,12 @@ class _TaskListView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tasks = ref.watch(tasksProvider).where((t) => !t.isArchived).toList();
     final workspaceState = ref.watch(activeWorkspaceProvider);
+    final activeWorkspace = workspaceState.activeWorkspace;
+    final tasks = ref
+        .watch(tasksProvider)
+        .where((t) => !isTaskArchivedOrExpired(t, activeWorkspace))
+        .toList();
     final lanes = [...workspaceState.lanes]
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
@@ -131,7 +135,12 @@ class _CalendarView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tasks = ref.watch(tasksProvider).where((t) => t.dueDate != null && !t.isArchived).toList();
+    final activeWorkspace = ref.watch(activeWorkspaceProvider).activeWorkspace;
+    final tasks = ref
+        .watch(tasksProvider)
+        .where((t) =>
+            t.dueDate != null && !isTaskArchivedOrExpired(t, activeWorkspace))
+        .toList();
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -178,7 +187,11 @@ class _ArchivedTasksView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final archivedTasks = ref.watch(tasksProvider).where((t) => t.isArchived).toList();
+    final activeWorkspace = ref.watch(activeWorkspaceProvider).activeWorkspace;
+    final archivedTasks = ref
+        .watch(tasksProvider)
+        .where((t) => isTaskArchivedOrExpired(t, activeWorkspace))
+        .toList();
 
     if (archivedTasks.isEmpty) {
       // Scrollable even when empty so the pull-to-refresh gesture works.
@@ -217,7 +230,7 @@ class _ArchivedTasksView extends ConsumerWidget {
               icon: const Icon(Icons.unarchive, size: 16),
               label: const Text('Restore'),
               onPressed: () {
-                ref.read(tasksProvider.notifier).archiveTask(task.id, false);
+                ref.read(tasksProvider.notifier).restoreTask(task);
               },
             ),
           ),
