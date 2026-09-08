@@ -567,6 +567,74 @@ void main() {
           containsAll(['Remote task v2', 'Added elsewhere']));
     });
 
+    test('restoreTask unflags a manually archived task in place', () async {
+      final repo = FakeTaskRepository()
+        ..stored.add(TaskItem(
+          id: 't-1',
+          workspaceId: 'ws-1',
+          laneId: 'lane-1',
+          title: 'Archived task',
+          isArchived: true,
+          createdAt: DateTime.now().subtract(const Duration(days: 2)),
+        ));
+      final container = _makeContainer(
+        workspaceRepo: FakeWorkspaceRepository(),
+        taskRepo: repo,
+        lanes: [KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do')],
+      );
+      addTearDown(container.dispose);
+      container.read(tasksProvider);
+      await _settle();
+
+      container.read(tasksProvider.notifier).restoreTask(container.read(tasksProvider).single);
+      await _settle();
+
+      final restored = container.read(tasksProvider).single;
+      expect(restored.isArchived, isFalse);
+      expect(restored.laneId, 'lane-1');
+      expect(repo.stored.single.isArchived, isFalse);
+      expect(repo.updated.length, 1);
+    });
+
+    test('restoreTask moves an auto-expired task to the first active lane', () async {
+      final ws = Workspace(
+        id: 'ws-1',
+        name: 'W',
+        adminId: 'a',
+        autoArchiveDays: 14,
+        autoExpiryLaneIds: const ['lane-2'],
+      );
+      final repo = FakeTaskRepository()
+        ..stored.add(TaskItem(
+          id: 't-1',
+          workspaceId: 'ws-1',
+          laneId: 'lane-2',
+          title: 'Expired task',
+          createdAt: DateTime.now().subtract(const Duration(days: 30)),
+        ));
+      final container = _makeContainer(
+        workspaceRepo: FakeWorkspaceRepository(),
+        taskRepo: repo,
+        workspace: ws,
+        lanes: [
+          KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do', orderIndex: 0),
+          KanbanLane(id: 'lane-2', workspaceId: 'ws-1', title: 'Done', orderIndex: 1),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(tasksProvider);
+      await _settle();
+
+      container.read(tasksProvider.notifier).restoreTask(container.read(tasksProvider).single);
+      await _settle();
+
+      final restored = container.read(tasksProvider).single;
+      expect(restored.isArchived, isFalse);
+      expect(restored.laneId, 'lane-1');
+      expect(repo.stored.single.laneId, 'lane-1');
+      expect(repo.updated.length, 1);
+    });
+
     test('addTask writes to the repository', () async {
       final repo = FakeTaskRepository();
       final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository(), taskRepo: repo);
