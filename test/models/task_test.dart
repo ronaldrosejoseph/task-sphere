@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:task_sphere/models/task.dart';
 import 'package:task_sphere/models/subtask.dart';
+import 'package:task_sphere/models/workspace.dart';
 
 TaskItem buildTask({
   String id = 'task-1',
@@ -8,8 +9,10 @@ TaskItem buildTask({
   TaskPriority priority = TaskPriority.medium,
   DateTime? dueDate,
   List<Subtask> subtasks = const [],
+  bool isArchived = false,
   DateTime? createdAt,
   DateTime? updatedAt,
+  DateTime? laneEnteredAt,
 }) {
   return TaskItem(
     id: id,
@@ -23,11 +26,12 @@ TaskItem buildTask({
     priority: priority,
     dueDate: dueDate,
     attachmentPaths: const ['ws-1/task-1/file.pdf'],
-    isArchived: false,
+    isArchived: isArchived,
     subtasks: subtasks,
     createdBy: 'user-1',
     createdAt: createdAt,
     updatedAt: updatedAt,
+    laneEnteredAt: laneEnteredAt,
   );
 }
 
@@ -38,6 +42,7 @@ void main() {
         dueDate: DateTime.utc(2026, 9, 1, 12, 30),
         createdAt: DateTime.utc(2026, 8, 1),
         updatedAt: DateTime.utc(2026, 8, 10),
+        laneEnteredAt: DateTime.utc(2026, 8, 20),
       );
 
       final restored = TaskItem.fromJson(task.toJson());
@@ -57,6 +62,7 @@ void main() {
       expect(restored.createdBy, task.createdBy);
       expect(restored.createdAt, task.createdAt);
       expect(restored.updatedAt, task.updatedAt);
+      expect(restored.laneEnteredAt, task.laneEnteredAt);
     });
 
     test('fromJson falls back to medium priority for unknown values', () {
@@ -212,6 +218,73 @@ void main() {
       );
       expect(compareTasksForBoard(due, noDue), lessThan(0));
       expect(compareTasksForBoard(noDue, noDue), 0);
+    });
+  });
+
+  group('Auto-expiry rule', () {
+    Workspace workspace({int autoArchiveDays = 14}) => Workspace(
+          id: 'ws-1',
+          name: 'W',
+          adminId: 'a',
+          autoArchiveDays: autoArchiveDays,
+          autoExpiryLaneIds: const ['lane-done'],
+        );
+
+    test('an old task that recently entered an expiry lane is not expired', () {
+      // The bug this guards: the clock used to start at creation, so a
+      // 30-day-old ticket moved into Done today expired instantly.
+      final task = buildTask(
+        laneId: 'lane-done',
+        createdAt: DateTime.now().subtract(const Duration(days: 30)),
+        laneEnteredAt: DateTime.now().subtract(const Duration(days: 2)),
+      );
+
+      expect(isTaskAutoExpired(task, workspace()), isFalse);
+      expect(isTaskArchivedOrExpired(task, workspace()), isFalse);
+    });
+
+    test('a task sitting in an expiry lane past the limit is expired', () {
+      final task = buildTask(
+        laneId: 'lane-done',
+        laneEnteredAt: DateTime.now().subtract(const Duration(days: 15)),
+      );
+
+      expect(isTaskAutoExpired(task, workspace()), isTrue);
+      expect(isTaskArchivedOrExpired(task, workspace()), isTrue);
+    });
+
+    test('rows without a lane-entry stamp fall back to creation time', () {
+      final old = buildTask(
+        laneId: 'lane-done',
+        createdAt: DateTime.now().subtract(const Duration(days: 20)),
+      );
+      final recent = buildTask(
+        laneId: 'lane-done',
+        createdAt: DateTime.now().subtract(const Duration(days: 3)),
+      );
+
+      expect(isTaskAutoExpired(old, workspace()), isTrue);
+      expect(isTaskAutoExpired(recent, workspace()), isFalse);
+    });
+
+    test('lanes outside the configured expiry set never expire', () {
+      final task = buildTask(
+        laneId: 'lane-todo',
+        laneEnteredAt: DateTime.now().subtract(const Duration(days: 90)),
+      );
+
+      expect(isTaskAutoExpired(task, workspace()), isFalse);
+      expect(isTaskArchivedOrExpired(task, workspace()), isFalse);
+    });
+
+    test('the archived flag always wins over the lane clock', () {
+      final task = buildTask(
+        laneId: 'lane-todo',
+        isArchived: true,
+        laneEnteredAt: DateTime.now(),
+      );
+
+      expect(isTaskArchivedOrExpired(task, workspace()), isTrue);
     });
   });
 }
