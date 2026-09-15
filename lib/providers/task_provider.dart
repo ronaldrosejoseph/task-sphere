@@ -449,7 +449,10 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
     TaskItem? moved;
     state = state.map((task) {
       if (task.id == taskId) {
-        moved = task.copyWith(laneId: newLaneId);
+        // Entering a lane (re)starts the auto-expiry clock.
+        moved = task.laneId == newLaneId
+            ? task
+            : task.copyWith(laneId: newLaneId, laneEnteredAt: DateTime.now());
         return moved!;
       }
       return task;
@@ -489,10 +492,17 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
   /// changed the ticket first (the conflict notice explains, and the caller
   /// must skip side effects such as activity logs).
   Future<bool> updateTask(TaskItem updatedTask) async {
+    // An edit that changes the lane (e.g. the detail modal's lane picker)
+    // (re)starts the auto-expiry clock, same as a board drag.
+    final current = state.firstWhere((t) => t.id == updatedTask.id,
+        orElse: () => updatedTask);
+    final toSave = current.laneId == updatedTask.laneId
+        ? updatedTask
+        : updatedTask.copyWith(laneEnteredAt: DateTime.now());
     _mutationCount += 1;
-    state = state.map((t) => t.id == updatedTask.id ? updatedTask : t).toList();
+    state = state.map((t) => t.id == toSave.id ? toSave : t).toList();
     if (_repository.isPersistent) {
-      return _persistUpdate(updatedTask);
+      return _persistUpdate(toSave);
     }
     return true;
   }
@@ -568,9 +578,7 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
   void restoreTask(TaskItem task) {
     final wsState = ref.read(activeWorkspaceProvider);
     final ws = wsState.activeWorkspace;
-    final isExpired = ws.autoExpiryLaneIds.contains(task.laneId) &&
-        DateTime.now().difference(task.createdAt).inDays >=
-            ws.autoArchiveDays;
+    final isExpired = isTaskAutoExpired(task, ws);
 
     String? newLaneId;
     if (isExpired) {
@@ -590,7 +598,11 @@ class TaskNotifier extends Notifier<List<TaskItem>> {
       if (t.id != task.id) return t;
       updatedTask = newLaneId == null
           ? t.copyWith(isArchived: false)
-          : t.copyWith(isArchived: false, laneId: newLaneId);
+          : t.copyWith(
+              isArchived: false,
+              laneId: newLaneId,
+              laneEnteredAt: DateTime.now(),
+            );
       return updatedTask!;
     }).toList();
     if (_repository.isPersistent && updatedTask != null) {

@@ -51,8 +51,17 @@ int compareTasksForBoard(TaskItem a, TaskItem b) {
 bool isTaskArchivedOrExpired(TaskItem task, Workspace workspace,
     {DateTime? now}) {
   if (task.isArchived) return true;
+  return isTaskAutoExpired(task, workspace, now: now);
+}
+
+/// Whether [task] has sat in one of the workspace's auto-expiry lanes past
+/// the auto-archive day limit. The clock starts when the task last entered
+/// its lane ([TaskItem.laneEnteredAt]); rows saved before the lane-entry
+/// stamp existed fall back to their creation time until they next move.
+bool isTaskAutoExpired(TaskItem task, Workspace workspace, {DateTime? now}) {
   if (!workspace.autoExpiryLaneIds.contains(task.laneId)) return false;
-  return (now ?? DateTime.now()).difference(task.createdAt).inDays >=
+  final enteredAt = task.laneEnteredAt ?? task.createdAt;
+  return (now ?? DateTime.now()).difference(enteredAt).inDays >=
       workspace.autoArchiveDays;
 }
 
@@ -74,6 +83,11 @@ class TaskItem {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// When the task last entered its current lane — the clock the auto-expiry
+  /// lanes count from. Null for rows saved before the stamp existed (the
+  /// expiry rule then falls back to [createdAt]).
+  final DateTime? laneEnteredAt;
+
   TaskItem({
     required this.id,
     required this.workspaceId,
@@ -91,6 +105,7 @@ class TaskItem {
     this.createdBy,
     DateTime? createdAt,
     DateTime? updatedAt,
+    this.laneEnteredAt,
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
@@ -117,6 +132,7 @@ class TaskItem {
       'created_by': createdBy,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+      'lane_entered_at': laneEnteredAt?.toIso8601String(),
     };
   }
 
@@ -153,6 +169,9 @@ class TaskItem {
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'] as String)
           : DateTime.now(),
+      laneEnteredAt: json['lane_entered_at'] != null
+          ? DateTime.parse(json['lane_entered_at'] as String)
+          : null,
     );
   }
 
@@ -176,6 +195,7 @@ class TaskItem {
     List<String>? attachmentPaths,
     bool? isArchived,
     List<Subtask>? subtasks,
+    DateTime? laneEnteredAt,
   }) {
     return TaskItem(
       id: id,
@@ -196,6 +216,7 @@ class TaskItem {
       createdBy: createdBy,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      laneEnteredAt: laneEnteredAt ?? this.laneEnteredAt,
     );
   }
 }

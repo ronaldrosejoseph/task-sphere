@@ -635,6 +635,88 @@ void main() {
       expect(repo.updated.length, 1);
     });
 
+    test('moving a task into an expiry lane restarts its expiry clock', () async {
+      final ws = Workspace(
+        id: 'ws-1',
+        name: 'W',
+        adminId: 'a',
+        autoArchiveDays: 14,
+        autoExpiryLaneIds: const ['lane-2'],
+      );
+      final repo = FakeTaskRepository()
+        ..stored.add(TaskItem(
+          id: 't-1',
+          workspaceId: 'ws-1',
+          laneId: 'lane-1',
+          title: 'Old task',
+          createdAt: DateTime.now().subtract(const Duration(days: 30)),
+        ));
+      final container = _makeContainer(
+        workspaceRepo: FakeWorkspaceRepository(),
+        taskRepo: repo,
+        workspace: ws,
+        lanes: [
+          KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do', orderIndex: 0),
+          KanbanLane(id: 'lane-2', workspaceId: 'ws-1', title: 'Done', orderIndex: 1),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(tasksProvider);
+      await _settle();
+
+      container.read(tasksProvider.notifier).moveTaskLane('t-1', 'lane-2');
+      await _settle();
+
+      // The 30-day-old ticket just arrived in Done, so its expiry only
+      // starts now — it must not hide/archive immediately.
+      final moved = container.read(tasksProvider).single;
+      expect(moved.laneId, 'lane-2');
+      expect(moved.laneEnteredAt, isNotNull);
+      expect(isTaskAutoExpired(moved, ws), isFalse);
+      expect(repo.stored.single.laneEnteredAt, isNotNull);
+    });
+
+    test('restoring a task that just entered an expiry lane keeps it in place', () async {
+      final ws = Workspace(
+        id: 'ws-1',
+        name: 'W',
+        adminId: 'a',
+        autoArchiveDays: 14,
+        autoExpiryLaneIds: const ['lane-2'],
+      );
+      final repo = FakeTaskRepository()
+        ..stored.add(TaskItem(
+          id: 't-1',
+          workspaceId: 'ws-1',
+          laneId: 'lane-2',
+          title: 'Archived task',
+          isArchived: true,
+          createdAt: DateTime.now().subtract(const Duration(days: 30)),
+          laneEnteredAt: DateTime.now().subtract(const Duration(days: 2)),
+        ));
+      final container = _makeContainer(
+        workspaceRepo: FakeWorkspaceRepository(),
+        taskRepo: repo,
+        workspace: ws,
+        lanes: [
+          KanbanLane(id: 'lane-1', workspaceId: 'ws-1', title: 'To Do', orderIndex: 0),
+          KanbanLane(id: 'lane-2', workspaceId: 'ws-1', title: 'Done', orderIndex: 1),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(tasksProvider);
+      await _settle();
+
+      container.read(tasksProvider.notifier).restoreTask(container.read(tasksProvider).single);
+      await _settle();
+
+      // The lane clock says this task only recently arrived, so restoring
+      // just unflags it — no need to move it out of Done.
+      final restored = container.read(tasksProvider).single;
+      expect(restored.isArchived, isFalse);
+      expect(restored.laneId, 'lane-2');
+    });
+
     test('addTask writes to the repository', () async {
       final repo = FakeTaskRepository();
       final container = _makeContainer(workspaceRepo: FakeWorkspaceRepository(), taskRepo: repo);

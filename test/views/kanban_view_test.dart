@@ -410,12 +410,14 @@ void main() {
           autoExpiryLaneIds: autoExpiryLaneIds ?? const [],
         );
 
-    TaskItem oldTask(String laneId, {String? title}) => TaskItem(
+    TaskItem oldTask(String laneId, {String? title, DateTime? laneEnteredAt}) =>
+        TaskItem(
           id: 't-$laneId',
           workspaceId: 'ws-custom',
           laneId: laneId,
           title: title ?? 'Old completed task',
           createdAt: DateTime.now().subtract(const Duration(days: 30)),
+          laneEnteredAt: laneEnteredAt,
         );
 
     Future<void> pumpCustomBoard(
@@ -489,6 +491,31 @@ void main() {
       );
 
       expect(find.text('Old done task'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('an old task that just entered an expiry lane stays visible',
+        (tester) async {
+      // Regression: the expiry clock used to start at creation, so moving a
+      // month-old ticket into Done made it vanish instantly. It must only
+      // age out after sitting in the lane for autoArchiveDays.
+      await pumpCustomBoard(
+        tester,
+        workspace: ws(autoExpiryLaneIds: ['lane-f']),
+        lanes: [
+          KanbanLane(id: 'lane-o', workspaceId: 'ws-custom', title: 'Open'),
+          KanbanLane(id: 'lane-f', workspaceId: 'ws-custom', title: 'Finished'),
+        ],
+        tasks: [
+          oldTask(
+            'lane-f',
+            title: 'Freshly moved task',
+            laneEnteredAt: DateTime.now().subtract(const Duration(days: 1)),
+          ),
+        ],
+      );
+
+      expect(find.text('Freshly moved task'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
